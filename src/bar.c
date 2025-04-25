@@ -22,11 +22,13 @@ static unsigned long     barBgColor;
 static unsigned long     barFgColor;
 static unsigned long     barBorderColor;
 static unsigned long     barActiveWsColor;
+static unsigned long     barTitleBgColor;
 
 static XftFont*          barFont = NULL;
 static XftColor          barActiveTextColor;
 static XftColor          barInactiveTextColor;
 static XftColor          barStatusTextColor;
+static XftColor          barTitleTextColor;
 static XftDraw**         barDraws = NULL;
 
 static Atom              WM_NAME;
@@ -58,11 +60,18 @@ static void              initColors(void) {
     else
         barActiveWsColor = barFgColor;
 
+    if (XAllocNamedColor(display, cmap, BAR_TITLE_BG_COLOR, &color, &color))
+        barTitleBgColor = color.pixel;
+    else
+        barTitleBgColor = barBgColor;
+
     XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), BAR_ACTIVE_TEXT_COLOR, &barActiveTextColor);
 
     XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), BAR_INACTIVE_TEXT_COLOR, &barInactiveTextColor);
 
     XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), BAR_STATUS_TEXT_COLOR, &barStatusTextColor);
+
+    XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), BAR_TITLE_TEXT_COLOR, &barTitleTextColor);
 }
 
 static int initFont(void) {
@@ -223,16 +232,24 @@ void updateBars(void) {
 
         SClient* monFocused = getMonitorFocusedClient(i);
 
+        int      statusWidth = 0;
+        if (statusText[0] != '\0')
+            statusWidth = getTextWidth(statusText) + PADDING * 2;
+
+        int titleBackgroundWidth = monitors[i].width - x - statusWidth;
+
         if (monFocused) {
             char* windowTitle = getClientTitle(monFocused);
-            if (windowTitle && windowTitle[0] != '\0')
-                drawText(i, windowTitle, x + PADDING * 2, 0, &barInactiveTextColor, 0);
+            if (windowTitle && windowTitle[0] != '\0') {
+                XSetForeground(display, DefaultGC(display, DefaultScreen(display)), barTitleBgColor);
+                XFillRectangle(display, barWindows[i], DefaultGC(display, DefaultScreen(display)), x, 0, titleBackgroundWidth, BAR_HEIGHT);
+
+                drawText(i, windowTitle, x + PADDING, 0, &barTitleTextColor, 0);
+            }
         }
 
-        if (statusText[0] != '\0') {
-            int statusWidth = getTextWidth(statusText);
-            drawText(i, statusText, monitors[i].width - PADDING - statusWidth, 0, &barStatusTextColor, 0);
-        }
+        if (statusText[0] != '\0')
+            drawText(i, statusText, monitors[i].width - PADDING - getTextWidth(statusText), 0, &barStatusTextColor, 0);
     }
 
     raiseBars();
