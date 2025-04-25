@@ -216,18 +216,27 @@ void updateBars(void) {
 
         int x = PADDING;
 
+        int maxTextWidth = 0;
         for (int w = 0; w < WORKSPACE_COUNT; w++) {
-            int textW      = getTextWidth(workspaceNames[w]) + PADDING * 2;
+            int textWidth = getTextWidth(workspaceNames[w]);
+            if (textWidth > maxTextWidth)
+                maxTextWidth = textWidth;
+        }
+
+        int wsWidth = maxTextWidth + (PADDING * 4);
+
+        for (int w = 0; w < WORKSPACE_COUNT; w++) {
             int isSelected = (monitors[i].currentWorkspace == w);
 
             if (isSelected) {
                 XSetForeground(display, DefaultGC(display, DefaultScreen(display)), barActiveWsColor);
-                XFillRectangle(display, barWindows[i], DefaultGC(display, DefaultScreen(display)), x, 0, textW, BAR_HEIGHT);
+                XFillRectangle(display, barWindows[i], DefaultGC(display, DefaultScreen(display)), x, 0, wsWidth, BAR_HEIGHT);
             }
 
-            drawText(i, workspaceNames[w], x + PADDING, 0, isSelected ? &barActiveTextColor : &barInactiveTextColor, 0);
+            int centerX = x + (wsWidth / 2);
+            drawText(i, workspaceNames[w], centerX, 0, isSelected ? &barActiveTextColor : &barInactiveTextColor, 1);
 
-            x += textW;
+            x += wsWidth;
         }
 
         SClient* monFocused = getMonitorFocusedClient(i);
@@ -298,10 +307,17 @@ void handleBarClick(XEvent* event) {
         if (ev->window == barWindows[i]) {
             int x = PADDING;
 
+            int maxTextWidth = 0;
             for (int w = 0; w < WORKSPACE_COUNT; w++) {
-                int textW = getTextWidth(workspaceNames[w]) + PADDING * 2;
+                int textWidth = getTextWidth(workspaceNames[w]);
+                if (textWidth > maxTextWidth)
+                    maxTextWidth = textWidth;
+            }
 
-                if (ev->x >= x && ev->x < x + textW) {
+            int wsWidth = maxTextWidth + (PADDING * 4);
+
+            for (int w = 0; w < WORKSPACE_COUNT; w++) {
+                if (ev->x >= x && ev->x < x + wsWidth) {
                     if (monitors[i].currentWorkspace != w) {
                         monitors[i].currentWorkspace = w;
                         updateClientVisibility();
@@ -323,7 +339,7 @@ void handleBarClick(XEvent* event) {
                     return;
                 }
 
-                x += textW;
+                x += wsWidth;
             }
 
             break;

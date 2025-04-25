@@ -24,7 +24,7 @@ void adjustMasterFactor(const char* arg);
 #define DEFAULT_MASTER_COUNT  1
 
 /* Gap configuration */
-#define INNER_GAP 10
+#define INNER_GAP 15
 #define OUTER_GAP 20
 
 /* Key definitions */
