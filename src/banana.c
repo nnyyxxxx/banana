@@ -1076,36 +1076,49 @@ void tileClients(SMonitor* monitor) {
         }
     }
 
-    int masterCount  = MIN(monitor->masterCount, visibleCount);
-    int masterHeight = availableHeight;
+    int masterCount = MIN(monitor->masterCount, visibleCount);
+    int stackCount  = visibleCount - masterCount;
 
+    int masterHeight = 0;
     if (masterCount > 0)
         masterHeight = availableHeight / masterCount;
 
-    int stackCount  = visibleCount - masterCount;
-    int stackHeight = availableHeight;
-
+    int stackHeight = 0;
     if (stackCount > 0)
         stackHeight = availableHeight / stackCount;
+
+    int masterRemainder = availableHeight % masterCount;
+    int stackRemainder  = availableHeight % stackCount;
 
     client            = clients;
     int currentMaster = 0;
     int currentStack  = 0;
+    int masterY       = y;
+    int stackY        = y;
 
     while (client) {
         if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace && !client->isFloating) {
-
             if (currentMaster < masterCount) {
+                int heightAdjustment = (currentMaster < masterRemainder) ? 1 : 0;
+                int currentHeight    = masterHeight + heightAdjustment;
+
                 client->x      = x;
-                client->y      = y + currentMaster * masterHeight;
+                client->y      = masterY;
                 client->width  = masterArea - 2 * BORDER_WIDTH;
-                client->height = masterHeight - 2 * BORDER_WIDTH;
+                client->height = currentHeight - 2 * BORDER_WIDTH;
+
+                masterY += currentHeight;
                 currentMaster++;
             } else {
+                int heightAdjustment = (currentStack < stackRemainder) ? 1 : 0;
+                int currentHeight    = stackHeight + heightAdjustment;
+
                 client->x      = x + masterArea;
-                client->y      = y + currentStack * stackHeight;
+                client->y      = stackY;
                 client->width  = stackArea - 2 * BORDER_WIDTH;
-                client->height = stackHeight - 2 * BORDER_WIDTH;
+                client->height = currentHeight - 2 * BORDER_WIDTH;
+
+                stackY += currentHeight;
                 currentStack++;
             }
 
