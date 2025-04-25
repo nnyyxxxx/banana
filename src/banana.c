@@ -310,6 +310,7 @@ void handleMotionNotify(XEvent* event) {
             XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
             focused = NULL;
             updateBorders();
+            updateBars();
         }
     }
 }
@@ -887,6 +888,7 @@ SClient* focusWindowUnderCursor(SMonitor* monitor) {
     focused = NULL;
     XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
     updateBorders();
+    updateBars();
     return NULL;
 }
 
@@ -907,9 +909,10 @@ void switchToWorkspace(const char* arg) {
 
     updateClientVisibility();
 
-    focusWindowUnderCursor(currentMon);
+    SClient* newFocused = focusWindowUnderCursor(currentMon);
 
-    updateBars();
+    if (!newFocused)
+        updateBars();
 }
 
 void moveClientToWorkspace(const char* arg) {

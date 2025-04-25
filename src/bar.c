@@ -178,13 +178,6 @@ static SClient* getMonitorFocusedClient(int monitor) {
     if (focused && focused->monitor == monitor)
         return focused;
 
-    SClient* client = clients;
-    while (client) {
-        if (client->monitor == monitor && client->workspace == monitors[monitor].currentWorkspace)
-            return client;
-        client = client->next;
-    }
-
     return NULL;
 }
 
@@ -230,9 +223,11 @@ void updateBars(void) {
 
         SClient* monFocused = getMonitorFocusedClient(i);
 
-        char*    windowTitle = getClientTitle(monFocused);
-        if (windowTitle && windowTitle[0] != '\0')
-            drawText(i, windowTitle, x + PADDING * 2, 0, &barInactiveTextColor, 0);
+        if (monFocused) {
+            char* windowTitle = getClientTitle(monFocused);
+            if (windowTitle && windowTitle[0] != '\0')
+                drawText(i, windowTitle, x + PADDING * 2, 0, &barInactiveTextColor, 0);
+        }
 
         if (statusText[0] != '\0') {
             int statusWidth = getTextWidth(statusText);
