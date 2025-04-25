@@ -16,6 +16,8 @@
 #include "config.h"
 #include "bar.h"
 
+#define MAX_CLIENTS 64
+
 Display*        display;
 Window          root;
 SClient*        clients     = NULL;
@@ -33,6 +35,17 @@ int             currentWorkspace = 0;
 
 Atom            WM_PROTOCOLS;
 Atom            WM_DELETE_WINDOW;
+
+Atom            NET_SUPPORTED;
+Atom            NET_WM_NAME;
+Atom            NET_SUPPORTING_WM_CHECK;
+Atom            NET_CLIENT_LIST;
+Atom            NET_NUMBER_OF_DESKTOPS;
+Atom            NET_CURRENT_DESKTOP;
+Atom            NET_DESKTOP_NAMES;
+Atom            NET_ACTIVE_WINDOW;
+Atom            UTF8_STRING;
+Window          wmcheckwin;
 
 int             xerrorHandler(Display* dpy, XErrorEvent* ee) {
     if (ee->error_code == BadWindow || (ee->request_code == X_SetInputFocus && ee->error_code == BadMatch) ||
@@ -86,6 +99,49 @@ void scanExistingWindows() {
     }
 }
 
+void setupEWMH() {
+    NET_SUPPORTED           = XInternAtom(display, "_NET_SUPPORTED", False);
+    NET_WM_NAME             = XInternAtom(display, "_NET_WM_NAME", False);
+    NET_SUPPORTING_WM_CHECK = XInternAtom(display, "_NET_SUPPORTING_WM_CHECK", False);
+    NET_CLIENT_LIST         = XInternAtom(display, "_NET_CLIENT_LIST", False);
+    NET_NUMBER_OF_DESKTOPS  = XInternAtom(display, "_NET_NUMBER_OF_DESKTOPS", False);
+    NET_CURRENT_DESKTOP     = XInternAtom(display, "_NET_CURRENT_DESKTOP", False);
+    NET_DESKTOP_NAMES       = XInternAtom(display, "_NET_DESKTOP_NAMES", False);
+    NET_ACTIVE_WINDOW       = XInternAtom(display, "_NET_ACTIVE_WINDOW", False);
+    UTF8_STRING             = XInternAtom(display, "UTF8_STRING", False);
+
+    wmcheckwin = XCreateSimpleWindow(display, root, 0, 0, 1, 1, 0, 0, 0);
+    XChangeProperty(display, root, NET_SUPPORTING_WM_CHECK, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&wmcheckwin, 1);
+    XChangeProperty(display, wmcheckwin, NET_SUPPORTING_WM_CHECK, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&wmcheckwin, 1);
+    XChangeProperty(display, wmcheckwin, NET_WM_NAME, UTF8_STRING, 8, PropModeReplace, (unsigned char*)"banana", 6);
+    XChangeProperty(display, root, NET_WM_NAME, UTF8_STRING, 8, PropModeReplace, (unsigned char*)"banana", 6);
+
+    Atom supported[] = {NET_SUPPORTED, NET_WM_NAME, NET_SUPPORTING_WM_CHECK, NET_CLIENT_LIST, NET_NUMBER_OF_DESKTOPS, NET_CURRENT_DESKTOP, NET_DESKTOP_NAMES, NET_ACTIVE_WINDOW};
+    XChangeProperty(display, root, NET_SUPPORTED, XA_ATOM, 32, PropModeReplace, (unsigned char*)supported, sizeof(supported) / sizeof(Atom));
+
+    long numDesktops = WORKSPACE_COUNT;
+    XChangeProperty(display, root, NET_NUMBER_OF_DESKTOPS, XA_CARDINAL, 32, PropModeReplace, (unsigned char*)&numDesktops, 1);
+
+    long currentDesktop = currentWorkspace;
+    XChangeProperty(display, root, NET_CURRENT_DESKTOP, XA_CARDINAL, 32, PropModeReplace, (unsigned char*)&currentDesktop, 1);
+
+    char workspaceNames[WORKSPACE_COUNT * 16] = {0};
+    int  offset                               = 0;
+
+    for (int i = 0; i < WORKSPACE_COUNT; i++) {
+        char name[16];
+        snprintf(name, sizeof(name), "Workspace %d", i + 1);
+
+        int nameLen = strlen(name) + 1;
+        memcpy(workspaceNames + offset, name, nameLen);
+        offset += nameLen;
+    }
+
+    XChangeProperty(display, root, NET_DESKTOP_NAMES, UTF8_STRING, 8, PropModeReplace, (unsigned char*)workspaceNames, offset);
+
+    updateClientList();
+}
+
 void setup() {
     display = XOpenDisplay(NULL);
     if (!display) {
@@ -101,15 +157,7 @@ void setup() {
     WM_PROTOCOLS     = XInternAtom(display, "WM_PROTOCOLS", False);
     WM_DELETE_WINDOW = XInternAtom(display, "WM_DELETE_WINDOW", False);
 
-    Atom   netWmName            = XInternAtom(display, "_NET_WM_NAME", False);
-    Atom   netSupportingWmCheck = XInternAtom(display, "_NET_SUPPORTING_WM_CHECK", False);
-    Atom   utf8String           = XInternAtom(display, "UTF8_STRING", False);
-
-    Window wmcheckwin = XCreateSimpleWindow(display, root, 0, 0, 1, 1, 0, 0, 0);
-    XChangeProperty(display, root, netSupportingWmCheck, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&wmcheckwin, 1);
-    XChangeProperty(display, wmcheckwin, netSupportingWmCheck, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&wmcheckwin, 1);
-    XChangeProperty(display, wmcheckwin, netWmName, utf8String, 8, PropModeReplace, (unsigned char*)"banana", 6);
-    XChangeProperty(display, root, netWmName, utf8String, 8, PropModeReplace, (unsigned char*)"banana", 6);
+    setupEWMH();
 
     normalCursor = XCreateFontCursor(display, XC_left_ptr);
     moveCursor   = XCreateFontCursor(display, XC_fleur);
@@ -182,6 +230,8 @@ void cleanup() {
     }
 
     free(monitors);
+
+    XDestroyWindow(display, wmcheckwin);
 
     XFreeCursor(display, normalCursor);
     XFreeCursor(display, moveCursor);
@@ -627,6 +677,8 @@ void focusClient(SClient* client) {
 
     XSetInputFocus(display, client->window, RevertToPointerRoot, CurrentTime);
 
+    XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&client->window, 1);
+
     updateBorders();
 
     restackFloatingWindows();
@@ -756,6 +808,8 @@ void manageClient(Window window) {
     restackFloatingWindows();
 
     updateBars();
+
+    updateClientList();
 }
 
 void unmanageClient(Window window) {
@@ -810,6 +864,8 @@ void unmanageClient(Window window) {
 
     arrangeClients(monitor);
     updateBars();
+
+    updateClientList();
 }
 
 void configureClient(SClient* client) {
@@ -1029,6 +1085,9 @@ void switchToWorkspace(const char* arg) {
     monitor->currentWorkspace = workspace;
     updateClientVisibility();
     updateBars();
+
+    long currentDesktop = workspace;
+    XChangeProperty(display, root, NET_CURRENT_DESKTOP, XA_CARDINAL, 32, PropModeReplace, (unsigned char*)&currentDesktop, 1);
 
     arrangeClients(monitor);
 
@@ -1470,10 +1529,25 @@ void swapClients(SClient* a, SClient* b) {
         b->next = a;
 }
 
+void updateClientList() {
+    Window   windowList[MAX_CLIENTS];
+    int      count  = 0;
+    SClient* client = clients;
+
+    while (client && count < MAX_CLIENTS) {
+        windowList[count++] = client->window;
+        client              = client->next;
+    }
+
+    XChangeProperty(display, root, NET_CLIENT_LIST, XA_WINDOW, 32, PropModeReplace, (unsigned char*)windowList, count);
+}
+
 int main() {
     signal(SIGCHLD, SIG_IGN);
 
     setup();
+
+    updateClientList();
 
     run();
 

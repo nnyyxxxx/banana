@@ -103,6 +103,7 @@ void                   updateBorders();
 void                   moveWindow(SClient* client, int x, int y);
 void                   resizeWindow(SClient* client, int width, int height);
 void                   updateClientVisibility();
+void                   updateClientList();
 void                   restackFloatingWindows();
 void                   warpPointerToClientCenter(SClient* client);
 SClient*               findVisibleClientInWorkspace(int monitor, int workspace);
