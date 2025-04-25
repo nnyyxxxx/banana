@@ -191,10 +191,8 @@ void handleKeyPress(XEvent* event) {
 }
 
 void handleButtonPress(XEvent* event) {
-    XButtonEvent* ev            = &event->xbutton;
-    Window        clickedWindow = ev->window;
-
-    fprintf(stderr, "ButtonPress: window=0x%lx, button=%d, state=0x%x\n", clickedWindow, ev->button, ev->state);
+    XButtonPressedEvent* ev            = &event->xbutton;
+    Window               clickedWindow = ev->window;
 
     for (int i = 0; i < numMonitors; i++) {
         if (barWindows && barWindows[i] == clickedWindow) {
@@ -203,43 +201,26 @@ void handleButtonPress(XEvent* event) {
         }
     }
 
-    if (clickedWindow == root) {
-        Window       root_return, child_return;
-        int          root_x, root_y, win_x, win_y;
-        unsigned int mask_return;
+    SClient* client = findClient(ev->window);
+    if (!client || (ev->state & MODKEY) == 0)
+        return;
 
-        if (XQueryPointer(display, root, &root_return, &child_return, &root_x, &root_y, &win_x, &win_y, &mask_return) && child_return != None) {
+    if (!client->isFloating)
+        return;
 
-            clickedWindow = child_return;
-            fprintf(stderr, "  Found child: 0x%lx\n", clickedWindow);
-        }
+    if (ev->button == Button1) {
+        windowMovement.client = client;
+        windowMovement.x      = ev->x_root;
+        windowMovement.y      = ev->y_root;
+        windowMovement.active = 1;
+        XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, moveCursor, CurrentTime);
+    } else if (ev->button == Button3) {
+        windowResize.client = client;
+        windowResize.x      = ev->x_root;
+        windowResize.y      = ev->y_root;
+        windowResize.active = 1;
+        XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, resizeCursor, CurrentTime);
     }
-
-    SClient* client = findClient(clickedWindow);
-    fprintf(stderr, "  Client found: %s\n", client ? "yes" : "no");
-
-    if (client) {
-        if (ev->button == Button1 && ev->state == MODKEY) {
-            fprintf(stderr, "  Starting window movement with mod+button1\n");
-
-            windowMovement.client = client;
-            windowMovement.x      = ev->x_root;
-            windowMovement.y      = ev->y_root;
-            windowMovement.active = 1;
-
-            XChangeActivePointerGrab(display, ButtonReleaseMask | ButtonMotionMask, moveCursor, CurrentTime);
-        } else if (ev->button == Button3 && ev->state == MODKEY) {
-            fprintf(stderr, "  Starting window resize with mod+button3\n");
-
-            windowResize.client = client;
-            windowResize.x      = ev->x_root;
-            windowResize.y      = ev->y_root;
-            windowResize.active = 1;
-
-            XChangeActivePointerGrab(display, ButtonReleaseMask | ButtonMotionMask, resizeCursor, CurrentTime);
-        }
-    } else if (ev->button == Button1 && clickedWindow != root)
-        manageClient(clickedWindow);
 }
 
 void handleButtonRelease(XEvent* event) {
@@ -319,6 +300,9 @@ void moveWindow(SClient* client, int x, int y) {
     if (!client)
         return;
 
+    if (!client->isFloating)
+        return;
+
     client->x = x;
     client->y = y;
 
@@ -331,14 +315,18 @@ void moveWindow(SClient* client, int x, int y) {
     monitor         = monitorAtPoint(centerX, centerY);
     client->monitor = monitor->num;
 
-    XRaiseWindow(display, client->window);
     XMoveWindow(display, client->window, client->x, client->y);
+
+    XRaiseWindow(display, client->window);
 
     raiseBars();
 }
 
 void resizeWindow(SClient* client, int width, int height) {
     if (!client)
+        return;
+
+    if (!client->isFloating)
         return;
 
     if (width < 20)
@@ -349,8 +337,9 @@ void resizeWindow(SClient* client, int width, int height) {
     client->width  = width;
     client->height = height;
 
-    XRaiseWindow(display, client->window);
     XResizeWindow(display, client->window, client->width, client->height);
+
+    XRaiseWindow(display, client->window);
 
     configureClient(client);
 
@@ -539,6 +528,8 @@ void focusClient(SClient* client) {
 
     updateBorders();
 
+    restackFloatingWindows();
+
     updateBars();
 }
 
@@ -586,6 +577,8 @@ void manageClient(Window window) {
     client->monitor   = monitorNum;
     client->workspace = monitors[monitorNum].currentWorkspace;
     SMonitor* monitor = &monitors[client->monitor];
+
+    client->isFloating = 0;
 
     client->window = window;
 
@@ -647,6 +640,10 @@ void manageClient(Window window) {
     } else
         fprintf(stderr, "Window not yet viewable (state: %d), deferring focus\n", wa.map_state);
 
+    arrangeClients(monitor);
+
+    restackFloatingWindows();
+
     updateBars();
 }
 
@@ -699,6 +696,8 @@ void unmanageClient(Window window) {
         updateFocus();
     }
 
+    SMonitor* monitor = &monitors[client->monitor];
+
     if (prev)
         prev->next = client->next;
     else
@@ -706,6 +705,7 @@ void unmanageClient(Window window) {
 
     free(client);
 
+    arrangeClients(monitor);
     updateBars();
 }
 
@@ -808,11 +808,14 @@ void updateMonitors() {
             monitors = malloc(sizeof(SMonitor) * numMonitors);
             if (monitors) {
                 for (int i = 0; i < numMonitors; i++) {
-                    monitors[i].x      = info[i].x_org;
-                    monitors[i].y      = info[i].y_org;
-                    monitors[i].width  = info[i].width;
-                    monitors[i].height = info[i].height;
-                    monitors[i].num    = i;
+                    monitors[i].x             = info[i].x_org;
+                    monitors[i].y             = info[i].y_org;
+                    monitors[i].width         = info[i].width;
+                    monitors[i].height        = info[i].height;
+                    monitors[i].num           = i;
+                    monitors[i].currentLayout = LAYOUT_TILED;
+                    monitors[i].masterFactor  = DEFAULT_MASTER_FACTOR;
+                    monitors[i].masterCount   = DEFAULT_MASTER_COUNT;
 
                     if (oldWorkspaces && i < oldNumMonitors)
                         monitors[i].currentWorkspace = oldWorkspaces[i];
@@ -833,6 +836,9 @@ void updateMonitors() {
             monitors[0].width            = DisplayWidth(display, DefaultScreen(display));
             monitors[0].height           = DisplayHeight(display, DefaultScreen(display));
             monitors[0].num              = 0;
+            monitors[0].currentLayout    = LAYOUT_TILED;
+            monitors[0].masterFactor     = DEFAULT_MASTER_FACTOR;
+            monitors[0].masterCount      = DEFAULT_MASTER_COUNT;
             monitors[0].currentWorkspace = oldWorkspaces ? oldWorkspaces[0] : 0;
         }
     }
@@ -893,26 +899,19 @@ SClient* focusWindowUnderCursor(SMonitor* monitor) {
 }
 
 void switchToWorkspace(const char* arg) {
-    if (!arg)
-        return;
-
     int workspace = atoi(arg);
     if (workspace < 0 || workspace >= WORKSPACE_COUNT)
         return;
 
-    SMonitor* currentMon = getCurrentMonitor();
-
-    if (workspace == currentMon->currentWorkspace)
+    SMonitor* monitor = getCurrentMonitor();
+    if (monitor->currentWorkspace == workspace)
         return;
 
-    currentMon->currentWorkspace = workspace;
-
+    monitor->currentWorkspace = workspace;
     updateClientVisibility();
+    updateBars();
 
-    SClient* newFocused = focusWindowUnderCursor(currentMon);
-
-    if (!newFocused)
-        updateBars();
+    arrangeClients(monitor);
 }
 
 void moveClientToWorkspace(const char* arg) {
@@ -949,6 +948,8 @@ void updateClientVisibility() {
             XUnmapWindow(display, client->window);
         client = client->next;
     }
+
+    restackFloatingWindows();
 }
 
 SClient* findVisibleClientInWorkspace(int monitor, int workspace) {
@@ -972,6 +973,134 @@ SMonitor* getCurrentMonitor() {
         return monitorAtPoint(x, y);
 
     return &monitors[0];
+}
+
+void toggleFloating(const char* arg) {
+    (void)arg;
+
+    if (!focused)
+        return;
+
+    focused->isFloating = !focused->isFloating;
+
+    if (focused->isFloating) {
+        SMonitor* monitor = &monitors[focused->monitor];
+
+        if (monitor->currentLayout == LAYOUT_TILED) {
+            int newWidth  = MAX(400, focused->width);
+            int newHeight = MAX(300, focused->height);
+
+            focused->x      = monitor->x + (monitor->width - newWidth) / 2;
+            focused->y      = monitor->y + (monitor->height - newHeight) / 2;
+            focused->width  = newWidth;
+            focused->height = newHeight;
+
+            XMoveResizeWindow(display, focused->window, focused->x, focused->y, focused->width, focused->height);
+        }
+    }
+
+    arrangeClients(&monitors[focused->monitor]);
+    updateBorders();
+
+    restackFloatingWindows();
+}
+
+void tileClients(SMonitor* monitor) {
+    if (!monitor)
+        return;
+
+    int clientCount = 0;
+    int masterCount = 0;
+
+    for (SClient* c = clients; c; c = c->next) {
+        if (c->monitor == monitor->num && c->workspace == monitor->currentWorkspace && !c->isFloating)
+            clientCount++;
+    }
+
+    if (clientCount == 0)
+        return;
+
+    masterCount = MIN(monitor->masterCount, clientCount);
+
+    int masterWidth, stackWidth;
+    int masterStartX = monitor->x;
+    int stackStartX;
+    int availableWidth  = monitor->width;
+    int availableHeight = monitor->height - BAR_HEIGHT;
+    int startY          = monitor->y + BAR_HEIGHT;
+
+    if (clientCount <= masterCount) {
+        masterWidth = availableWidth;
+        stackWidth  = 0;
+    } else {
+        masterWidth = (int)(availableWidth * monitor->masterFactor);
+        stackWidth  = availableWidth - masterWidth;
+    }
+
+    stackStartX = masterStartX + masterWidth;
+
+    int masterY       = startY;
+    int stackY        = startY;
+    int currentMaster = 0;
+    int currentStack  = 0;
+
+    for (SClient* c = clients; c; c = c->next) {
+        if (c->monitor == monitor->num && c->workspace == monitor->currentWorkspace && !c->isFloating) {
+
+            if (currentMaster < masterCount) {
+                int masterHeight = availableHeight / masterCount;
+                c->x             = masterStartX;
+                c->y             = masterY;
+                c->width         = masterWidth - 2 * BORDER_WIDTH;
+                c->height        = masterHeight - 2 * BORDER_WIDTH;
+                masterY += masterHeight;
+                currentMaster++;
+            } else {
+                int stackCount  = clientCount - masterCount;
+                int stackHeight = availableHeight / stackCount;
+                c->x            = stackStartX;
+                c->y            = stackY;
+                c->width        = stackWidth - 2 * BORDER_WIDTH;
+                c->height       = stackHeight - 2 * BORDER_WIDTH;
+                stackY += stackHeight;
+                currentStack++;
+            }
+
+            XMoveResizeWindow(display, c->window, c->x, c->y, c->width, c->height);
+            configureClient(c);
+        }
+    }
+}
+
+void arrangeClients(SMonitor* monitor) {
+    if (!monitor)
+        return;
+
+    switch (monitor->currentLayout) {
+        case LAYOUT_TILED: tileClients(monitor); break;
+        case LAYOUT_FLOATING: break;
+        default: break;
+    }
+
+    restackFloatingWindows();
+
+    updateBars();
+}
+
+void restackFloatingWindows() {
+    if (focused && focused->isFloating)
+        XRaiseWindow(display, focused->window);
+
+    for (int m = 0; m < numMonitors; m++) {
+        SMonitor* monitor = &monitors[m];
+
+        for (SClient* c = clients; c; c = c->next) {
+            if (c->monitor == monitor->num && c->workspace == monitor->currentWorkspace && c->isFloating)
+                XRaiseWindow(display, c->window);
+        }
+    }
+
+    raiseBars();
 }
 
 int main() {

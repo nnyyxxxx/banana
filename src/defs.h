@@ -9,20 +9,34 @@
 
 #include "config.h"
 
+#define MOUSEMASK (ButtonPressMask | ButtonReleaseMask | ButtonMotionMask)
+#define MAX(A, B) ((A) > (B) ? (A) : (B))
+#define MIN(A, B) ((A) < (B) ? (A) : (B))
+
+typedef enum {
+    LAYOUT_FLOATING,
+    LAYOUT_TILED,
+    LAYOUT_MAX
+} Layout;
+
 typedef struct SClient {
     Window          window;
     int             x, y;
     int             width, height;
     int             monitor;
     int             workspace;
+    int             isFloating;
     struct SClient* next;
 } SClient;
 
 typedef struct SMonitor {
-    int x, y;
-    int width, height;
-    int num;
-    int currentWorkspace;
+    int    x, y;
+    int    width, height;
+    int    num;
+    int    currentWorkspace;
+    Layout currentLayout;
+    float  masterFactor;
+    int    masterCount;
 } SMonitor;
 
 typedef struct {
@@ -60,6 +74,7 @@ void                   killClient(const char* arg);
 void                   quit(const char* arg);
 void                   switchToWorkspace(const char* arg);
 void                   moveClientToWorkspace(const char* arg);
+void                   toggleFloating(const char* arg);
 
 void                   grabKeys();
 void                   updateFocus();
@@ -71,8 +86,12 @@ void                   updateBorders();
 void                   moveWindow(SClient* client, int x, int y);
 void                   resizeWindow(SClient* client, int width, int height);
 void                   updateClientVisibility();
+void                   restackFloatingWindows();
 SClient*               findVisibleClientInWorkspace(int monitor, int workspace);
 SMonitor*              getCurrentMonitor();
+
+void                   tileClients(SMonitor* monitor);
+void                   arrangeClients(SMonitor* monitor);
 
 SClient*               findClient(Window window);
 SClient*               clientAtPoint(int x, int y);

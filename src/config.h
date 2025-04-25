@@ -11,9 +11,14 @@ void killClient(const char* arg);
 void quit(const char* arg);
 void switchToWorkspace(const char* arg);
 void moveClientToWorkspace(const char* arg);
+void toggleFloating(const char* arg);
 
 /* Number of workspaces */
 #define WORKSPACE_COUNT 9
+
+/* Layout configuration */
+#define DEFAULT_MASTER_FACTOR 0.55
+#define DEFAULT_MASTER_COUNT  1
 
 /* Key definitions */
 #define MODKEY Mod1Mask
@@ -55,6 +60,7 @@ static const struct {
     {MODKEY, XK_q, spawnProgram, TERMINAL},
     {MODKEY, XK_c, killClient, NULL},
     {MODKEY, XK_w, quit, NULL},
+    {MODKEY, XK_space, toggleFloating, NULL},
 
     /* Workspace switching */
     {MODKEY, XK_1, switchToWorkspace, "0"},
