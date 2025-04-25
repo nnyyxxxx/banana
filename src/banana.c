@@ -343,12 +343,7 @@ void handleMapRequest(XEvent* event) {
     XMapRequestEvent* ev = &event->xmaprequest;
 
     manageClient(ev->window);
-
     XMapWindow(display, ev->window);
-
-    SClient* client = findClient(ev->window);
-    if (client)
-        configureClient(client);
 
     XSync(display, False);
 }
