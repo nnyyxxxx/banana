@@ -73,9 +73,8 @@ void scanExistingWindows() {
     if (XQueryTree(display, root, &rootReturn, &parentReturn, &children, &numChildren)) {
         for (unsigned int i = 0; i < numChildren; i++) {
             XWindowAttributes wa;
-            if (XGetWindowAttributes(display, children[i], &wa) && !wa.override_redirect && wa.map_state == IsViewable) {
+            if (XGetWindowAttributes(display, children[i], &wa) && !wa.override_redirect && wa.map_state == IsViewable)
                 manageClient(children[i]);
-            }
         }
 
         if (children)
@@ -213,9 +212,8 @@ void handleButtonPress(XEvent* event) {
 
             XChangeActivePointerGrab(display, ButtonReleaseMask | ButtonMotionMask, resizeCursor, CurrentTime);
         }
-    } else if (ev->button == Button1 && clickedWindow != root) {
+    } else if (ev->button == Button1 && clickedWindow != root)
         manageClient(clickedWindow);
-    }
 }
 
 void handleButtonRelease(XEvent* event) {
@@ -608,9 +606,8 @@ SMonitor* monitorAtPoint(int x, int y) {
         return &monitors[0];
 
     for (int i = 0; i < numMonitors; i++) {
-        if (x >= monitors[i].x && x < monitors[i].x + monitors[i].width && y >= monitors[i].y && y < monitors[i].y + monitors[i].height) {
+        if (x >= monitors[i].x && x < monitors[i].x + monitors[i].width && y >= monitors[i].y && y < monitors[i].y + monitors[i].height)
             return &monitors[i];
-        }
     }
 
     return &monitors[0];
