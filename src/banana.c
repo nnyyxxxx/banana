@@ -626,8 +626,15 @@ void manageClient(Window window) {
     if (client->y < monitor->y + BAR_HEIGHT)
         client->y = monitor->y + BAR_HEIGHT;
 
-    client->next = clients;
-    clients      = client;
+    client->next = NULL;
+    if (!clients)
+        clients = client;
+    else {
+        SClient* last = clients;
+        while (last->next)
+            last = last->next;
+        last->next = client;
+    }
 
     XMoveResizeWindow(display, window, client->x, client->y, client->width, client->height);
 
