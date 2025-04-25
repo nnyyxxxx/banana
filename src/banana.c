@@ -317,7 +317,16 @@ void handleMotionNotify(XEvent* event) {
         else if (mfactAdjust.monitor->masterFactors[workspace] > 0.9)
             mfactAdjust.monitor->masterFactors[workspace] = 0.9;
 
-        arrangeClients(mfactAdjust.monitor);
+        tileClients(mfactAdjust.monitor);
+        for (int m = 0; m < numMonitors; m++) {
+            SMonitor* monitor = &monitors[m];
+            if (monitor->num == mfactAdjust.monitor->num) {
+                for (SClient* c = clients; c; c = c->next) {
+                    if (c->monitor == monitor->num && c->workspace == monitor->currentWorkspace && !c->isFloating)
+                        XLowerWindow(display, c->window);
+                }
+            }
+        }
 
         mfactAdjust.x = ev->x_root;
     } else {
@@ -372,8 +381,6 @@ void moveWindow(SClient* client, int x, int y) {
 
     if (windowMovement.active && windowMovement.client == client)
         XRaiseWindow(display, client->window);
-
-    raiseBars();
 }
 
 void resizeWindow(SClient* client, int width, int height) {
@@ -397,8 +404,6 @@ void resizeWindow(SClient* client, int width, int height) {
         XRaiseWindow(display, client->window);
 
     configureClient(client);
-
-    raiseBars();
 }
 
 void handleEnterNotify(XEvent* event) {
@@ -1110,8 +1115,6 @@ void arrangeClients(SMonitor* monitor) {
     }
 
     restackFloatingWindows();
-
-    updateBars();
 }
 
 void restackFloatingWindows() {
@@ -1325,7 +1328,6 @@ void moveWindowInStack(const char* arg) {
         warpPointerToClientCenter(focused);
 
         updateBorders();
-        updateBars();
     }
 }
 
@@ -1378,7 +1380,11 @@ void adjustMasterFactor(const char* arg) {
     else if (monitor->masterFactors[workspace] > 0.9)
         monitor->masterFactors[workspace] = 0.9;
 
-    arrangeClients(monitor);
+    tileClients(monitor);
+    for (SClient* c = clients; c; c = c->next) {
+        if (c->monitor == monitor->num && c->workspace == monitor->currentWorkspace && !c->isFloating)
+            XLowerWindow(display, c->window);
+    }
 }
 
 int main() {
