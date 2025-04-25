@@ -283,8 +283,8 @@ void handleMotionNotify(XEvent* event) {
         int newWidth = windowResize.client->width + dx;
         int newHeight = windowResize.client->height + dy;
 
-        if (newWidth < 100) newWidth = 100;
-        if (newHeight < 100) newHeight = 100;
+        if (newWidth < 20) newWidth = 20;
+        if (newHeight < 20) newHeight = 20;
 
         resizeWindow(windowResize.client, newWidth, newHeight);
 
