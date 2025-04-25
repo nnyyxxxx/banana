@@ -1046,11 +1046,16 @@ void tileClients(SMonitor* monitor) {
     if (!monitor)
         return;
 
-    int      masterArea      = monitor->width * monitor->masterFactor;
-    int      stackArea       = monitor->width - masterArea;
-    int      x               = monitor->x;
-    int      y               = monitor->y + BAR_HEIGHT;
-    int      availableHeight = monitor->height - BAR_HEIGHT;
+    int masterArea = monitor->width * monitor->masterFactor;
+    int stackArea  = monitor->width - masterArea;
+
+    int x               = monitor->x + OUTER_GAP;
+    int y               = monitor->y + BAR_HEIGHT + OUTER_GAP;
+    int availableWidth  = monitor->width - (2 * OUTER_GAP);
+    int availableHeight = monitor->height - BAR_HEIGHT - (2 * OUTER_GAP);
+
+    masterArea = availableWidth * monitor->masterFactor;
+    stackArea  = availableWidth - masterArea;
 
     int      visibleCount = 0;
     SClient* client       = clients;
@@ -1070,7 +1075,7 @@ void tileClients(SMonitor* monitor) {
             if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace && !client->isFloating) {
                 client->x      = x;
                 client->y      = y;
-                client->width  = monitor->width - 2 * BORDER_WIDTH;
+                client->width  = availableWidth - 2 * BORDER_WIDTH;
                 client->height = availableHeight - 2 * BORDER_WIDTH;
 
                 XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
@@ -1100,15 +1105,24 @@ void tileClients(SMonitor* monitor) {
     int masterY       = y;
     int stackY        = y;
 
+    int masterWidth = masterArea - INNER_GAP / 2 - 2 * BORDER_WIDTH;
+    int stackWidth  = stackArea - INNER_GAP / 2 - 2 * BORDER_WIDTH;
+    int stackX      = x + masterArea + INNER_GAP / 2;
+
     while (client) {
         if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace && !client->isFloating) {
             if (currentMaster < masterCount) {
                 int heightAdjustment = (currentMaster < masterRemainder) ? 1 : 0;
                 int currentHeight    = masterHeight + heightAdjustment;
 
+                if (currentMaster > 0) {
+                    masterY += INNER_GAP;
+                    currentHeight -= INNER_GAP;
+                }
+
                 client->x      = x;
                 client->y      = masterY;
-                client->width  = masterArea - 2 * BORDER_WIDTH;
+                client->width  = masterWidth;
                 client->height = currentHeight - 2 * BORDER_WIDTH;
 
                 masterY += currentHeight;
@@ -1117,9 +1131,14 @@ void tileClients(SMonitor* monitor) {
                 int heightAdjustment = (currentStack < stackRemainder) ? 1 : 0;
                 int currentHeight    = stackHeight + heightAdjustment;
 
-                client->x      = x + masterArea;
+                if (currentStack > 0) {
+                    stackY += INNER_GAP;
+                    currentHeight -= INNER_GAP;
+                }
+
+                client->x      = stackX;
                 client->y      = stackY;
-                client->width  = stackArea - 2 * BORDER_WIDTH;
+                client->width  = stackWidth;
                 client->height = currentHeight - 2 * BORDER_WIDTH;
 
                 stackY += currentHeight;

@@ -20,6 +20,10 @@ void toggleFloating(const char* arg);
 #define DEFAULT_MASTER_FACTOR 0.55
 #define DEFAULT_MASTER_COUNT  1
 
+/* Gap configuration */
+#define INNER_GAP 10
+#define OUTER_GAP 20
+
 /* Key definitions */
 #define MODKEY Mod1Mask
 
