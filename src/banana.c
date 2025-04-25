@@ -375,17 +375,16 @@ void handleMotionNotify(XEvent* event) {
         SClient* targetClient = clientAtPoint(ev->x_root, ev->y_root);
 
         if (targetClient && targetClient != windowSwap.client && !targetClient->isFloating && targetClient->monitor == windowSwap.client->monitor &&
-            targetClient->workspace == windowSwap.client->workspace && targetClient != windowSwap.lastTarget) {
+            targetClient->workspace == windowSwap.client->workspace) {
 
             swapClients(windowSwap.client, targetClient);
 
             SMonitor* monitor = &monitors[windowSwap.client->monitor];
             arrangeClients(monitor);
 
+            windowSwap.x          = ev->x_root;
+            windowSwap.y          = ev->y_root;
             windowSwap.lastTarget = targetClient;
-
-            windowSwap.x = ev->x_root;
-            windowSwap.y = ev->y_root;
         }
     } else if (windowResize.active && windowResize.client) {
         int dx = ev->x_root - windowResize.x;
