@@ -319,6 +319,8 @@ void moveWindow(SClient* client, int x, int y) {
 
     XMoveWindow(display, client->window, client->x, client->y);
 
+    configureClient(client);
+
     XRaiseWindow(display, client->window);
 
     raiseBars();
