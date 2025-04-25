@@ -15,33 +15,30 @@
 #include "defs.h"
 #include "config.h"
 
-Display* display;
-Window root;
-SClient* clients = NULL;
-SClient* focused = NULL;
-SMonitor* monitors = NULL;
-int numMonitors = 0;
-Cursor normalCursor;
-Cursor moveCursor;
-Cursor resizeCursor;
+Display*        display;
+Window          root;
+SClient*        clients     = NULL;
+SClient*        focused     = NULL;
+SMonitor*       monitors    = NULL;
+int             numMonitors = 0;
+Cursor          normalCursor;
+Cursor          moveCursor;
+Cursor          resizeCursor;
 SWindowMovement windowMovement = {0, 0, NULL, 0};
-SWindowResize windowResize = {0, 0, NULL, 0};
+SWindowResize   windowResize   = {0, 0, NULL, 0};
 
-Atom WM_PROTOCOLS;
-Atom WM_DELETE_WINDOW;
+Atom            WM_PROTOCOLS;
+Atom            WM_DELETE_WINDOW;
 
-int xerrorHandler(Display* dpy, XErrorEvent* ee) {
-    if (ee->error_code == BadWindow ||
-        (ee->request_code == X_SetInputFocus && ee->error_code == BadMatch) ||
-        (ee->request_code == X_ConfigureWindow && ee->error_code == BadMatch) ||
-        (ee->request_code == X_GetGeometry && ee->error_code == BadDrawable)) {
+int             xerrorHandler(Display* dpy, XErrorEvent* ee) {
+    if (ee->error_code == BadWindow || (ee->request_code == X_SetInputFocus && ee->error_code == BadMatch) ||
+        (ee->request_code == X_ConfigureWindow && ee->error_code == BadMatch) || (ee->request_code == X_GetGeometry && ee->error_code == BadDrawable)) {
         return 0;
     }
 
     char errorText[256];
     XGetErrorText(dpy, ee->error_code, errorText, sizeof(errorText));
-    fprintf(stderr, "banana: X error: %s (0x%x) request %d\n",
-            errorText, ee->error_code, ee->request_code);
+    fprintf(stderr, "banana: X error: %s (0x%x) request %d\n", errorText, ee->error_code, ee->request_code);
     return 0;
 }
 
@@ -63,27 +60,20 @@ void checkOtherWM() {
 }
 
 static void (*eventHandlers[LASTEvent])(XEvent*) = {
-    [KeyPress] = handleKeyPress,
-    [ButtonPress] = handleButtonPress,
-    [ButtonRelease] = handleButtonRelease,
-    [MotionNotify] = handleMotionNotify,
-    [EnterNotify] = handleEnterNotify,
-    [MapRequest] = handleMapRequest,
-    [ConfigureRequest] = handleConfigureRequest,
-    [UnmapNotify] = handleUnmapNotify,
+    [KeyPress] = handleKeyPress,           [ButtonPress] = handleButtonPress, [ButtonRelease] = handleButtonRelease,       [MotionNotify] = handleMotionNotify,
+    [EnterNotify] = handleEnterNotify,     [MapRequest] = handleMapRequest,   [ConfigureRequest] = handleConfigureRequest, [UnmapNotify] = handleUnmapNotify,
     [DestroyNotify] = handleDestroyNotify,
 };
 
 void scanExistingWindows() {
-    Window rootReturn, parentReturn;
-    Window* children;
+    Window       rootReturn, parentReturn;
+    Window*      children;
     unsigned int numChildren;
 
     if (XQueryTree(display, root, &rootReturn, &parentReturn, &children, &numChildren)) {
         for (unsigned int i = 0; i < numChildren; i++) {
             XWindowAttributes wa;
-            if (XGetWindowAttributes(display, children[i], &wa) &&
-                !wa.override_redirect && wa.map_state == IsViewable) {
+            if (XGetWindowAttributes(display, children[i], &wa) && !wa.override_redirect && wa.map_state == IsViewable) {
                 manageClient(children[i]);
             }
         }
@@ -105,20 +95,17 @@ void setup() {
 
     checkOtherWM();
 
-    WM_PROTOCOLS = XInternAtom(display, "WM_PROTOCOLS", False);
+    WM_PROTOCOLS     = XInternAtom(display, "WM_PROTOCOLS", False);
     WM_DELETE_WINDOW = XInternAtom(display, "WM_DELETE_WINDOW", False);
 
     normalCursor = XCreateFontCursor(display, XC_left_ptr);
-    moveCursor = XCreateFontCursor(display, XC_fleur);
+    moveCursor   = XCreateFontCursor(display, XC_fleur);
     resizeCursor = XCreateFontCursor(display, XC_bottom_right_corner);
     XDefineCursor(display, root, normalCursor);
 
     XSetWindowAttributes wa;
-    wa.event_mask = SubstructureRedirectMask | SubstructureNotifyMask |
-                   ButtonPressMask | ButtonReleaseMask |
-                   EnterWindowMask | LeaveWindowMask |
-                   PointerMotionMask | ButtonMotionMask |
-                   StructureNotifyMask | PropertyChangeMask;
+    wa.event_mask = SubstructureRedirectMask | SubstructureNotifyMask | ButtonPressMask | ButtonReleaseMask | EnterWindowMask | LeaveWindowMask | PointerMotionMask |
+                    ButtonMotionMask | StructureNotifyMask | PropertyChangeMask;
     XChangeWindowAttributes(display, root, CWEventMask, &wa);
     XSelectInput(display, root, wa.event_mask);
 
@@ -174,8 +161,8 @@ void cleanup() {
 }
 
 void handleKeyPress(XEvent* event) {
-    XKeyEvent* ev = &event->xkey;
-    KeySym keysym = XLookupKeysym(ev, 0);
+    XKeyEvent* ev     = &event->xkey;
+    KeySym     keysym = XLookupKeysym(ev, 0);
 
     for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
         if (keys[i].keysym == keysym && keys[i].mod == ev->state) {
@@ -186,20 +173,17 @@ void handleKeyPress(XEvent* event) {
 }
 
 void handleButtonPress(XEvent* event) {
-    XButtonEvent* ev = &event->xbutton;
-    Window clickedWindow = ev->window;
+    XButtonEvent* ev            = &event->xbutton;
+    Window        clickedWindow = ev->window;
 
-    fprintf(stderr, "ButtonPress: window=0x%lx, button=%d, state=0x%x\n",
-            clickedWindow, ev->button, ev->state);
+    fprintf(stderr, "ButtonPress: window=0x%lx, button=%d, state=0x%x\n", clickedWindow, ev->button, ev->state);
 
     if (clickedWindow == root) {
-        Window root_return, child_return;
-        int root_x, root_y, win_x, win_y;
+        Window       root_return, child_return;
+        int          root_x, root_y, win_x, win_y;
         unsigned int mask_return;
 
-        if (XQueryPointer(display, root, &root_return, &child_return,
-                        &root_x, &root_y, &win_x, &win_y, &mask_return) &&
-            child_return != None) {
+        if (XQueryPointer(display, root, &root_return, &child_return, &root_x, &root_y, &win_x, &win_y, &mask_return) && child_return != None) {
 
             clickedWindow = child_return;
             fprintf(stderr, "  Found child: 0x%lx\n", clickedWindow);
@@ -214,28 +198,22 @@ void handleButtonPress(XEvent* event) {
             fprintf(stderr, "  Starting window movement with mod+button1\n");
 
             windowMovement.client = client;
-            windowMovement.x = ev->x_root;
-            windowMovement.y = ev->y_root;
+            windowMovement.x      = ev->x_root;
+            windowMovement.y      = ev->y_root;
             windowMovement.active = 1;
 
-            XChangeActivePointerGrab(display,
-                ButtonReleaseMask | ButtonMotionMask,
-                moveCursor, CurrentTime);
-        }
-        else if (ev->button == Button3 && ev->state == MODKEY) {
+            XChangeActivePointerGrab(display, ButtonReleaseMask | ButtonMotionMask, moveCursor, CurrentTime);
+        } else if (ev->button == Button3 && ev->state == MODKEY) {
             fprintf(stderr, "  Starting window resize with mod+button3\n");
 
             windowResize.client = client;
-            windowResize.x = ev->x_root;
-            windowResize.y = ev->y_root;
+            windowResize.x      = ev->x_root;
+            windowResize.y      = ev->y_root;
             windowResize.active = 1;
 
-            XChangeActivePointerGrab(display,
-                ButtonReleaseMask | ButtonMotionMask,
-                resizeCursor, CurrentTime);
+            XChangeActivePointerGrab(display, ButtonReleaseMask | ButtonMotionMask, resizeCursor, CurrentTime);
         }
-    }
-    else if (ev->button == Button1 && clickedWindow != root) {
+    } else if (ev->button == Button1 && clickedWindow != root) {
         manageClient(clickedWindow);
     }
 }
@@ -243,8 +221,7 @@ void handleButtonPress(XEvent* event) {
 void handleButtonRelease(XEvent* event) {
     XButtonEvent* ev = &event->xbutton;
 
-    fprintf(stderr, "ButtonRelease: button=%d, state=0x%x\n",
-            ev->button, ev->state);
+    fprintf(stderr, "ButtonRelease: button=%d, state=0x%x\n", ev->button, ev->state);
 
     if (windowMovement.active && ev->button == Button1) {
         fprintf(stderr, "  Ending window movement\n");
@@ -262,15 +239,14 @@ void handleButtonRelease(XEvent* event) {
 void handleMotionNotify(XEvent* event) {
     XMotionEvent* ev = &event->xmotion;
 
-    while (XCheckTypedWindowEvent(display, ev->window, MotionNotify, event));
+    while (XCheckTypedWindowEvent(display, ev->window, MotionNotify, event))
+        ;
 
     if (windowMovement.active && windowMovement.client) {
         int dx = ev->x_root - windowMovement.x;
         int dy = ev->y_root - windowMovement.y;
 
-        moveWindow(windowMovement.client,
-                  windowMovement.client->x + dx,
-                  windowMovement.client->y + dy);
+        moveWindow(windowMovement.client, windowMovement.client->x + dx, windowMovement.client->y + dy);
 
         windowMovement.x = ev->x_root;
         windowMovement.y = ev->y_root;
@@ -280,11 +256,13 @@ void handleMotionNotify(XEvent* event) {
         int dx = ev->x_root - windowResize.x;
         int dy = ev->y_root - windowResize.y;
 
-        int newWidth = windowResize.client->width + dx;
+        int newWidth  = windowResize.client->width + dx;
         int newHeight = windowResize.client->height + dy;
 
-        if (newWidth < 20) newWidth = 20;
-        if (newHeight < 20) newHeight = 20;
+        if (newWidth < 20)
+            newWidth = 20;
+        if (newHeight < 20)
+            newHeight = 20;
 
         resizeWindow(windowResize.client, newWidth, newHeight);
 
@@ -307,7 +285,7 @@ void resizeWindow(SClient* client, int width, int height) {
     if (!client)
         return;
 
-    client->width = width;
+    client->width  = width;
     client->height = height;
 
     XResizeWindow(display, client->window, client->width, client->height);
@@ -348,27 +326,27 @@ void handleMapRequest(XEvent* event) {
 
 void handleConfigureRequest(XEvent* event) {
     XConfigureRequestEvent* ev = &event->xconfigurerequest;
-    XWindowChanges wc;
-    wc.x = ev->x;
-    wc.y = ev->y;
-    wc.width = ev->width;
-    wc.height = ev->height;
+    XWindowChanges          wc;
+    wc.x            = ev->x;
+    wc.y            = ev->y;
+    wc.width        = ev->width;
+    wc.height       = ev->height;
     wc.border_width = ev->border_width;
-    wc.sibling = ev->above;
-    wc.stack_mode = ev->detail;
+    wc.sibling      = ev->above;
+    wc.stack_mode   = ev->detail;
     XConfigureWindow(display, ev->window, ev->value_mask, &wc);
 }
 
 void handleUnmapNotify(XEvent* event) {
-    XUnmapEvent* ev = &event->xunmap;
-    SClient* client = findClient(ev->window);
+    XUnmapEvent* ev     = &event->xunmap;
+    SClient*     client = findClient(ev->window);
     if (client)
         unmanageClient(ev->window);
 }
 
 void handleDestroyNotify(XEvent* event) {
-    XDestroyWindowEvent* ev = &event->xdestroywindow;
-    SClient* client = findClient(ev->window);
+    XDestroyWindowEvent* ev     = &event->xdestroywindow;
+    SClient*             client = findClient(ev->window);
     if (client)
         unmanageClient(ev->window);
 }
@@ -391,12 +369,10 @@ void killClient(const char* arg) {
 
     if (arg && *arg) {
         XTextProperty windowName;
-        SClient* client = clients;
+        SClient*      client = clients;
 
         while (client) {
-            if (XGetWMName(display, client->window, &windowName) &&
-                windowName.value &&
-                strstr((char*)windowName.value, arg)) {
+            if (XGetWMName(display, client->window, &windowName) && windowName.value && strstr((char*)windowName.value, arg)) {
                 clientToKill = client;
                 XFree(windowName.value);
                 break;
@@ -413,12 +389,12 @@ void killClient(const char* arg) {
         return;
 
     XEvent event;
-    event.type = ClientMessage;
-    event.xclient.window = clientToKill->window;
+    event.type                 = ClientMessage;
+    event.xclient.window       = clientToKill->window;
     event.xclient.message_type = WM_PROTOCOLS;
-    event.xclient.format = 32;
-    event.xclient.data.l[0] = WM_DELETE_WINDOW;
-    event.xclient.data.l[1] = CurrentTime;
+    event.xclient.format       = 32;
+    event.xclient.data.l[0]    = WM_DELETE_WINDOW;
+    event.xclient.data.l[1]    = CurrentTime;
     XSendEvent(display, clientToKill->window, False, NoEventMask, &event);
 
     XGrabServer(display);
@@ -431,7 +407,7 @@ void quit(const char* arg) {
 
     if (arg && *arg) {
         char* endptr;
-        long parsedCode = strtol(arg, &endptr, 10);
+        long  parsedCode = strtol(arg, &endptr, 10);
 
         if (*endptr == '\0' && parsedCode >= 0 && parsedCode <= 255)
             exitCode = (int)parsedCode;
@@ -444,8 +420,7 @@ void quit(const char* arg) {
 void grabKeys() {
     XUngrabKey(display, AnyKey, AnyModifier, root);
     for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
-        XGrabKey(display, XKeysymToKeycode(display, keys[i].keysym),
-                keys[i].mod, root, True, GrabModeAsync, GrabModeAsync);
+        XGrabKey(display, XKeysymToKeycode(display, keys[i].keysym), keys[i].mod, root, True, GrabModeAsync, GrabModeAsync);
     }
 
     fprintf(stderr, "Key grabs set up on root window\n");
@@ -515,29 +490,24 @@ void manageClient(Window window) {
         return;
     }
 
-    client->window = window;
-    client->x = wa.x;
-    client->y = wa.y;
-    client->width = wa.width;
-    client->height = wa.height;
+    client->window  = window;
+    client->x       = wa.x;
+    client->y       = wa.y;
+    client->width   = wa.width;
+    client->height  = wa.height;
     client->monitor = monitorAtPoint(wa.x + wa.width / 2, wa.y + wa.height / 2)->num;
-    client->next = clients;
-    clients = client;
+    client->next    = clients;
+    clients         = client;
 
     XSetWindowBorderWidth(display, window, BORDER_WIDTH);
 
     XErrorHandler oldHandler = XSetErrorHandler(xerrorHandler);
 
-    XSelectInput(display, window, EnterWindowMask | FocusChangeMask |
-                 PropertyChangeMask | StructureNotifyMask);
+    XSelectInput(display, window, EnterWindowMask | FocusChangeMask | PropertyChangeMask | StructureNotifyMask);
 
-    XGrabButton(display, Button1, MODKEY, window, False,
-                ButtonPressMask | ButtonReleaseMask | ButtonMotionMask,
-                GrabModeAsync, GrabModeAsync, None, moveCursor);
+    XGrabButton(display, Button1, MODKEY, window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, moveCursor);
 
-    XGrabButton(display, Button3, MODKEY, window, False,
-                ButtonPressMask | ButtonReleaseMask | ButtonMotionMask,
-                GrabModeAsync, GrabModeAsync, None, resizeCursor);
+    XGrabButton(display, Button3, MODKEY, window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, resizeCursor);
 
     XSync(display, False);
     XSetErrorHandler(oldHandler);
@@ -553,10 +523,10 @@ void manageClient(Window window) {
 
 void unmanageClient(Window window) {
     SClient* client = clients;
-    SClient* prev = NULL;
+    SClient* prev   = NULL;
 
     while (client && client->window != window) {
-        prev = client;
+        prev   = client;
         client = client->next;
     }
 
@@ -581,26 +551,26 @@ void configureClient(SClient* client) {
         return;
 
     XConfigureEvent event;
-    event.type = ConfigureNotify;
-    event.display = display;
-    event.event = client->window;
-    event.window = client->window;
-    event.x = client->x;
-    event.y = client->y;
-    event.width = client->width;
-    event.height = client->height;
-    event.border_width = BORDER_WIDTH;
-    event.above = None;
+    event.type              = ConfigureNotify;
+    event.display           = display;
+    event.event             = client->window;
+    event.window            = client->window;
+    event.x                 = client->x;
+    event.y                 = client->y;
+    event.width             = client->width;
+    event.height            = client->height;
+    event.border_width      = BORDER_WIDTH;
+    event.above             = None;
     event.override_redirect = False;
     XSendEvent(display, client->window, False, StructureNotifyMask, (XEvent*)&event);
 }
 
 void updateBorders() {
-    static unsigned long activeBorder = 0;
+    static unsigned long activeBorder   = 0;
     static unsigned long inactiveBorder = 0;
 
     if (activeBorder == 0 || inactiveBorder == 0) {
-        XColor color;
+        XColor   color;
         Colormap cmap = DefaultColormap(display, DefaultScreen(display));
 
         if (XAllocNamedColor(display, cmap, ACTIVE_BORDER_COLOR, &color, &color))
@@ -618,8 +588,7 @@ void updateBorders() {
 
     SClient* client = clients;
     while (client) {
-        XSetWindowBorder(display, client->window,
-                         (client == focused) ? activeBorder : inactiveBorder);
+        XSetWindowBorder(display, client->window, (client == focused) ? activeBorder : inactiveBorder);
         client = client->next;
     }
 }
@@ -639,8 +608,7 @@ SMonitor* monitorAtPoint(int x, int y) {
         return &monitors[0];
 
     for (int i = 0; i < numMonitors; i++) {
-        if (x >= monitors[i].x && x < monitors[i].x + monitors[i].width &&
-            y >= monitors[i].y && y < monitors[i].y + monitors[i].height) {
+        if (x >= monitors[i].x && x < monitors[i].x + monitors[i].width && y >= monitors[i].y && y < monitors[i].y + monitors[i].height) {
             return &monitors[i];
         }
     }
@@ -650,7 +618,7 @@ SMonitor* monitorAtPoint(int x, int y) {
 
 void updateMonitors() {
     free(monitors);
-    monitors = NULL;
+    monitors    = NULL;
     numMonitors = 0;
 
     if (XineramaIsActive(display)) {
@@ -659,11 +627,11 @@ void updateMonitors() {
             monitors = malloc(sizeof(SMonitor) * numMonitors);
             if (monitors) {
                 for (int i = 0; i < numMonitors; i++) {
-                    monitors[i].x = info[i].x_org;
-                    monitors[i].y = info[i].y_org;
-                    monitors[i].width = info[i].width;
+                    monitors[i].x      = info[i].x_org;
+                    monitors[i].y      = info[i].y_org;
+                    monitors[i].width  = info[i].width;
                     monitors[i].height = info[i].height;
-                    monitors[i].num = i;
+                    monitors[i].num    = i;
                 }
             }
             XFree(info);
@@ -672,13 +640,13 @@ void updateMonitors() {
 
     if (numMonitors == 0) {
         numMonitors = 1;
-        monitors = malloc(sizeof(SMonitor));
+        monitors    = malloc(sizeof(SMonitor));
         if (monitors) {
-            monitors[0].x = 0;
-            monitors[0].y = 0;
-            monitors[0].width = DisplayWidth(display, DefaultScreen(display));
+            monitors[0].x      = 0;
+            monitors[0].y      = 0;
+            monitors[0].width  = DisplayWidth(display, DefaultScreen(display));
             monitors[0].height = DisplayHeight(display, DefaultScreen(display));
-            monitors[0].num = 0;
+            monitors[0].num    = 0;
         }
     }
 }
