@@ -234,6 +234,18 @@ void handleButtonRelease(XEvent* event) {
     }
 }
 
+SClient* clientAtPoint(int x, int y) {
+    SClient* client = clients;
+
+    while (client) {
+        if (x >= client->x && x < client->x + client->width && y >= client->y && y < client->y + client->height)
+            return client;
+        client = client->next;
+    }
+
+    return NULL;
+}
+
 void handleMotionNotify(XEvent* event) {
     XMotionEvent* ev = &event->xmotion;
 
@@ -257,31 +269,19 @@ void handleMotionNotify(XEvent* event) {
         windowResize.x = ev->x_root;
         windowResize.y = ev->y_root;
     } else {
-        SMonitor* currentMonitor = monitorAtPoint(ev->x_root, ev->y_root);
+        SMonitor* currentMonitor    = monitorAtPoint(ev->x_root, ev->y_root);
+        SClient*  clientUnderCursor = clientAtPoint(ev->x_root, ev->y_root);
 
-        if (focused && focused->monitor != currentMonitor->num) {
-            fprintf(stderr, "Cursor moved to monitor %d, current focus is on monitor %d\n", currentMonitor->num, focused ? focused->monitor : -1);
-
-            SClient* windowOnNewMonitor = NULL;
-            SClient* client             = clients;
-
-            while (client) {
-                if (client->monitor == currentMonitor->num) {
-                    windowOnNewMonitor = client;
-                    break;
-                }
-                client = client->next;
+        if (clientUnderCursor) {
+            if (focused != clientUnderCursor) {
+                fprintf(stderr, "Cursor over window on monitor %d, focusing\n", currentMonitor->num);
+                focusClient(clientUnderCursor);
             }
-
-            if (windowOnNewMonitor) {
-                fprintf(stderr, "Focusing window on monitor %d\n", currentMonitor->num);
-                focusClient(windowOnNewMonitor);
-            } else {
-                fprintf(stderr, "No window found on monitor %d, unfocusing current window\n", currentMonitor->num);
-                XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
-                focused = NULL;
-                updateBorders();
-            }
+        } else if (focused && (focused->monitor != currentMonitor->num || !clientAtPoint(ev->x_root, ev->y_root))) {
+            fprintf(stderr, "Cursor not over any window on monitor %d, focusing monitor\n", currentMonitor->num);
+            XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
+            focused = NULL;
+            updateBorders();
         }
     }
 }
@@ -613,7 +613,24 @@ void unmanageClient(Window window) {
         return;
 
     if (client == focused) {
-        focused = (client->next) ? client->next : prev;
+        int          rootX, rootY;
+        unsigned int mask;
+        Window       root_return, child_return;
+
+        if (XQueryPointer(display, root, &root_return, &child_return, &rootX, &rootY, &rootX, &rootY, &mask)) {
+            SClient* clientUnderCursor = clientAtPoint(rootX, rootY);
+
+            if (clientUnderCursor && clientUnderCursor != client) {
+                fprintf(stderr, "Window closed, focusing window under cursor\n");
+                focused = clientUnderCursor;
+            } else {
+                SMonitor* currentMonitor = monitorAtPoint(rootX, rootY);
+                fprintf(stderr, "Window closed, no window under cursor, focusing monitor %d\n", currentMonitor->num);
+                focused = NULL;
+            }
+        } else
+            focused = (client->next) ? client->next : prev;
+
         updateFocus();
     }
 

@@ -66,6 +66,7 @@ void                   moveWindow(SClient* client, int x, int y);
 void                   resizeWindow(SClient* client, int width, int height);
 
 SClient*               findClient(Window window);
+SClient*               clientAtPoint(int x, int y);
 SMonitor*              monitorAtPoint(int x, int y);
 void                   updateMonitors();
 
