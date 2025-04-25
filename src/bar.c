@@ -312,6 +312,12 @@ void handleBarClick(XEvent* event) {
                             updateBorders();
                         }
 
+                        SClient* windowInWorkspace = findVisibleClientInWorkspace(i, w);
+                        if (windowInWorkspace) {
+                            fprintf(stderr, "Focusing window in workspace %d after bar click\n", w);
+                            focusClient(windowInWorkspace);
+                        }
+
                         updateBars();
                     }
                     return;
