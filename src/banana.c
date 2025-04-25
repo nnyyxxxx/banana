@@ -14,6 +14,7 @@
 
 #include "defs.h"
 #include "config.h"
+#include "bar.h"
 
 Display*        display;
 Window          root;
@@ -62,7 +63,7 @@ void checkOtherWM() {
 static void (*eventHandlers[LASTEvent])(XEvent*) = {
     [KeyPress] = handleKeyPress,           [ButtonPress] = handleButtonPress, [ButtonRelease] = handleButtonRelease,       [MotionNotify] = handleMotionNotify,
     [EnterNotify] = handleEnterNotify,     [MapRequest] = handleMapRequest,   [ConfigureRequest] = handleConfigureRequest, [UnmapNotify] = handleUnmapNotify,
-    [DestroyNotify] = handleDestroyNotify,
+    [DestroyNotify] = handleDestroyNotify, [Expose] = handleExpose,           [PropertyNotify] = handlePropertyNotify,
 };
 
 void scanExistingWindows() {
@@ -113,7 +114,11 @@ void setup() {
     updateMonitors();
     grabKeys();
 
+    createBars();
+
     scanExistingWindows();
+
+    updateClientPositionsForBar();
 
     XSync(display, False);
 }
@@ -142,6 +147,8 @@ void run() {
 }
 
 void cleanup() {
+    cleanupBars();
+
     SClient* client = clients;
     SClient* next;
     while (client) {
@@ -293,13 +300,19 @@ void moveWindow(SClient* client, int x, int y) {
     client->x = x;
     client->y = y;
 
-    int       centerX = client->x + client->width / 2;
-    int       centerY = client->y + client->height / 2;
-    SMonitor* monitor = monitorAtPoint(centerX, centerY);
-    client->monitor   = monitor->num;
+    SMonitor* monitor = &monitors[client->monitor];
+    if (client->y < monitor->y + BAR_HEIGHT)
+        client->y = monitor->y + BAR_HEIGHT;
+
+    int centerX     = client->x + client->width / 2;
+    int centerY     = client->y + client->height / 2;
+    monitor         = monitorAtPoint(centerX, centerY);
+    client->monitor = monitor->num;
 
     XRaiseWindow(display, client->window);
     XMoveWindow(display, client->window, client->x, client->y);
+
+    raiseBars();
 }
 
 void resizeWindow(SClient* client, int width, int height) {
@@ -318,6 +331,8 @@ void resizeWindow(SClient* client, int width, int height) {
     XResizeWindow(display, client->window, client->width, client->height);
 
     configureClient(client);
+
+    raiseBars();
 }
 
 void handleEnterNotify(XEvent* event) {
@@ -566,6 +581,9 @@ void manageClient(Window window) {
         fprintf(stderr, "Positioning window at cursor position (%d,%d)\n", rootX, rootY);
     }
 
+    if (client->y < monitor->y + BAR_HEIGHT)
+        client->y = monitor->y + BAR_HEIGHT;
+
     client->next = clients;
     clients      = client;
 
@@ -746,6 +764,32 @@ void updateMonitors() {
             monitors[0].width  = DisplayWidth(display, DefaultScreen(display));
             monitors[0].height = DisplayHeight(display, DefaultScreen(display));
             monitors[0].num    = 0;
+        }
+    }
+
+    if (numMonitors > 0)
+        createBars();
+}
+
+void handlePropertyNotify(XEvent* event) {
+    XPropertyEvent* ev = &event->xproperty;
+
+    if (ev->window == root && ev->atom == XA_WM_NAME)
+        updateStatus();
+    else if (ev->atom == XInternAtom(display, "_NET_WM_NAME", False) || ev->atom == XA_WM_NAME) {
+        SClient* client = findClient(ev->window);
+        if (client && client == focused)
+            updateBars();
+    }
+}
+
+void handleExpose(XEvent* event) {
+    XExposeEvent* ev = &event->xexpose;
+
+    for (int i = 0; i < numMonitors; i++) {
+        if (barWindows && barWindows[i] == ev->window) {
+            handleBarExpose(event);
+            return;
         }
     }
 }

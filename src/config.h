@@ -13,9 +13,19 @@ void quit(const char* arg);
 /* Key definitions */
 #define MODKEY Mod1Mask
 
+/* Bar configuration */
+#define BAR_HEIGHT  20
+#define BAR_PADDING 4
+#define BAR_FONT    "monospace-10"
+
 /* Colors */
 #define ACTIVE_BORDER_COLOR   "#3584e4" /* Blue */
 #define INACTIVE_BORDER_COLOR "#404040" /* Dark gray */
+
+/* Bar colors */
+#define BAR_BACKGROUND_COLOR "#222222" /* Dark gray */
+#define BAR_FOREGROUND_COLOR "#bbbbbb" /* Light gray */
+#define BAR_BORDER_COLOR     "#000000" /* Black */
 
 /* Border width in pixels */
 #define BORDER_WIDTH 2

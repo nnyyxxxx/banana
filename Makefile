@@ -1,6 +1,7 @@
 CC      ?= gcc
 CFLAGS  ?= -Wall -Wextra -O3 -Isrc
-LDFLAGS ?= -lX11 -lXinerama
+LDFLAGS ?= -lX11 -lXinerama -lXft -lfontconfig -lfreetype -lm
+FT_CFLAGS = $(shell pkg-config --cflags freetype2)
 
 PREFIX  ?= /usr/local
 BIN     := build/banana
@@ -21,7 +22,7 @@ $(BIN): $(OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(FT_CFLAGS) -c -o $@ $<
 
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)

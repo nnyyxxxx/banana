@@ -50,6 +50,8 @@ void                   handleMapRequest(XEvent* event);
 void                   handleConfigureRequest(XEvent* event);
 void                   handleUnmapNotify(XEvent* event);
 void                   handleDestroyNotify(XEvent* event);
+void                   handleExpose(XEvent* event);
+void                   handlePropertyNotify(XEvent* event);
 
 void                   spawnProgram(const char* program);
 void                   killClient(const char* arg);
