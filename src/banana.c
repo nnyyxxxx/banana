@@ -315,11 +315,15 @@ void handleEnterNotify(XEvent* event) {
 void handleMapRequest(XEvent* event) {
     XMapRequestEvent* ev = &event->xmaprequest;
 
+    manageClient(ev->window);
+
     XMapWindow(display, ev->window);
 
-    XSync(display, False);
+    SClient* client = findClient(ev->window);
+    if (client)
+        configureClient(client);
 
-    manageClient(ev->window);
+    XSync(display, False);
 }
 
 void handleConfigureRequest(XEvent* event) {
@@ -488,14 +492,20 @@ void manageClient(Window window) {
         return;
     }
 
-    client->window  = window;
-    client->x       = wa.x;
-    client->y       = wa.y;
-    client->width   = wa.width;
-    client->height  = wa.height;
-    client->monitor = monitorAtPoint(wa.x + wa.width / 2, wa.y + wa.height / 2)->num;
-    client->next    = clients;
-    clients         = client;
+    client->monitor   = monitorAtPoint(wa.x + wa.width / 2, wa.y + wa.height / 2)->num;
+    SMonitor* monitor = &monitors[client->monitor];
+
+    client->window = window;
+    client->width  = wa.width;
+    client->height = wa.height;
+
+    client->x = monitor->x + (monitor->width - wa.width) / 2;
+    client->y = monitor->y + (monitor->height - wa.height) / 2;
+
+    client->next = clients;
+    clients      = client;
+
+    XMoveWindow(display, window, client->x, client->y);
 
     XSetWindowBorderWidth(display, window, BORDER_WIDTH);
 
@@ -547,6 +557,15 @@ void unmanageClient(Window window) {
 void configureClient(SClient* client) {
     if (!client)
         return;
+
+    XWindowChanges wc;
+    wc.x              = client->x;
+    wc.y              = client->y;
+    wc.width          = client->width;
+    wc.height         = client->height;
+    wc.border_width   = BORDER_WIDTH;
+    unsigned int mask = CWX | CWY | CWWidth | CWHeight | CWBorderWidth;
+    XConfigureWindow(display, client->window, mask, &wc);
 
     XConfigureEvent event;
     event.type              = ConfigureNotify;
