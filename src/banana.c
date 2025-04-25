@@ -248,24 +248,41 @@ void handleMotionNotify(XEvent* event) {
 
         windowMovement.x = ev->x_root;
         windowMovement.y = ev->y_root;
-    }
-
-    if (windowResize.active && windowResize.client) {
+    } else if (windowResize.active && windowResize.client) {
         int dx = ev->x_root - windowResize.x;
         int dy = ev->y_root - windowResize.y;
 
-        int newWidth  = windowResize.client->width + dx;
-        int newHeight = windowResize.client->height + dy;
-
-        if (newWidth < 20)
-            newWidth = 20;
-        if (newHeight < 20)
-            newHeight = 20;
-
-        resizeWindow(windowResize.client, newWidth, newHeight);
+        resizeWindow(windowResize.client, windowResize.client->width + dx, windowResize.client->height + dy);
 
         windowResize.x = ev->x_root;
         windowResize.y = ev->y_root;
+    } else {
+        SMonitor* currentMonitor = monitorAtPoint(ev->x_root, ev->y_root);
+
+        if (focused && focused->monitor != currentMonitor->num) {
+            fprintf(stderr, "Cursor moved to monitor %d, current focus is on monitor %d\n", currentMonitor->num, focused ? focused->monitor : -1);
+
+            SClient* windowOnNewMonitor = NULL;
+            SClient* client             = clients;
+
+            while (client) {
+                if (client->monitor == currentMonitor->num) {
+                    windowOnNewMonitor = client;
+                    break;
+                }
+                client = client->next;
+            }
+
+            if (windowOnNewMonitor) {
+                fprintf(stderr, "Focusing window on monitor %d\n", currentMonitor->num);
+                focusClient(windowOnNewMonitor);
+            } else {
+                fprintf(stderr, "No window found on monitor %d, unfocusing current window\n", currentMonitor->num);
+                XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
+                focused = NULL;
+                updateBorders();
+            }
+        }
     }
 }
 
@@ -276,12 +293,22 @@ void moveWindow(SClient* client, int x, int y) {
     client->x = x;
     client->y = y;
 
+    int       centerX = client->x + client->width / 2;
+    int       centerY = client->y + client->height / 2;
+    SMonitor* monitor = monitorAtPoint(centerX, centerY);
+    client->monitor   = monitor->num;
+
     XMoveWindow(display, client->window, client->x, client->y);
 }
 
 void resizeWindow(SClient* client, int width, int height) {
     if (!client)
         return;
+
+    if (width < 20)
+        width = 20;
+    if (height < 20)
+        height = 20;
 
     client->width  = width;
     client->height = height;
@@ -492,20 +519,62 @@ void manageClient(Window window) {
         return;
     }
 
-    client->monitor   = monitorAtPoint(wa.x + wa.width / 2, wa.y + wa.height / 2)->num;
+    int          monitorNum = 0;
+    int          cursorX    = 0;
+    int          cursorY    = 0;
+
+    int          rootX, rootY;
+    unsigned int mask;
+    Window       root_return, child_return;
+    Bool         pointerQuerySuccess = False;
+
+    if (XQueryPointer(display, root, &root_return, &child_return, &rootX, &rootY, &cursorX, &cursorY, &mask))
+        pointerQuerySuccess = True;
+
+    if (focused) {
+        monitorNum = focused->monitor;
+        fprintf(stderr, "Using focused monitor %d for new window\n", monitorNum);
+    } else if (pointerQuerySuccess) {
+        monitorNum = monitorAtPoint(rootX, rootY)->num;
+        fprintf(stderr, "Using monitor %d at cursor position for new window\n", monitorNum);
+    }
+
+    client->monitor   = monitorNum;
     SMonitor* monitor = &monitors[client->monitor];
 
     client->window = window;
-    client->width  = wa.width;
-    client->height = wa.height;
 
-    client->x = monitor->x + (monitor->width - wa.width) / 2;
-    client->y = monitor->y + (monitor->height - wa.height) / 2;
+    if (wa.width > monitor->width - 2 * BORDER_WIDTH)
+        client->width = monitor->width - 2 * BORDER_WIDTH;
+    else
+        client->width = wa.width;
+
+    if (wa.height > monitor->height - 2 * BORDER_WIDTH)
+        client->height = monitor->height - 2 * BORDER_WIDTH;
+    else
+        client->height = wa.height;
+
+    if (pointerQuerySuccess) {
+        client->x = rootX - client->width / 2;
+        client->y = rootY - client->height / 2;
+
+        if (client->x < monitor->x)
+            client->x = monitor->x;
+        else if (client->x + client->width > monitor->x + monitor->width)
+            client->x = monitor->x + monitor->width - client->width;
+
+        if (client->y < monitor->y)
+            client->y = monitor->y;
+        else if (client->y + client->height > monitor->y + monitor->height)
+            client->y = monitor->y + monitor->height - client->height;
+
+        fprintf(stderr, "Positioning window at cursor position (%d,%d)\n", rootX, rootY);
+    }
 
     client->next = clients;
     clients      = client;
 
-    XMoveWindow(display, window, client->x, client->y);
+    XMoveResizeWindow(display, window, client->x, client->y, client->width, client->height);
 
     XSetWindowBorderWidth(display, window, BORDER_WIDTH);
 
@@ -520,7 +589,9 @@ void manageClient(Window window) {
     XSync(display, False);
     XSetErrorHandler(oldHandler);
 
-    fprintf(stderr, "Client managed: 0x%lx\n", window);
+    fprintf(stderr, "Client managed: 0x%lx on monitor %d at position %d,%d with size %dx%d\n", window, client->monitor, client->x, client->y, client->width, client->height);
+
+    updateBorders();
 
     if (wa.map_state == IsViewable) {
         fprintf(stderr, "Window is viewable, focusing now\n");
