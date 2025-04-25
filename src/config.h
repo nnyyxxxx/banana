@@ -21,20 +21,20 @@ void moveClientToWorkspace(const char* arg);
 /* Bar configuration */
 #define BAR_HEIGHT  20
 #define BAR_PADDING 4
-#define BAR_FONT    "monospace-10"
+#define BAR_FONT    "monospace-12"
 
 /* Colors */
-#define ACTIVE_BORDER_COLOR   "#3584e4" /* Blue */
-#define INACTIVE_BORDER_COLOR "#404040" /* Dark gray */
+#define ACTIVE_BORDER_COLOR   "#CD78A0"
+#define INACTIVE_BORDER_COLOR "#CD78A0"
 
 /* Bar colors */
-#define BAR_BACKGROUND_COLOR    "#222222" /* Dark gray */
-#define BAR_FOREGROUND_COLOR    "#bbbbbb" /* Light gray */
-#define BAR_BORDER_COLOR        "#000000" /* Black */
-#define BAR_ACTIVE_WS_COLOR     "#5294e2" /* Light blue */
-#define BAR_ACTIVE_TEXT_COLOR   "#ffffff" /* White */
-#define BAR_INACTIVE_TEXT_COLOR "#bbbbbb" /* Light gray */
-#define BAR_STATUS_TEXT_COLOR   "#bbbbbb" /* Light gray */
+#define BAR_BACKGROUND_COLOR    "#000000"
+#define BAR_FOREGROUND_COLOR    "#d3c1da"
+#define BAR_BORDER_COLOR        "#000000"
+#define BAR_ACTIVE_WS_COLOR     "#CD78A0"
+#define BAR_ACTIVE_TEXT_COLOR   "#000000"
+#define BAR_INACTIVE_TEXT_COLOR "#d3c1da"
+#define BAR_STATUS_TEXT_COLOR   "#d3c1da"
 
 /* Border width in pixels */
 #define BORDER_WIDTH 2
