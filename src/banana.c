@@ -1007,73 +1007,6 @@ void toggleFloating(const char* arg) {
     restackFloatingWindows();
 }
 
-void tileClients(SMonitor* monitor) {
-    if (!monitor)
-        return;
-
-    int clientCount = 0;
-    int masterCount = 0;
-
-    for (SClient* c = clients; c; c = c->next) {
-        if (c->monitor == monitor->num && c->workspace == monitor->currentWorkspace && !c->isFloating)
-            clientCount++;
-    }
-
-    if (clientCount == 0)
-        return;
-
-    masterCount = MIN(monitor->masterCount, clientCount);
-
-    int masterWidth, stackWidth;
-    int masterStartX = monitor->x;
-    int stackStartX;
-    int availableWidth  = monitor->width;
-    int availableHeight = monitor->height - BAR_HEIGHT;
-    int startY          = monitor->y + BAR_HEIGHT;
-
-    if (clientCount <= masterCount) {
-        masterWidth = availableWidth;
-        stackWidth  = 0;
-    } else {
-        masterWidth = (int)(availableWidth * monitor->masterFactor);
-        stackWidth  = availableWidth - masterWidth;
-    }
-
-    stackStartX = masterStartX + masterWidth;
-
-    int masterY       = startY;
-    int stackY        = startY;
-    int currentMaster = 0;
-    int currentStack  = 0;
-
-    for (SClient* c = clients; c; c = c->next) {
-        if (c->monitor == monitor->num && c->workspace == monitor->currentWorkspace && !c->isFloating) {
-
-            if (currentMaster < masterCount) {
-                int masterHeight = availableHeight / masterCount;
-                c->x             = masterStartX;
-                c->y             = masterY;
-                c->width         = masterWidth - 2 * BORDER_WIDTH;
-                c->height        = masterHeight - 2 * BORDER_WIDTH;
-                masterY += masterHeight;
-                currentMaster++;
-            } else {
-                int stackCount  = clientCount - masterCount;
-                int stackHeight = availableHeight / stackCount;
-                c->x            = stackStartX;
-                c->y            = stackY;
-                c->width        = stackWidth - 2 * BORDER_WIDTH;
-                c->height       = stackHeight - 2 * BORDER_WIDTH;
-                stackY += stackHeight;
-                currentStack++;
-            }
-
-            XMoveResizeWindow(display, c->window, c->x, c->y, c->width, c->height);
-            configureClient(c);
-        }
-    }
-}
-
 void arrangeClients(SMonitor* monitor) {
     if (!monitor)
         return;
@@ -1103,6 +1036,84 @@ void restackFloatingWindows() {
     }
 
     raiseBars();
+}
+
+void tileClients(SMonitor* monitor) {
+    if (!monitor)
+        return;
+
+    int      masterArea      = monitor->width * monitor->masterFactor;
+    int      stackArea       = monitor->width - masterArea;
+    int      x               = monitor->x;
+    int      y               = monitor->y + BAR_HEIGHT;
+    int      availableHeight = monitor->height - BAR_HEIGHT;
+
+    int      visibleCount = 0;
+    SClient* client       = clients;
+
+    while (client) {
+        if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace && !client->isFloating)
+            visibleCount++;
+        client = client->next;
+    }
+
+    if (visibleCount == 0)
+        return;
+
+    if (visibleCount == 1) {
+        client = clients;
+        while (client) {
+            if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace && !client->isFloating) {
+                client->x      = x;
+                client->y      = y;
+                client->width  = monitor->width - 2 * BORDER_WIDTH;
+                client->height = availableHeight - 2 * BORDER_WIDTH;
+
+                XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+                return;
+            }
+            client = client->next;
+        }
+    }
+
+    int masterCount  = MIN(monitor->masterCount, visibleCount);
+    int masterHeight = availableHeight;
+
+    if (masterCount > 0)
+        masterHeight = availableHeight / masterCount;
+
+    int stackCount  = visibleCount - masterCount;
+    int stackHeight = availableHeight;
+
+    if (stackCount > 0)
+        stackHeight = availableHeight / stackCount;
+
+    client            = clients;
+    int currentMaster = 0;
+    int currentStack  = 0;
+
+    while (client) {
+        if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace && !client->isFloating) {
+
+            if (currentMaster < masterCount) {
+                client->x      = x;
+                client->y      = y + currentMaster * masterHeight;
+                client->width  = masterArea - 2 * BORDER_WIDTH;
+                client->height = masterHeight - 2 * BORDER_WIDTH;
+                currentMaster++;
+            } else {
+                client->x      = x + masterArea;
+                client->y      = y + currentStack * stackHeight;
+                client->width  = stackArea - 2 * BORDER_WIDTH;
+                client->height = stackHeight - 2 * BORDER_WIDTH;
+                currentStack++;
+            }
+
+            XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+        }
+
+        client = client->next;
+    }
 }
 
 int main() {
