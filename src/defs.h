@@ -23,13 +23,29 @@ typedef struct SMonitor {
     int num;
 } SMonitor;
 
+typedef struct {
+    int x;
+    int y;
+    SClient* client;
+    int active;
+} SWindowMovement;
+
+typedef struct {
+    int x;
+    int y;
+    SClient* client;
+    int active;
+} SWindowResize;
+
 void setup();
 void run();
 void cleanup();
 
 void handleKeyPress(XEvent* event);
 void handleButtonPress(XEvent* event);
+void handleButtonRelease(XEvent* event);
 void handleMotionNotify(XEvent* event);
+void handleEnterNotify(XEvent* event);
 void handleMapRequest(XEvent* event);
 void handleConfigureRequest(XEvent* event);
 void handleUnmapNotify(XEvent* event);
@@ -46,9 +62,10 @@ void manageClient(Window window);
 void unmanageClient(Window window);
 void configureClient(SClient* client);
 void updateBorders();
+void moveWindow(SClient* client, int x, int y);
+void resizeWindow(SClient* client, int width, int height);
 
 SClient* findClient(Window window);
-SClient* clientAtPoint(int x, int y);
 SMonitor* monitorAtPoint(int x, int y);
 void updateMonitors();
 
@@ -58,5 +75,7 @@ extern SClient* clients;
 extern SMonitor* monitors;
 extern int numMonitors;
 extern SClient* focused;
+extern SWindowMovement windowMovement;
+extern SWindowResize windowResize;
 
 #endif // DEFS_H

@@ -22,6 +22,10 @@ SClient* focused = NULL;
 SMonitor* monitors = NULL;
 int numMonitors = 0;
 Cursor normalCursor;
+Cursor moveCursor;
+Cursor resizeCursor;
+SWindowMovement windowMovement = {0, 0, NULL, 0};
+SWindowResize windowResize = {0, 0, NULL, 0};
 
 Atom WM_PROTOCOLS;
 Atom WM_DELETE_WINDOW;
@@ -61,7 +65,9 @@ void checkOtherWM() {
 static void (*eventHandlers[LASTEvent])(XEvent*) = {
     [KeyPress] = handleKeyPress,
     [ButtonPress] = handleButtonPress,
+    [ButtonRelease] = handleButtonRelease,
     [MotionNotify] = handleMotionNotify,
+    [EnterNotify] = handleEnterNotify,
     [MapRequest] = handleMapRequest,
     [ConfigureRequest] = handleConfigureRequest,
     [UnmapNotify] = handleUnmapNotify,
@@ -103,15 +109,20 @@ void setup() {
     WM_DELETE_WINDOW = XInternAtom(display, "WM_DELETE_WINDOW", False);
 
     normalCursor = XCreateFontCursor(display, XC_left_ptr);
+    moveCursor = XCreateFontCursor(display, XC_fleur);
+    resizeCursor = XCreateFontCursor(display, XC_bottom_right_corner);
     XDefineCursor(display, root, normalCursor);
 
     XSetWindowAttributes wa;
     wa.event_mask = SubstructureRedirectMask | SubstructureNotifyMask |
-                   ButtonPressMask | PointerMotionMask | EnterWindowMask |
-                   LeaveWindowMask | StructureNotifyMask | PropertyChangeMask;
+                   ButtonPressMask | ButtonReleaseMask |
+                   EnterWindowMask | LeaveWindowMask |
+                   PointerMotionMask | ButtonMotionMask |
+                   StructureNotifyMask | PropertyChangeMask;
     XChangeWindowAttributes(display, root, CWEventMask, &wa);
     XSelectInput(display, root, wa.event_mask);
-    XSync(display, False);
+
+    fprintf(stderr, "Root window listening to events\n");
 
     updateMonitors();
     grabKeys();
@@ -123,11 +134,25 @@ void setup() {
 
 void run() {
     XEvent event;
-    while (!XNextEvent(display, &event)) {
-        if (eventHandlers[event.type])
+
+    XSync(display, False);
+    fprintf(stderr, "Starting main event loop\n");
+
+    while (XNextEvent(display, &event) == 0) {
+        if (event.type == ButtonPress)
+            fprintf(stderr, "Received ButtonPress event\n");
+
+        if (eventHandlers[event.type]) {
+            XErrorHandler oldHandler = XSetErrorHandler(xerrorHandler);
+
             eventHandlers[event.type](&event);
-        XSync(display, False);
+
+            XSync(display, False);
+            XSetErrorHandler(oldHandler);
+        }
     }
+
+    fprintf(stderr, "Event loop exited\n");
 }
 
 void cleanup() {
@@ -142,6 +167,8 @@ void cleanup() {
     free(monitors);
 
     XFreeCursor(display, normalCursor);
+    XFreeCursor(display, moveCursor);
+    XFreeCursor(display, resizeCursor);
 
     XCloseDisplay(display);
 }
@@ -160,25 +187,163 @@ void handleKeyPress(XEvent* event) {
 
 void handleButtonPress(XEvent* event) {
     XButtonEvent* ev = &event->xbutton;
-    SClient* client = findClient(ev->window);
-    if (client)
-        focusClient(client);
+    Window clickedWindow = ev->window;
+
+    fprintf(stderr, "ButtonPress: window=0x%lx, button=%d, state=0x%x\n",
+            clickedWindow, ev->button, ev->state);
+
+    if (clickedWindow == root) {
+        Window root_return, child_return;
+        int root_x, root_y, win_x, win_y;
+        unsigned int mask_return;
+
+        if (XQueryPointer(display, root, &root_return, &child_return,
+                        &root_x, &root_y, &win_x, &win_y, &mask_return) &&
+            child_return != None) {
+
+            clickedWindow = child_return;
+            fprintf(stderr, "  Found child: 0x%lx\n", clickedWindow);
+        }
+    }
+
+    SClient* client = findClient(clickedWindow);
+    fprintf(stderr, "  Client found: %s\n", client ? "yes" : "no");
+
+    if (client) {
+        if (ev->button == Button1 && ev->state == MODKEY) {
+            fprintf(stderr, "  Starting window movement with mod+button1\n");
+
+            windowMovement.client = client;
+            windowMovement.x = ev->x_root;
+            windowMovement.y = ev->y_root;
+            windowMovement.active = 1;
+
+            XChangeActivePointerGrab(display,
+                ButtonReleaseMask | ButtonMotionMask,
+                moveCursor, CurrentTime);
+        }
+        else if (ev->button == Button3 && ev->state == MODKEY) {
+            fprintf(stderr, "  Starting window resize with mod+button3\n");
+
+            windowResize.client = client;
+            windowResize.x = ev->x_root;
+            windowResize.y = ev->y_root;
+            windowResize.active = 1;
+
+            XChangeActivePointerGrab(display,
+                ButtonReleaseMask | ButtonMotionMask,
+                resizeCursor, CurrentTime);
+        }
+    }
+    else if (ev->button == Button1 && clickedWindow != root) {
+        manageClient(clickedWindow);
+    }
+}
+
+void handleButtonRelease(XEvent* event) {
+    XButtonEvent* ev = &event->xbutton;
+
+    fprintf(stderr, "ButtonRelease: button=%d, state=0x%x\n",
+            ev->button, ev->state);
+
+    if (windowMovement.active && ev->button == Button1) {
+        fprintf(stderr, "  Ending window movement\n");
+        windowMovement.active = 0;
+        windowMovement.client = NULL;
+    }
+
+    if (windowResize.active && ev->button == Button3) {
+        fprintf(stderr, "  Ending window resize\n");
+        windowResize.active = 0;
+        windowResize.client = NULL;
+    }
 }
 
 void handleMotionNotify(XEvent* event) {
-    if (!FOCUS_FOLLOWS_MOUSE)
+    XMotionEvent* ev = &event->xmotion;
+
+    while (XCheckTypedWindowEvent(display, ev->window, MotionNotify, event));
+
+    if (windowMovement.active && windowMovement.client) {
+        int dx = ev->x_root - windowMovement.x;
+        int dy = ev->y_root - windowMovement.y;
+
+        moveWindow(windowMovement.client,
+                  windowMovement.client->x + dx,
+                  windowMovement.client->y + dy);
+
+        windowMovement.x = ev->x_root;
+        windowMovement.y = ev->y_root;
+    }
+
+    if (windowResize.active && windowResize.client) {
+        int dx = ev->x_root - windowResize.x;
+        int dy = ev->y_root - windowResize.y;
+
+        int newWidth = windowResize.client->width + dx;
+        int newHeight = windowResize.client->height + dy;
+
+        if (newWidth < 100) newWidth = 100;
+        if (newHeight < 100) newHeight = 100;
+
+        resizeWindow(windowResize.client, newWidth, newHeight);
+
+        windowResize.x = ev->x_root;
+        windowResize.y = ev->y_root;
+    }
+}
+
+void moveWindow(SClient* client, int x, int y) {
+    if (!client)
         return;
 
-    XMotionEvent* ev = &event->xmotion;
-    SClient* client = clientAtPoint(ev->x_root, ev->y_root);
-    if (client && client != focused)
+    client->x = x;
+    client->y = y;
+
+    XMoveWindow(display, client->window, client->x, client->y);
+}
+
+void resizeWindow(SClient* client, int width, int height) {
+    if (!client)
+        return;
+
+    client->width = width;
+    client->height = height;
+
+    XResizeWindow(display, client->window, client->width, client->height);
+
+    configureClient(client);
+}
+
+void handleEnterNotify(XEvent* event) {
+    XCrossingEvent* ev = &event->xcrossing;
+
+    if (ev->mode != NotifyNormal) {
+        fprintf(stderr, "EnterNotify: ignoring non-normal mode (%d)\n", ev->mode);
+        return;
+    }
+
+    SClient* client = findClient(ev->window);
+    if (!client) {
+        fprintf(stderr, "EnterNotify: window 0x%lx not managed\n", ev->window);
+        return;
+    }
+
+    if (focused != client) {
+        fprintf(stderr, "EnterNotify: focusing window 0x%lx\n", ev->window);
         focusClient(client);
+    } else
+        fprintf(stderr, "EnterNotify: window 0x%lx already focused\n", ev->window);
 }
 
 void handleMapRequest(XEvent* event) {
     XMapRequestEvent* ev = &event->xmaprequest;
-    manageClient(ev->window);
+
     XMapWindow(display, ev->window);
+
+    XSync(display, False);
+
+    manageClient(ev->window);
 }
 
 void handleConfigureRequest(XEvent* event) {
@@ -283,15 +448,7 @@ void grabKeys() {
                 keys[i].mod, root, True, GrabModeAsync, GrabModeAsync);
     }
 
-    XUngrabButton(display, AnyButton, AnyModifier, root);
-
-    XGrabButton(display, Button1, keys[0].mod, root, False,
-                ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
-                GrabModeAsync, GrabModeAsync, None, normalCursor);
-
-    XGrabButton(display, Button3, keys[0].mod, root, False,
-                ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
-                GrabModeAsync, GrabModeAsync, None, normalCursor);
+    fprintf(stderr, "Key grabs set up on root window\n");
 }
 
 void updateFocus() {
@@ -299,28 +456,62 @@ void updateFocus() {
         XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
         return;
     }
+
     XSetInputFocus(display, focused->window, RevertToPointerRoot, CurrentTime);
     updateBorders();
 }
 
 void focusClient(SClient* client) {
-    if (!client || client == focused)
+    if (!client)
         return;
+
+    fprintf(stderr, "Attempting to focus: 0x%lx\n", client->window);
+
+    XWindowAttributes wa;
+    if (!XGetWindowAttributes(display, client->window, &wa)) {
+        fprintf(stderr, "  Window no longer exists\n");
+        return;
+    }
+
+    if (wa.map_state != IsViewable) {
+        fprintf(stderr, "  Window not viewable (state: %d)\n", wa.map_state);
+        return;
+    }
+
+    if (wa.override_redirect) {
+        fprintf(stderr, "  Window has override_redirect set\n");
+        return;
+    }
+
+    fprintf(stderr, "  Window is valid and viewable, setting focus\n");
+
     focused = client;
-    updateFocus();
+
+    XRaiseWindow(display, client->window);
+
+    XSetInputFocus(display, client->window, RevertToPointerRoot, CurrentTime);
+
+    updateBorders();
 }
 
 void manageClient(Window window) {
     if (findClient(window))
         return;
 
-    SClient* client = malloc(sizeof(SClient));
-    if (!client)
-        return;
-
     XWindowAttributes wa;
     if (!XGetWindowAttributes(display, window, &wa)) {
-        free(client);
+        fprintf(stderr, "Cannot manage window 0x%lx: failed to get attributes\n", window);
+        return;
+    }
+
+    if (wa.override_redirect) {
+        fprintf(stderr, "Skipping override_redirect window 0x%lx\n", window);
+        return;
+    }
+
+    SClient* client = malloc(sizeof(SClient));
+    if (!client) {
+        fprintf(stderr, "Failed to allocate memory for client\n");
         return;
     }
 
@@ -335,10 +526,29 @@ void manageClient(Window window) {
 
     XSetWindowBorderWidth(display, window, BORDER_WIDTH);
 
-    XSelectInput(display, window, EnterWindowMask | FocusChangeMask | PropertyChangeMask);
+    XErrorHandler oldHandler = XSetErrorHandler(xerrorHandler);
 
-    focusClient(client);
+    XSelectInput(display, window, EnterWindowMask | FocusChangeMask |
+                 PropertyChangeMask | StructureNotifyMask);
+
+    XGrabButton(display, Button1, MODKEY, window, False,
+                ButtonPressMask | ButtonReleaseMask | ButtonMotionMask,
+                GrabModeAsync, GrabModeAsync, None, moveCursor);
+
+    XGrabButton(display, Button3, MODKEY, window, False,
+                ButtonPressMask | ButtonReleaseMask | ButtonMotionMask,
+                GrabModeAsync, GrabModeAsync, None, resizeCursor);
+
     XSync(display, False);
+    XSetErrorHandler(oldHandler);
+
+    fprintf(stderr, "Client managed: 0x%lx\n", window);
+
+    if (wa.map_state == IsViewable) {
+        fprintf(stderr, "Window is viewable, focusing now\n");
+        focusClient(client);
+    } else
+        fprintf(stderr, "Window not yet viewable (state: %d), deferring focus\n", wa.map_state);
 }
 
 void unmanageClient(Window window) {
@@ -386,25 +596,32 @@ void configureClient(SClient* client) {
 }
 
 void updateBorders() {
+    static unsigned long activeBorder = 0;
+    static unsigned long inactiveBorder = 0;
+
+    if (activeBorder == 0 || inactiveBorder == 0) {
+        XColor color;
+        Colormap cmap = DefaultColormap(display, DefaultScreen(display));
+
+        if (XAllocNamedColor(display, cmap, ACTIVE_BORDER_COLOR, &color, &color))
+            activeBorder = color.pixel;
+        else
+            activeBorder = BlackPixel(display, DefaultScreen(display));
+
+        if (XAllocNamedColor(display, cmap, INACTIVE_BORDER_COLOR, &color, &color))
+            inactiveBorder = color.pixel;
+        else
+            inactiveBorder = BlackPixel(display, DefaultScreen(display));
+
+        fprintf(stderr, "Border colors initialized\n");
+    }
+
     SClient* client = clients;
-    unsigned long activeBorder, inactiveBorder;
-
-    XColor color;
-    Colormap cmap = DefaultColormap(display, DefaultScreen(display));
-
-    XAllocNamedColor(display, cmap, ACTIVE_BORDER_COLOR, &color, &color);
-    activeBorder = color.pixel;
-
-    XAllocNamedColor(display, cmap, INACTIVE_BORDER_COLOR, &color, &color);
-    inactiveBorder = color.pixel;
-
     while (client) {
         XSetWindowBorder(display, client->window,
                          (client == focused) ? activeBorder : inactiveBorder);
         client = client->next;
     }
-
-    XSync(display, False);
 }
 
 SClient* findClient(Window window) {
@@ -414,16 +631,6 @@ SClient* findClient(Window window) {
             return client;
         client = client->next;
     }
-    return NULL;
-}
-
-SClient* clientAtPoint(int x, int y) {
-    Window root_return, child_return;
-    int win_x_return, win_y_return;
-    unsigned int mask_return;
-
-    if (XTranslateCoordinates(display, root, root, x, y, &win_x_return, &win_y_return, &child_return))
-        return findClient(child_return);
     return NULL;
 }
 
@@ -476,25 +683,7 @@ void updateMonitors() {
     }
 }
 
-int main(int argc, char* argv[]) {
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-            printf("banana - a simple X11 window manager\n\n");
-            printf("Usage: banana [OPTIONS]\n\n");
-            printf("Options:\n");
-            printf("  -h, --help     Display this help and exit\n");
-            printf("  -v, --version  Display version information and exit\n");
-            return EXIT_SUCCESS;
-        } else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
-            printf("banana version 0.1.0\n");
-            return EXIT_SUCCESS;
-        } else {
-            fprintf(stderr, "banana: unknown option '%s'\n", argv[i]);
-            fprintf(stderr, "Try 'banana --help' for more information.\n");
-            return EXIT_FAILURE;
-        }
-    }
-
+int main() {
     signal(SIGCHLD, SIG_IGN);
 
     setup();

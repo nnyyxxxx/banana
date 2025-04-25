@@ -20,9 +20,6 @@ void quit(const char* arg);
 /* Border width in pixels */
 #define BORDER_WIDTH 2
 
-/* Focus follows mouse */
-#define FOCUS_FOLLOWS_MOUSE 1  /* 1 for on, 0 for off */
-
 /* Applications */
 #define TERMINAL "alacritty"
 
