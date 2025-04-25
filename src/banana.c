@@ -298,6 +298,7 @@ void moveWindow(SClient* client, int x, int y) {
     SMonitor* monitor = monitorAtPoint(centerX, centerY);
     client->monitor   = monitor->num;
 
+    XRaiseWindow(display, client->window);
     XMoveWindow(display, client->window, client->x, client->y);
 }
 
@@ -313,6 +314,7 @@ void resizeWindow(SClient* client, int width, int height) {
     client->width  = width;
     client->height = height;
 
+    XRaiseWindow(display, client->window);
     XResizeWindow(display, client->window, client->width, client->height);
 
     configureClient(client);
@@ -485,8 +487,6 @@ void focusClient(SClient* client) {
     fprintf(stderr, "  Window is valid and viewable, setting focus\n");
 
     focused = client;
-
-    XRaiseWindow(display, client->window);
 
     XSetInputFocus(display, client->window, RevertToPointerRoot, CurrentTime);
 
