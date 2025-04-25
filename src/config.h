@@ -30,7 +30,7 @@ static const struct {
     void (*func)(const char*);
     const char* arg;
 } keys[] = {
-    /* Mod               Key        Function        Argument */
+    /* Mod    Key    Function    Argument */
     {MODKEY, XK_q, spawnProgram, TERMINAL},
     {MODKEY, XK_c, killClient, NULL},
     {MODKEY, XK_w, quit, NULL},
