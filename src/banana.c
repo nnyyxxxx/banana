@@ -25,8 +25,9 @@ int             numMonitors = 0;
 Cursor          normalCursor;
 Cursor          moveCursor;
 Cursor          resizeCursor;
-SWindowMovement windowMovement = {0, 0, NULL, 0};
-SWindowResize   windowResize   = {0, 0, NULL, 0};
+SWindowMovement windowMovement   = {0, 0, NULL, 0};
+SWindowResize   windowResize     = {0, 0, NULL, 0};
+int             currentWorkspace = 0;
 
 Atom            WM_PROTOCOLS;
 Atom            WM_DELETE_WINDOW;
@@ -112,13 +113,21 @@ void setup() {
     fprintf(stderr, "Root window listening to events\n");
 
     updateMonitors();
+
+    for (int i = 0; i < numMonitors; i++) {
+        monitors[i].currentWorkspace = 0;
+    }
+
     grabKeys();
 
     createBars();
 
+    updateStatus();
+
     scanExistingWindows();
 
     updateClientPositionsForBar();
+    updateClientVisibility();
 
     XSync(display, False);
 }
@@ -128,6 +137,9 @@ void run() {
 
     XSync(display, False);
     fprintf(stderr, "Starting main event loop\n");
+
+    updateClientVisibility();
+    updateBars();
 
     while (XNextEvent(display, &event) == 0) {
         if (event.type == ButtonPress)
@@ -183,6 +195,13 @@ void handleButtonPress(XEvent* event) {
     Window        clickedWindow = ev->window;
 
     fprintf(stderr, "ButtonPress: window=0x%lx, button=%d, state=0x%x\n", clickedWindow, ev->button, ev->state);
+
+    for (int i = 0; i < numMonitors; i++) {
+        if (barWindows && barWindows[i] == clickedWindow) {
+            handleBarClick(event);
+            return;
+        }
+    }
 
     if (clickedWindow == root) {
         Window       root_return, child_return;
@@ -242,10 +261,12 @@ void handleButtonRelease(XEvent* event) {
 }
 
 SClient* clientAtPoint(int x, int y) {
-    SClient* client = clients;
+    SClient*  client = clients;
+    SMonitor* m      = monitorAtPoint(x, y);
 
     while (client) {
-        if (x >= client->x && x < client->x + client->width && y >= client->y && y < client->y + client->height)
+        if (client->monitor == m->num && client->workspace == m->currentWorkspace && x >= client->x && x < client->x + client->width && y >= client->y &&
+            y < client->y + client->height)
             return client;
         client = client->next;
     }
@@ -338,22 +359,21 @@ void resizeWindow(SClient* client, int width, int height) {
 void handleEnterNotify(XEvent* event) {
     XCrossingEvent* ev = &event->xcrossing;
 
-    if (ev->mode != NotifyNormal) {
-        fprintf(stderr, "EnterNotify: ignoring non-normal mode (%d)\n", ev->mode);
+    if (windowMovement.active || windowResize.active)
         return;
-    }
+
+    if (ev->mode != NotifyNormal || ev->detail == NotifyInferior)
+        return;
 
     SClient* client = findClient(ev->window);
-    if (!client) {
-        fprintf(stderr, "EnterNotify: window 0x%lx not managed\n", ev->window);
-        return;
-    }
+    if (client) {
+        SMonitor* monitor = &monitors[client->monitor];
 
-    if (focused != client) {
-        fprintf(stderr, "EnterNotify: focusing window 0x%lx\n", ev->window);
-        focusClient(client);
-    } else
-        fprintf(stderr, "EnterNotify: window 0x%lx already focused\n", ev->window);
+        if (client->workspace == monitor->currentWorkspace && client != focused) {
+            fprintf(stderr, "Focusing window 0x%lx after enter notify\n", ev->window);
+            focusClient(client);
+        }
+    }
 }
 
 void handleMapRequest(XEvent* event) {
@@ -379,10 +399,13 @@ void handleConfigureRequest(XEvent* event) {
 }
 
 void handleUnmapNotify(XEvent* event) {
-    XUnmapEvent* ev     = &event->xunmap;
-    SClient*     client = findClient(ev->window);
-    if (client)
-        unmanageClient(ev->window);
+    XUnmapEvent* ev = &event->xunmap;
+
+    if (ev->send_event) {
+        SClient* client = findClient(ev->window);
+        if (client)
+            unmanageClient(ev->window);
+    }
 }
 
 void handleDestroyNotify(XEvent* event) {
@@ -499,6 +522,14 @@ void focusClient(SClient* client) {
         return;
     }
 
+    SMonitor* monitor = &monitors[client->monitor];
+
+    if (client->workspace != monitor->currentWorkspace) {
+        monitor->currentWorkspace = client->workspace;
+        updateClientVisibility();
+        updateBars();
+    }
+
     fprintf(stderr, "  Window is valid and viewable, setting focus\n");
 
     focused = client;
@@ -506,6 +537,8 @@ void focusClient(SClient* client) {
     XSetInputFocus(display, client->window, RevertToPointerRoot, CurrentTime);
 
     updateBorders();
+
+    updateBars();
 }
 
 void manageClient(Window window) {
@@ -550,6 +583,7 @@ void manageClient(Window window) {
     }
 
     client->monitor   = monitorNum;
+    client->workspace = monitors[monitorNum].currentWorkspace;
     SMonitor* monitor = &monitors[client->monitor];
 
     client->window = window;
@@ -611,6 +645,8 @@ void manageClient(Window window) {
         focusClient(client);
     } else
         fprintf(stderr, "Window not yet viewable (state: %d), deferring focus\n", wa.map_state);
+
+    updateBars();
 }
 
 void unmanageClient(Window window) {
@@ -638,11 +674,26 @@ void unmanageClient(Window window) {
                 focused = clientUnderCursor;
             } else {
                 SMonitor* currentMonitor = monitorAtPoint(rootX, rootY);
-                fprintf(stderr, "Window closed, no window under cursor, focusing monitor %d\n", currentMonitor->num);
-                focused = NULL;
+                SClient*  nextClient     = findVisibleClientInWorkspace(currentMonitor->num, currentMonitor->currentWorkspace);
+
+                if (nextClient && nextClient != client) {
+                    fprintf(stderr, "Window closed, focusing next client in workspace\n");
+                    focused = nextClient;
+                } else {
+                    fprintf(stderr, "Window closed, no window under cursor, focusing monitor %d\n", currentMonitor->num);
+                    focused = NULL;
+                }
             }
-        } else
-            focused = (client->next) ? client->next : prev;
+        } else {
+            SMonitor* currentMonitor = &monitors[client->monitor];
+            SClient*  nextClient     = findVisibleClientInWorkspace(currentMonitor->num, currentMonitor->currentWorkspace);
+
+            if (nextClient && nextClient != client) {
+                fprintf(stderr, "Window closed, focusing next client in workspace\n");
+                focused = nextClient;
+            } else
+                focused = NULL;
+        }
 
         updateFocus();
     }
@@ -653,6 +704,8 @@ void unmanageClient(Window window) {
         clients = client->next;
 
     free(client);
+
+    updateBars();
 }
 
 void configureClient(SClient* client) {
@@ -734,6 +787,16 @@ SMonitor* monitorAtPoint(int x, int y) {
 }
 
 void updateMonitors() {
+    int* oldWorkspaces  = NULL;
+    int  oldNumMonitors = numMonitors;
+
+    if (monitors) {
+        oldWorkspaces = malloc(sizeof(int) * numMonitors);
+        for (int i = 0; i < numMonitors; i++) {
+            oldWorkspaces[i] = monitors[i].currentWorkspace;
+        }
+    }
+
     free(monitors);
     monitors    = NULL;
     numMonitors = 0;
@@ -749,6 +812,11 @@ void updateMonitors() {
                     monitors[i].width  = info[i].width;
                     monitors[i].height = info[i].height;
                     monitors[i].num    = i;
+
+                    if (oldWorkspaces && i < oldNumMonitors)
+                        monitors[i].currentWorkspace = oldWorkspaces[i];
+                    else
+                        monitors[i].currentWorkspace = 0;
                 }
             }
             XFree(info);
@@ -759,13 +827,17 @@ void updateMonitors() {
         numMonitors = 1;
         monitors    = malloc(sizeof(SMonitor));
         if (monitors) {
-            monitors[0].x      = 0;
-            monitors[0].y      = 0;
-            monitors[0].width  = DisplayWidth(display, DefaultScreen(display));
-            monitors[0].height = DisplayHeight(display, DefaultScreen(display));
-            monitors[0].num    = 0;
+            monitors[0].x                = 0;
+            monitors[0].y                = 0;
+            monitors[0].width            = DisplayWidth(display, DefaultScreen(display));
+            monitors[0].height           = DisplayHeight(display, DefaultScreen(display));
+            monitors[0].num              = 0;
+            monitors[0].currentWorkspace = oldWorkspaces ? oldWorkspaces[0] : 0;
         }
     }
+
+    if (oldWorkspaces)
+        free(oldWorkspaces);
 
     if (numMonitors > 0)
         createBars();
@@ -778,7 +850,7 @@ void handlePropertyNotify(XEvent* event) {
         updateStatus();
     else if (ev->atom == XInternAtom(display, "_NET_WM_NAME", False) || ev->atom == XA_WM_NAME) {
         SClient* client = findClient(ev->window);
-        if (client && client == focused)
+        if (client)
             updateBars();
     }
 }
@@ -792,6 +864,111 @@ void handleExpose(XEvent* event) {
             return;
         }
     }
+}
+
+SClient* focusWindowUnderCursor(SMonitor* monitor) {
+    int          x, y;
+    unsigned int mask;
+    Window       root_return, child_return;
+
+    if (XQueryPointer(display, root, &root_return, &child_return, &x, &y, &x, &y, &mask)) {
+        if (x >= monitor->x && x < monitor->x + monitor->width && y >= monitor->y && y < monitor->y + monitor->height) {
+
+            SClient* windowUnderCursor = clientAtPoint(x, y);
+
+            if (windowUnderCursor) {
+                focusClient(windowUnderCursor);
+                updateBars();
+                return windowUnderCursor;
+            }
+        }
+    }
+
+    focused = NULL;
+    XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
+    updateBorders();
+    return NULL;
+}
+
+void switchToWorkspace(const char* arg) {
+    if (!arg)
+        return;
+
+    int workspace = atoi(arg);
+    if (workspace < 0 || workspace >= WORKSPACE_COUNT)
+        return;
+
+    SMonitor* currentMon = getCurrentMonitor();
+
+    if (workspace == currentMon->currentWorkspace)
+        return;
+
+    currentMon->currentWorkspace = workspace;
+
+    updateClientVisibility();
+
+    focusWindowUnderCursor(currentMon);
+
+    updateBars();
+}
+
+void moveClientToWorkspace(const char* arg) {
+    if (!arg || !focused)
+        return;
+
+    int workspace = atoi(arg);
+    if (workspace < 0 || workspace >= WORKSPACE_COUNT)
+        return;
+
+    SMonitor* currentMon  = &monitors[focused->monitor];
+    SClient*  movedClient = focused;
+
+    movedClient->workspace = workspace;
+
+    if (workspace != currentMon->currentWorkspace) {
+        XUnmapWindow(display, movedClient->window);
+
+        focusWindowUnderCursor(currentMon);
+    }
+
+    updateBars();
+}
+
+void updateClientVisibility() {
+    SClient* client = clients;
+
+    while (client) {
+        SMonitor* m = &monitors[client->monitor];
+
+        if (client->workspace == m->currentWorkspace)
+            XMapWindow(display, client->window);
+        else
+            XUnmapWindow(display, client->window);
+        client = client->next;
+    }
+}
+
+SClient* findVisibleClientInWorkspace(int monitor, int workspace) {
+    SClient* client = clients;
+
+    while (client) {
+        if (client->monitor == monitor && client->workspace == workspace)
+            return client;
+        client = client->next;
+    }
+
+    return NULL;
+}
+
+SMonitor* getCurrentMonitor() {
+    int          x, y;
+    unsigned int mask;
+    Window       root_return, child_return;
+
+    if (XQueryPointer(display, root, &root_return, &child_return, &x, &y, &x, &y, &mask))
+        return monitorAtPoint(x, y);
+
+    return &monitors[0];
 }
 
 int main() {

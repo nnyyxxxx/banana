@@ -14,6 +14,7 @@ typedef struct SClient {
     int             x, y;
     int             width, height;
     int             monitor;
+    int             workspace;
     struct SClient* next;
 } SClient;
 
@@ -21,6 +22,7 @@ typedef struct SMonitor {
     int x, y;
     int width, height;
     int num;
+    int currentWorkspace;
 } SMonitor;
 
 typedef struct {
@@ -56,6 +58,8 @@ void                   handlePropertyNotify(XEvent* event);
 void                   spawnProgram(const char* program);
 void                   killClient(const char* arg);
 void                   quit(const char* arg);
+void                   switchToWorkspace(const char* arg);
+void                   moveClientToWorkspace(const char* arg);
 
 void                   grabKeys();
 void                   updateFocus();
@@ -66,6 +70,9 @@ void                   configureClient(SClient* client);
 void                   updateBorders();
 void                   moveWindow(SClient* client, int x, int y);
 void                   resizeWindow(SClient* client, int width, int height);
+void                   updateClientVisibility();
+SClient*               findVisibleClientInWorkspace(int monitor, int workspace);
+SMonitor*              getCurrentMonitor();
 
 SClient*               findClient(Window window);
 SClient*               clientAtPoint(int x, int y);
@@ -80,5 +87,7 @@ extern int             numMonitors;
 extern SClient*        focused;
 extern SWindowMovement windowMovement;
 extern SWindowResize   windowResize;
+
+SClient*               focusWindowUnderCursor(SMonitor* monitor);
 
 #endif // DEFS_H

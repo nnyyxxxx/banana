@@ -10,6 +10,7 @@ void           updateStatus(void);
 void           updateBars(void);
 void           raiseBars(void);
 void           handleBarExpose(XEvent* event);
+void           handleBarClick(XEvent* event);
 void           cleanupBars(void);
 void           updateClientPositionsForBar(void);
 

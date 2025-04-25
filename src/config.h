@@ -9,6 +9,11 @@
 void spawnProgram(const char* arg);
 void killClient(const char* arg);
 void quit(const char* arg);
+void switchToWorkspace(const char* arg);
+void moveClientToWorkspace(const char* arg);
+
+/* Number of workspaces */
+#define WORKSPACE_COUNT 9
 
 /* Key definitions */
 #define MODKEY Mod1Mask
@@ -23,9 +28,13 @@ void quit(const char* arg);
 #define INACTIVE_BORDER_COLOR "#404040" /* Dark gray */
 
 /* Bar colors */
-#define BAR_BACKGROUND_COLOR "#222222" /* Dark gray */
-#define BAR_FOREGROUND_COLOR "#bbbbbb" /* Light gray */
-#define BAR_BORDER_COLOR     "#000000" /* Black */
+#define BAR_BACKGROUND_COLOR    "#222222" /* Dark gray */
+#define BAR_FOREGROUND_COLOR    "#bbbbbb" /* Light gray */
+#define BAR_BORDER_COLOR        "#000000" /* Black */
+#define BAR_ACTIVE_WS_COLOR     "#5294e2" /* Light blue */
+#define BAR_ACTIVE_TEXT_COLOR   "#ffffff" /* White */
+#define BAR_INACTIVE_TEXT_COLOR "#bbbbbb" /* Light gray */
+#define BAR_STATUS_TEXT_COLOR   "#bbbbbb" /* Light gray */
 
 /* Border width in pixels */
 #define BORDER_WIDTH 2
@@ -44,6 +53,28 @@ static const struct {
     {MODKEY, XK_q, spawnProgram, TERMINAL},
     {MODKEY, XK_c, killClient, NULL},
     {MODKEY, XK_w, quit, NULL},
+
+    /* Workspace switching */
+    {MODKEY, XK_1, switchToWorkspace, "0"},
+    {MODKEY, XK_2, switchToWorkspace, "1"},
+    {MODKEY, XK_3, switchToWorkspace, "2"},
+    {MODKEY, XK_4, switchToWorkspace, "3"},
+    {MODKEY, XK_5, switchToWorkspace, "4"},
+    {MODKEY, XK_6, switchToWorkspace, "5"},
+    {MODKEY, XK_7, switchToWorkspace, "6"},
+    {MODKEY, XK_8, switchToWorkspace, "7"},
+    {MODKEY, XK_9, switchToWorkspace, "8"},
+
+    /* Move client to workspace */
+    {MODKEY | ShiftMask, XK_1, moveClientToWorkspace, "0"},
+    {MODKEY | ShiftMask, XK_2, moveClientToWorkspace, "1"},
+    {MODKEY | ShiftMask, XK_3, moveClientToWorkspace, "2"},
+    {MODKEY | ShiftMask, XK_4, moveClientToWorkspace, "3"},
+    {MODKEY | ShiftMask, XK_5, moveClientToWorkspace, "4"},
+    {MODKEY | ShiftMask, XK_6, moveClientToWorkspace, "5"},
+    {MODKEY | ShiftMask, XK_7, moveClientToWorkspace, "6"},
+    {MODKEY | ShiftMask, XK_8, moveClientToWorkspace, "7"},
+    {MODKEY | ShiftMask, XK_9, moveClientToWorkspace, "8"},
 };
 
 #endif /* CONFIG_H */

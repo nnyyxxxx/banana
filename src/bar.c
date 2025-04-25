@@ -14,22 +14,27 @@
 #define MAX_STATUS_LENGTH 256
 #define PADDING           4
 
-static char          statusText[MAX_STATUS_LENGTH] = "banana";
+static const char* const workspaceNames[WORKSPACE_COUNT] = {"1", "2", "3", "4", "5", "6", "7", "8", "9"};
 
-Window*              barWindows = NULL;
+Window*                  barWindows = NULL;
 
-static unsigned long barBgColor;
-static unsigned long barFgColor;
-static unsigned long barBorderColor;
+static unsigned long     barBgColor;
+static unsigned long     barFgColor;
+static unsigned long     barBorderColor;
+static unsigned long     barActiveWsColor;
 
-static XftFont*      barFont = NULL;
-static XftColor      barTextColor;
-static XftDraw**     barDraws = NULL;
+static XftFont*          barFont = NULL;
+static XftColor          barActiveTextColor;
+static XftColor          barInactiveTextColor;
+static XftColor          barStatusTextColor;
+static XftDraw**         barDraws = NULL;
 
-static Atom          WM_NAME;
-static Atom          NET_WM_NAME;
+static Atom              WM_NAME;
+static Atom              NET_WM_NAME;
 
-static void          initColors(void) {
+static char              statusText[MAX_STATUS_LENGTH] = "";
+
+static void              initColors(void) {
     XColor   color;
     Colormap cmap = DefaultColormap(display, DefaultScreen(display));
 
@@ -48,7 +53,16 @@ static void          initColors(void) {
     else
         barBorderColor = BlackPixel(display, DefaultScreen(display));
 
-    XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), BAR_FOREGROUND_COLOR, &barTextColor);
+    if (XAllocNamedColor(display, cmap, BAR_ACTIVE_WS_COLOR, &color, &color))
+        barActiveWsColor = color.pixel;
+    else
+        barActiveWsColor = barFgColor;
+
+    XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), BAR_ACTIVE_TEXT_COLOR, &barActiveTextColor);
+
+    XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), BAR_INACTIVE_TEXT_COLOR, &barInactiveTextColor);
+
+    XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), BAR_STATUS_TEXT_COLOR, &barStatusTextColor);
 }
 
 static int initFont(void) {
@@ -58,6 +72,12 @@ static int initFont(void) {
         return 0;
     }
     return 1;
+}
+
+static int getTextWidth(const char* text) {
+    XGlyphInfo extents;
+    XftTextExtentsUtf8(display, barFont, (XftChar8*)text, strlen(text), &extents);
+    return extents.xOff;
 }
 
 void createBars(void) {
@@ -116,17 +136,16 @@ void createBars(void) {
     updateBars();
 }
 
-static char* getWindowTitle(void) {
+static char* getClientTitle(SClient* client) {
     static char title[256];
 
-    if (!focused) {
+    if (!client) {
         title[0] = '\0';
         return title;
     }
 
     XTextProperty textProp;
-    if (XGetTextProperty(display, focused->window, &textProp, NET_WM_NAME) || XGetTextProperty(display, focused->window, &textProp, WM_NAME)) {
-
+    if (XGetTextProperty(display, client->window, &textProp, NET_WM_NAME) || XGetTextProperty(display, client->window, &textProp, WM_NAME)) {
         if (textProp.encoding == XA_STRING) {
             strncpy(title, (char*)textProp.value, sizeof(title) - 1);
             title[sizeof(title) - 1] = '\0';
@@ -143,30 +162,43 @@ static char* getWindowTitle(void) {
     return title;
 }
 
-static void drawText(int monitorIndex, const char* text, int x, int y, int isCenter) {
-    int        textWidth = 0;
-    XGlyphInfo extents;
-
+static void drawText(int monitorIndex, const char* text, int x, int y, XftColor* color, int isCenter) {
     if (!text || !text[0])
         return;
 
-    XftTextExtentsUtf8(display, barFont, (XftChar8*)text, strlen(text), &extents);
-    textWidth = extents.xOff;
+    int txtWidth = getTextWidth(text);
 
     if (isCenter)
-        x = x - (textWidth / 2);
+        x = x - (txtWidth / 2);
 
-    XftDrawStringUtf8(barDraws[monitorIndex], &barTextColor, barFont, x, y + (BAR_HEIGHT + barFont->ascent - barFont->descent) / 2, (XftChar8*)text, strlen(text));
+    XftDrawStringUtf8(barDraws[monitorIndex], color, barFont, x, y + (BAR_HEIGHT + barFont->ascent - barFont->descent) / 2, (XftChar8*)text, strlen(text));
+}
+
+static SClient* getMonitorFocusedClient(int monitor) {
+    if (focused && focused->monitor == monitor)
+        return focused;
+
+    SClient* client = clients;
+    while (client) {
+        if (client->monitor == monitor && client->workspace == monitors[monitor].currentWorkspace)
+            return client;
+        client = client->next;
+    }
+
+    return NULL;
 }
 
 void updateStatus(void) {
     XTextProperty textProp;
+    if (XGetTextProperty(display, root, &textProp, XA_WM_NAME)) {
+        if (textProp.encoding == XA_STRING) {
+            strncpy(statusText, (char*)textProp.value, sizeof(statusText) - 1);
+            statusText[sizeof(statusText) - 1] = '\0';
+        } else {
+            strncpy(statusText, (char*)textProp.value, sizeof(statusText) - 1);
+            statusText[sizeof(statusText) - 1] = '\0';
+        }
 
-    if (!XGetTextProperty(display, root, &textProp, XA_WM_NAME) || !textProp.nitems)
-        strncpy(statusText, "banana", sizeof(statusText) - 1);
-    else {
-        strncpy(statusText, (char*)textProp.value, sizeof(statusText) - 1);
-        statusText[sizeof(statusText) - 1] = '\0';
         XFree(textProp.value);
     }
 
@@ -174,24 +206,38 @@ void updateStatus(void) {
 }
 
 void updateBars(void) {
-    char* windowTitle = getWindowTitle();
-
     for (int i = 0; i < numMonitors; i++) {
         if (!barWindows[i] || !barDraws[i])
             continue;
 
         XClearWindow(display, barWindows[i]);
 
-        XGlyphInfo extents;
+        int x = PADDING;
 
-        if (statusText[0])
-            XftTextExtentsUtf8(display, barFont, (XftChar8*)statusText, strlen(statusText), &extents);
+        for (int w = 0; w < WORKSPACE_COUNT; w++) {
+            int textW      = getTextWidth(workspaceNames[w]) + PADDING * 2;
+            int isSelected = (monitors[i].currentWorkspace == w);
 
-        if (windowTitle[0])
-            drawText(i, windowTitle, BAR_PADDING, 0, 0);
+            if (isSelected) {
+                XSetForeground(display, DefaultGC(display, DefaultScreen(display)), barActiveWsColor);
+                XFillRectangle(display, barWindows[i], DefaultGC(display, DefaultScreen(display)), x, 0, textW, BAR_HEIGHT);
+            }
 
-        if (statusText[0])
-            drawText(i, statusText, monitors[i].width - BAR_PADDING - extents.xOff, 0, 0);
+            drawText(i, workspaceNames[w], x + PADDING, 0, isSelected ? &barActiveTextColor : &barInactiveTextColor, 0);
+
+            x += textW;
+        }
+
+        SClient* monFocused = getMonitorFocusedClient(i);
+
+        char*    windowTitle = getClientTitle(monFocused);
+        if (windowTitle && windowTitle[0] != '\0')
+            drawText(i, windowTitle, x + PADDING * 2, 0, &barInactiveTextColor, 0);
+
+        if (statusText[0] != '\0') {
+            int statusWidth = getTextWidth(statusText);
+            drawText(i, statusText, monitors[i].width - PADDING - statusWidth, 0, &barStatusTextColor, 0);
+        }
     }
 
     raiseBars();
@@ -231,6 +277,40 @@ void cleanupBars(void) {
 void handleBarExpose(XEvent* event) {
     (void)event;
     updateBars();
+}
+
+void handleBarClick(XEvent* event) {
+    XButtonEvent* ev = &event->xbutton;
+
+    for (int i = 0; i < numMonitors; i++) {
+        if (ev->window == barWindows[i]) {
+            int x = PADDING;
+
+            for (int w = 0; w < WORKSPACE_COUNT; w++) {
+                int textW = getTextWidth(workspaceNames[w]) + PADDING * 2;
+
+                if (ev->x >= x && ev->x < x + textW) {
+                    if (monitors[i].currentWorkspace != w) {
+                        monitors[i].currentWorkspace = w;
+                        updateClientVisibility();
+
+                        if (focused && focused->monitor == i) {
+                            focused = NULL;
+                            XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
+                            updateBorders();
+                        }
+
+                        updateBars();
+                    }
+                    return;
+                }
+
+                x += textW;
+            }
+
+            break;
+        }
+    }
 }
 
 void updateClientPositionsForBar(void) {
