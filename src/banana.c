@@ -329,7 +329,8 @@ void moveWindow(SClient* client, int x, int y) {
 
     configureClient(client);
 
-    XRaiseWindow(display, client->window);
+    if (windowMovement.active && windowMovement.client == client)
+        XRaiseWindow(display, client->window);
 
     raiseBars();
 }
@@ -351,7 +352,8 @@ void resizeWindow(SClient* client, int width, int height) {
 
     XResizeWindow(display, client->window, client->width, client->height);
 
-    XRaiseWindow(display, client->window);
+    if (windowResize.active && windowResize.client == client)
+        XRaiseWindow(display, client->window);
 
     configureClient(client);
 
@@ -653,6 +655,9 @@ void manageClient(Window window) {
         fprintf(stderr, "Window not yet viewable (state: %d), deferring focus\n", wa.map_state);
 
     arrangeClients(monitor);
+
+    if (!client->isFloating)
+        XLowerWindow(display, client->window);
 
     restackFloatingWindows();
 
@@ -1011,6 +1016,8 @@ void toggleFloating(const char* arg) {
     if (!focused)
         return;
 
+    int wasFloating = focused->isFloating;
+
     focused->isFloating = !focused->isFloating;
 
     if (focused->isFloating) {
@@ -1027,7 +1034,8 @@ void toggleFloating(const char* arg) {
 
             XMoveResizeWindow(display, focused->window, focused->x, focused->y, focused->width, focused->height);
         }
-    }
+    } else if (wasFloating)
+        XLowerWindow(display, focused->window);
 
     arrangeClients(&monitors[focused->monitor]);
     updateBorders();
@@ -1051,15 +1059,19 @@ void arrangeClients(SMonitor* monitor) {
 }
 
 void restackFloatingWindows() {
-    if (focused && focused->isFloating)
-        XRaiseWindow(display, focused->window);
-
     for (int m = 0; m < numMonitors; m++) {
         SMonitor* monitor = &monitors[m];
 
         for (SClient* c = clients; c; c = c->next) {
-            if (c->monitor == monitor->num && c->workspace == monitor->currentWorkspace && c->isFloating)
-                XRaiseWindow(display, c->window);
+            if (c->monitor == monitor->num && c->workspace == monitor->currentWorkspace && !c->isFloating)
+                XLowerWindow(display, c->window);
+        }
+
+        for (SClient* c = clients; c; c = c->next) {
+            if (c->monitor == monitor->num && c->workspace == monitor->currentWorkspace && c->isFloating) {
+                if (c == focused && (windowMovement.active || windowResize.active))
+                    XRaiseWindow(display, c->window);
+            }
         }
     }
 
