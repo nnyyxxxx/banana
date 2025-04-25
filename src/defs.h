@@ -59,6 +59,14 @@ typedef struct {
     SMonitor* monitor;
 } SMFactAdjust;
 
+typedef struct {
+    int      x;
+    int      y;
+    SClient* client;
+    int      active;
+    SClient* lastTarget;
+} SWindowSwap;
+
 void                   setup();
 void                   run();
 void                   cleanup();
@@ -102,6 +110,7 @@ SMonitor*              getCurrentMonitor();
 
 void                   tileClients(SMonitor* monitor);
 void                   arrangeClients(SMonitor* monitor);
+void                   swapClients(SClient* a, SClient* b);
 
 SClient*               findClient(Window window);
 SClient*               clientAtPoint(int x, int y);
@@ -117,6 +126,7 @@ extern SClient*        focused;
 extern SWindowMovement windowMovement;
 extern SWindowResize   windowResize;
 extern SMFactAdjust    mfactAdjust;
+extern SWindowSwap     windowSwap;
 
 SClient*               focusWindowUnderCursor(SMonitor* monitor);
 

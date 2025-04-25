@@ -28,6 +28,7 @@ Cursor          resizeCursor;
 SWindowMovement windowMovement   = {0, 0, NULL, 0};
 SWindowResize   windowResize     = {0, 0, NULL, 0};
 SMFactAdjust    mfactAdjust      = {0, 0, NULL};
+SWindowSwap     windowSwap       = {0, 0, NULL, 0, NULL};
 int             currentWorkspace = 0;
 
 Atom            WM_PROTOCOLS;
@@ -223,16 +224,22 @@ void handleButtonPress(XEvent* event) {
     if (!client || (ev->state & MODKEY) == 0)
         return;
 
-    if (!client->isFloating)
-        return;
-
     if (ev->button == Button1) {
-        windowMovement.client = client;
-        windowMovement.x      = ev->x_root;
-        windowMovement.y      = ev->y_root;
-        windowMovement.active = 1;
-        XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, moveCursor, CurrentTime);
-    } else if (ev->button == Button3) {
+        if (!client->isFloating) {
+            windowSwap.client     = client;
+            windowSwap.x          = ev->x_root;
+            windowSwap.y          = ev->y_root;
+            windowSwap.active     = 1;
+            windowSwap.lastTarget = NULL;
+            XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, moveCursor, CurrentTime);
+        } else {
+            windowMovement.client = client;
+            windowMovement.x      = ev->x_root;
+            windowMovement.y      = ev->y_root;
+            windowMovement.active = 1;
+            XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, moveCursor, CurrentTime);
+        }
+    } else if (ev->button == Button3 && client->isFloating) {
         windowResize.client = client;
         windowResize.x      = ev->x_root;
         windowResize.y      = ev->y_root;
@@ -250,6 +257,14 @@ void handleButtonRelease(XEvent* event) {
         fprintf(stderr, "  Ending window movement\n");
         windowMovement.active = 0;
         windowMovement.client = NULL;
+        XUngrabPointer(display, CurrentTime);
+    }
+
+    if (windowSwap.active && ev->button == Button1) {
+        fprintf(stderr, "  Ending window swap\n");
+        windowSwap.active     = 0;
+        windowSwap.client     = NULL;
+        windowSwap.lastTarget = NULL;
         XUngrabPointer(display, CurrentTime);
     }
 
@@ -296,6 +311,22 @@ void handleMotionNotify(XEvent* event) {
 
         windowMovement.x = ev->x_root;
         windowMovement.y = ev->y_root;
+    } else if (windowSwap.active && windowSwap.client) {
+        SClient* targetClient = clientAtPoint(ev->x_root, ev->y_root);
+
+        if (targetClient && targetClient != windowSwap.client && !targetClient->isFloating && targetClient->monitor == windowSwap.client->monitor &&
+            targetClient->workspace == windowSwap.client->workspace && targetClient != windowSwap.lastTarget) {
+
+            swapClients(windowSwap.client, targetClient);
+
+            SMonitor* monitor = &monitors[windowSwap.client->monitor];
+            arrangeClients(monitor);
+
+            windowSwap.lastTarget = targetClient;
+
+            windowSwap.x = ev->x_root;
+            windowSwap.y = ev->y_root;
+        }
     } else if (windowResize.active && windowResize.client) {
         int dx = ev->x_root - windowResize.x;
         int dy = ev->y_root - windowResize.y;
@@ -1385,6 +1416,48 @@ void adjustMasterFactor(const char* arg) {
         if (c->monitor == monitor->num && c->workspace == monitor->currentWorkspace && !c->isFloating)
             XLowerWindow(display, c->window);
     }
+}
+
+void swapClients(SClient* a, SClient* b) {
+    if (!a || !b || a == b)
+        return;
+
+    SClient* prevA = NULL;
+    SClient* prevB = NULL;
+    SClient* temp  = clients;
+
+    while (temp && temp != a) {
+        prevA = temp;
+        temp  = temp->next;
+    }
+
+    temp = clients;
+    while (temp && temp != b) {
+        prevB = temp;
+        temp  = temp->next;
+    }
+
+    if (!temp)
+        return;
+
+    if (prevA)
+        prevA->next = b;
+    else
+        clients = b;
+
+    if (prevB)
+        prevB->next = a;
+    else
+        clients = a;
+
+    temp    = a->next;
+    a->next = b->next;
+    b->next = temp;
+
+    if (a->next == a)
+        a->next = b;
+    if (b->next == b)
+        b->next = a;
 }
 
 int main() {
