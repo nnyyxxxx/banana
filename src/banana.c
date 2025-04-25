@@ -1,13 +1,13 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
 #include <X11/extensions/Xinerama.h>
 #include <X11/cursorfont.h>
 #include <X11/Xproto.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
 #include <signal.h>
 #include <sys/wait.h>
 #include <err.h>
@@ -1192,6 +1192,116 @@ void tileClients(SMonitor* monitor) {
         }
 
         client = client->next;
+    }
+}
+
+void warpPointerToClientCenter(SClient* client) {
+    if (!client)
+        return;
+
+    int centerX = client->x + client->width / 2;
+    int centerY = client->y + client->height / 2;
+
+    XWarpPointer(display, None, root, 0, 0, 0, 0, centerX, centerY);
+}
+
+void moveWindowInStack(const char* arg) {
+    if (!focused || !arg)
+        return;
+
+    if (focused->isFloating)
+        return;
+
+    SMonitor* monitor   = &monitors[focused->monitor];
+    int       workspace = focused->workspace;
+
+    SClient*  prev         = NULL;
+    SClient*  client       = clients;
+    SClient*  targetClient = NULL;
+
+    while (client && client != focused) {
+        if (client->monitor == focused->monitor && client->workspace == workspace)
+            prev = client;
+        client = client->next;
+    }
+
+    if (strcmp(arg, "up") == 0) {
+        if (prev) {
+            targetClient = prev;
+
+            SClient* prevPrev = NULL;
+            client            = clients;
+            while (client && client != prev) {
+                if (client->monitor == focused->monitor && client->workspace == workspace)
+                    prevPrev = client;
+                client = client->next;
+            }
+
+            if (prevPrev)
+                prevPrev->next = focused;
+            else
+                clients = focused;
+
+            SClient* focusedNext = focused->next;
+            focused->next        = prev;
+            prev->next           = focusedNext;
+        }
+    } else if (strcmp(arg, "down") == 0) {
+        targetClient = focused->next;
+        while (targetClient && (targetClient->monitor != focused->monitor || targetClient->workspace != workspace)) {
+            targetClient = targetClient->next;
+        }
+
+        if (targetClient) {
+            focused->next      = targetClient->next;
+            targetClient->next = focused;
+
+            if (prev)
+                prev->next = targetClient;
+            else
+                clients = targetClient;
+        }
+    }
+
+    if (targetClient) {
+        arrangeClients(monitor);
+        restackFloatingWindows();
+
+        warpPointerToClientCenter(focused);
+
+        updateBorders();
+        updateBars();
+    }
+}
+
+void focusWindowInStack(const char* arg) {
+    if (!focused || !arg)
+        return;
+
+    int      workspace = focused->workspace;
+
+    SClient* prev         = NULL;
+    SClient* client       = clients;
+    SClient* targetClient = NULL;
+
+    while (client && client != focused) {
+        if (client->monitor == focused->monitor && client->workspace == workspace)
+            prev = client;
+        client = client->next;
+    }
+
+    if (strcmp(arg, "up") == 0)
+        targetClient = prev;
+    else if (strcmp(arg, "down") == 0) {
+        targetClient = focused->next;
+        while (targetClient && (targetClient->monitor != focused->monitor || targetClient->workspace != workspace)) {
+            targetClient = targetClient->next;
+        }
+    }
+
+    if (targetClient) {
+        focusClient(targetClient);
+        warpPointerToClientCenter(targetClient);
     }
 }
 

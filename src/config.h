@@ -12,6 +12,8 @@ void quit(const char* arg);
 void switchToWorkspace(const char* arg);
 void moveClientToWorkspace(const char* arg);
 void toggleFloating(const char* arg);
+void moveWindowInStack(const char* arg);
+void focusWindowInStack(const char* arg);
 
 /* Number of workspaces */
 #define WORKSPACE_COUNT 9
@@ -65,6 +67,14 @@ static const struct {
     {MODKEY, XK_c, killClient, NULL},
     {MODKEY, XK_w, quit, NULL},
     {MODKEY, XK_space, toggleFloating, NULL},
+
+    /* Window stack movement */
+    {MODKEY | ShiftMask, XK_j, moveWindowInStack, "down"},
+    {MODKEY | ShiftMask, XK_k, moveWindowInStack, "up"},
+
+    /* Window stack focus */
+    {MODKEY, XK_j, focusWindowInStack, "down"},
+    {MODKEY, XK_k, focusWindowInStack, "up"},
 
     /* Workspace switching */
     {MODKEY, XK_1, switchToWorkspace, "0"},

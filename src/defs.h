@@ -75,6 +75,8 @@ void                   quit(const char* arg);
 void                   switchToWorkspace(const char* arg);
 void                   moveClientToWorkspace(const char* arg);
 void                   toggleFloating(const char* arg);
+void                   moveWindowInStack(const char* arg);
+void                   focusWindowInStack(const char* arg);
 
 void                   grabKeys();
 void                   updateFocus();
@@ -87,6 +89,7 @@ void                   moveWindow(SClient* client, int x, int y);
 void                   resizeWindow(SClient* client, int width, int height);
 void                   updateClientVisibility();
 void                   restackFloatingWindows();
+void                   warpPointerToClientCenter(SClient* client);
 SClient*               findVisibleClientInWorkspace(int monitor, int workspace);
 SMonitor*              getCurrentMonitor();
 
