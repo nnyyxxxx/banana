@@ -34,6 +34,6 @@ install: $(BIN)
 	install -m 755 $(BIN) $(DESTDIR)$(PREFIX)/bin/$(BIN:build/%=%)
 
 uninstall:
-	rm -f $(DESTDIR)$(PREFIX)/bin/$(BIN)
+	rm -f $(DESTDIR)$(PREFIX)/bin/$(BIN:build/%=%)
 
 .PHONY: all clean release debug install uninstall
