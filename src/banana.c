@@ -232,12 +232,14 @@ void handleButtonRelease(XEvent* event) {
         fprintf(stderr, "  Ending window movement\n");
         windowMovement.active = 0;
         windowMovement.client = NULL;
+        XUngrabPointer(display, CurrentTime);
     }
 
     if (windowResize.active && ev->button == Button3) {
         fprintf(stderr, "  Ending window resize\n");
         windowResize.active = 0;
         windowResize.client = NULL;
+        XUngrabPointer(display, CurrentTime);
     }
 }
 
