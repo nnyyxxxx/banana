@@ -101,6 +101,16 @@ void setup() {
     WM_PROTOCOLS     = XInternAtom(display, "WM_PROTOCOLS", False);
     WM_DELETE_WINDOW = XInternAtom(display, "WM_DELETE_WINDOW", False);
 
+    Atom   netWmName            = XInternAtom(display, "_NET_WM_NAME", False);
+    Atom   netSupportingWmCheck = XInternAtom(display, "_NET_SUPPORTING_WM_CHECK", False);
+    Atom   utf8String           = XInternAtom(display, "UTF8_STRING", False);
+
+    Window wmcheckwin = XCreateSimpleWindow(display, root, 0, 0, 1, 1, 0, 0, 0);
+    XChangeProperty(display, root, netSupportingWmCheck, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&wmcheckwin, 1);
+    XChangeProperty(display, wmcheckwin, netSupportingWmCheck, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&wmcheckwin, 1);
+    XChangeProperty(display, wmcheckwin, netWmName, utf8String, 8, PropModeReplace, (unsigned char*)"banana", 6);
+    XChangeProperty(display, root, netWmName, utf8String, 8, PropModeReplace, (unsigned char*)"banana", 6);
+
     normalCursor = XCreateFontCursor(display, XC_left_ptr);
     moveCursor   = XCreateFontCursor(display, XC_fleur);
     resizeCursor = XCreateFontCursor(display, XC_bottom_right_corner);
