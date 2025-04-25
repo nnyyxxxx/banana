@@ -916,6 +916,8 @@ void switchToWorkspace(const char* arg) {
     updateBars();
 
     arrangeClients(monitor);
+
+    focusWindowUnderCursor(monitor);
 }
 
 void moveClientToWorkspace(const char* arg) {
