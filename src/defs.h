@@ -35,7 +35,7 @@ typedef struct SMonitor {
     int    num;
     int    currentWorkspace;
     Layout currentLayout;
-    float  masterFactor;
+    float  masterFactors[WORKSPACE_COUNT];
     int    masterCount;
 } SMonitor;
 
@@ -52,6 +52,12 @@ typedef struct {
     SClient* client;
     int      active;
 } SWindowResize;
+
+typedef struct {
+    int       x;
+    int       active;
+    SMonitor* monitor;
+} SMFactAdjust;
 
 void                   setup();
 void                   run();
@@ -77,6 +83,7 @@ void                   moveClientToWorkspace(const char* arg);
 void                   toggleFloating(const char* arg);
 void                   moveWindowInStack(const char* arg);
 void                   focusWindowInStack(const char* arg);
+void                   adjustMasterFactor(const char* arg);
 
 void                   grabKeys();
 void                   updateFocus();
@@ -109,6 +116,7 @@ extern int             numMonitors;
 extern SClient*        focused;
 extern SWindowMovement windowMovement;
 extern SWindowResize   windowResize;
+extern SMFactAdjust    mfactAdjust;
 
 SClient*               focusWindowUnderCursor(SMonitor* monitor);
 

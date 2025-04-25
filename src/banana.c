@@ -27,6 +27,7 @@ Cursor          moveCursor;
 Cursor          resizeCursor;
 SWindowMovement windowMovement   = {0, 0, NULL, 0};
 SWindowResize   windowResize     = {0, 0, NULL, 0};
+SMFactAdjust    mfactAdjust      = {0, 0, NULL};
 int             currentWorkspace = 0;
 
 Atom            WM_PROTOCOLS;
@@ -202,6 +203,23 @@ void handleButtonPress(XEvent* event) {
     }
 
     SClient* client = findClient(ev->window);
+
+    if (ev->window == root && (ev->state & MODKEY) && ev->button == Button3) {
+        SMonitor* monitor   = monitorAtPoint(ev->x_root, ev->y_root);
+        mfactAdjust.monitor = monitor;
+        mfactAdjust.x       = ev->x_root;
+        mfactAdjust.active  = 1;
+        XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, resizeCursor, CurrentTime);
+        return;
+    } else if (client && (ev->state & MODKEY) && !client->isFloating && ev->button == Button3) {
+        SMonitor* monitor   = &monitors[client->monitor];
+        mfactAdjust.monitor = monitor;
+        mfactAdjust.x       = ev->x_root;
+        mfactAdjust.active  = 1;
+        XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, resizeCursor, CurrentTime);
+        return;
+    }
+
     if (!client || (ev->state & MODKEY) == 0)
         return;
 
@@ -239,6 +257,13 @@ void handleButtonRelease(XEvent* event) {
         fprintf(stderr, "  Ending window resize\n");
         windowResize.active = 0;
         windowResize.client = NULL;
+        XUngrabPointer(display, CurrentTime);
+    }
+
+    if (mfactAdjust.active && ev->button == Button3) {
+        fprintf(stderr, "  Ending mfact adjustment\n");
+        mfactAdjust.active  = 0;
+        mfactAdjust.monitor = NULL;
         XUngrabPointer(display, CurrentTime);
     }
 }
@@ -279,6 +304,22 @@ void handleMotionNotify(XEvent* event) {
 
         windowResize.x = ev->x_root;
         windowResize.y = ev->y_root;
+    } else if (mfactAdjust.active && mfactAdjust.monitor) {
+        int   dx = ev->x_root - mfactAdjust.x;
+
+        float delta     = (float)dx / mfactAdjust.monitor->width * 0.95;
+        int   workspace = mfactAdjust.monitor->currentWorkspace;
+
+        mfactAdjust.monitor->masterFactors[workspace] += delta;
+
+        if (mfactAdjust.monitor->masterFactors[workspace] < 0.1)
+            mfactAdjust.monitor->masterFactors[workspace] = 0.1;
+        else if (mfactAdjust.monitor->masterFactors[workspace] > 0.9)
+            mfactAdjust.monitor->masterFactors[workspace] = 0.9;
+
+        arrangeClients(mfactAdjust.monitor);
+
+        mfactAdjust.x = ev->x_root;
     } else {
         SMonitor* currentMonitor    = monitorAtPoint(ev->x_root, ev->y_root);
         SClient*  clientUnderCursor = clientAtPoint(ev->x_root, ev->y_root);
@@ -830,7 +871,6 @@ void updateMonitors() {
                     monitors[i].height        = info[i].height;
                     monitors[i].num           = i;
                     monitors[i].currentLayout = LAYOUT_TILED;
-                    monitors[i].masterFactor  = DEFAULT_MASTER_FACTOR;
                     monitors[i].masterCount   = DEFAULT_MASTER_COUNT;
 
                     if (oldWorkspaces && i < oldNumMonitors)
@@ -853,9 +893,18 @@ void updateMonitors() {
             monitors[0].height           = DisplayHeight(display, DefaultScreen(display));
             monitors[0].num              = 0;
             monitors[0].currentLayout    = LAYOUT_TILED;
-            monitors[0].masterFactor     = DEFAULT_MASTER_FACTOR;
             monitors[0].masterCount      = DEFAULT_MASTER_COUNT;
             monitors[0].currentWorkspace = oldWorkspaces ? oldWorkspaces[0] : 0;
+
+            for (int ws = 0; ws < WORKSPACE_COUNT; ws++) {
+                monitors[0].masterFactors[ws] = DEFAULT_MASTER_FACTOR;
+            }
+        }
+    } else {
+        for (int i = 0; i < numMonitors; i++) {
+            for (int ws = 0; ws < WORKSPACE_COUNT; ws++) {
+                monitors[i].masterFactors[ws] = DEFAULT_MASTER_FACTOR;
+            }
         }
     }
 
@@ -1089,25 +1138,31 @@ void tileClients(SMonitor* monitor) {
     if (!monitor)
         return;
 
-    int masterArea = monitor->width * monitor->masterFactor;
-    int stackArea  = monitor->width - masterArea;
-
-    int x               = monitor->x + OUTER_GAP;
-    int y               = monitor->y + BAR_HEIGHT + OUTER_GAP;
-    int availableWidth  = monitor->width - (2 * OUTER_GAP);
-    int availableHeight = monitor->height - BAR_HEIGHT - (2 * OUTER_GAP);
-
-    masterArea = availableWidth * monitor->masterFactor;
-    stackArea  = availableWidth - masterArea;
+    int      currentWorkspace = monitor->currentWorkspace;
 
     int      visibleCount = 0;
     SClient* client       = clients;
-
     while (client) {
         if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace && !client->isFloating)
             visibleCount++;
         client = client->next;
     }
+
+    if (visibleCount <= 1)
+        monitor->masterFactors[currentWorkspace] = DEFAULT_MASTER_FACTOR;
+
+    float masterFactor = monitor->masterFactors[currentWorkspace];
+
+    int   masterArea = monitor->width * masterFactor;
+    int   stackArea  = monitor->width - masterArea;
+
+    int   x               = monitor->x + OUTER_GAP;
+    int   y               = monitor->y + BAR_HEIGHT + OUTER_GAP;
+    int   availableWidth  = monitor->width - (2 * OUTER_GAP);
+    int   availableHeight = monitor->height - BAR_HEIGHT - (2 * OUTER_GAP);
+
+    masterArea = availableWidth * masterFactor;
+    stackArea  = availableWidth - masterArea;
 
     if (visibleCount == 0)
         return;
@@ -1303,6 +1358,27 @@ void focusWindowInStack(const char* arg) {
         focusClient(targetClient);
         warpPointerToClientCenter(targetClient);
     }
+}
+
+void adjustMasterFactor(const char* arg) {
+    if (!arg)
+        return;
+
+    SMonitor* monitor   = getCurrentMonitor();
+    int       workspace = monitor->currentWorkspace;
+    float     delta     = 0.05;
+
+    if (strcmp(arg, "decrease") == 0)
+        delta = -delta;
+
+    monitor->masterFactors[workspace] += delta;
+
+    if (monitor->masterFactors[workspace] < 0.1)
+        monitor->masterFactors[workspace] = 0.1;
+    else if (monitor->masterFactors[workspace] > 0.9)
+        monitor->masterFactors[workspace] = 0.9;
+
+    arrangeClients(monitor);
 }
 
 int main() {
