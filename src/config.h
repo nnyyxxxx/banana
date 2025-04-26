@@ -58,9 +58,10 @@ void adjustMasterFactor(const char* arg);
 #define BORDER_WIDTH 2
 
 /* Applications */
-#define TERMINAL "alacritty"
-#define LAUNCHER "dmenu_run"
-#define WALL     "pocky"
+#define TERMINAL   "alacritty"
+#define LAUNCHER   "dmenu_run"
+#define WALL       "pocky"
+#define SCREENSHOT "maim -s | xclip -selection clipboard -t image/png"
 
 /* Window rules
  * Format: { class, instance, title, float, workspace, monitor, width, height }
@@ -83,6 +84,7 @@ static const struct {
 } rules[] = {
     /* class  instance  title  floating  workspace  monitor  width  height */
     {"Pocky", NULL, NULL, 1, -1, -1, 1100, 700},
+    {"vesktop", NULL, NULL, -1, 0, 1, -1, -1},
     /* Add more rules here */
 };
 
@@ -97,6 +99,7 @@ static const struct {
     {MODKEY, XK_q, spawnProgram, TERMINAL},
     {MODKEY, XK_e, spawnProgram, LAUNCHER},
     {MODKEY, XK_a, spawnProgram, WALL},
+    {MODKEY, XK_Escape, spawnProgram, SCREENSHOT},
     {MODKEY, XK_c, killClient, NULL},
     {MODKEY, XK_w, quit, NULL},
     {MODKEY, XK_space, toggleFloating, NULL},
