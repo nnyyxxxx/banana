@@ -53,8 +53,8 @@ void focusMonitor(const char* arg);
 #define BAR_URGENT_TEXT_COLOR   "#000000"
 #define BAR_INACTIVE_TEXT_COLOR "#d3c1da"
 #define BAR_STATUS_TEXT_COLOR   "#d3c1da"
-#define BAR_TITLE_BG_COLOR      "#CD78A0"
-#define BAR_TITLE_TEXT_COLOR    "#000000"
+#define BAR_TITLE_BG_COLOR      "#000000" /* set to smthing else other than the bg color of the bar if u want to see it */
+#define BAR_TITLE_TEXT_COLOR    "#d3c1da" /* set to the bars background color if you don't want the window title to be visible */
 
 /* Border width in pixels */
 #define BORDER_WIDTH 2
