@@ -13,6 +13,11 @@
 #define MAX(A, B) ((A) > (B) ? (A) : (B))
 #define MIN(A, B) ((A) < (B) ? (A) : (B))
 
+#define SYSTEM_TRAY_REQUEST_DOCK   0
+#define SYSTEM_TRAY_BEGIN_MESSAGE  1
+#define SYSTEM_TRAY_CANCEL_MESSAGE 2
+#define XEMBED_EMBEDDED_NOTIFY     0
+
 typedef enum {
     LAYOUT_FLOATING,
     LAYOUT_TILED,
@@ -96,6 +101,11 @@ typedef struct {
     int         width;
     int         height;
 } SRule;
+
+typedef struct SSystrayIcon {
+    Window               win;
+    struct SSystrayIcon* next;
+} SSystrayIcon;
 
 void                   setup();
 void                   run();
@@ -189,6 +199,16 @@ extern Atom            NET_WM_STATE_FULLSCREEN;
 extern Atom            NET_WM_WINDOW_TYPE;
 extern Atom            NET_WM_WINDOW_TYPE_DIALOG;
 extern Atom            UTF8_STRING;
+
+extern Atom            NET_SYSTEM_TRAY_OPCODE;
+extern Atom            NET_SYSTEM_TRAY_ORIENTATION;
+extern Atom            NET_SYSTEM_TRAY_VISUAL;
+extern Atom            XEMBED;
+extern Atom            XEMBED_INFO;
+extern Window          systrayWin;
+extern SSystrayIcon*   systrayIcons;
+extern int             systrayIconSize;
+extern int             systraySpacing;
 
 SClient*               focusWindowUnderCursor(SMonitor* monitor);
 

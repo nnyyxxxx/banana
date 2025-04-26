@@ -16,4 +16,11 @@ void           cleanupBars(void);
 void           updateClientPositionsForBar(void);
 char*          getWindowTitle(SClient* client);
 
+int            createSystray(void);
+void           updateSystray(void);
+void           removeSystrayIcon(Window win);
+void           cleanupSystray(void);
+void           handleSystrayClientMessage(XEvent* event);
+int            getSystrayWidth(void);
+
 #endif /* BAR_H */

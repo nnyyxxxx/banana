@@ -37,6 +37,7 @@ void focusMonitor(const char* arg);
 #define BAR_PADDING      4
 #define BAR_FONT         "monospace-12"
 #define MAX_TITLE_LENGTH 40
+#define ENABLE_SYSTRAY   1
 
 /* Colors */
 #define ACTIVE_BORDER_COLOR   "#CD78A0"

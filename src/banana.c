@@ -53,6 +53,12 @@ Atom            NET_WM_WINDOW_TYPE_DIALOG;
 Atom            UTF8_STRING;
 Window          wmcheckwin;
 
+Atom            NET_SYSTEM_TRAY_OPCODE;
+Atom            NET_SYSTEM_TRAY_ORIENTATION;
+Atom            NET_SYSTEM_TRAY_VISUAL;
+Atom            XEMBED;
+Atom            XEMBED_INFO;
+
 int             xerrorHandler(Display* dpy, XErrorEvent* ee) {
     if (ee->error_code == BadWindow || (ee->request_code == X_SetInputFocus && ee->error_code == BadMatch) ||
         (ee->request_code == X_ConfigureWindow && ee->error_code == BadMatch) || (ee->request_code == X_GetGeometry && ee->error_code == BadDrawable)) {
@@ -172,6 +178,14 @@ void setup() {
     WM_TAKE_FOCUS    = XInternAtom(display, "WM_TAKE_FOCUS", False);
 
     setupEWMH();
+
+    if (ENABLE_SYSTRAY) {
+        NET_SYSTEM_TRAY_OPCODE      = XInternAtom(display, "_NET_SYSTEM_TRAY_OPCODE", False);
+        NET_SYSTEM_TRAY_ORIENTATION = XInternAtom(display, "_NET_SYSTEM_TRAY_ORIENTATION", False);
+        NET_SYSTEM_TRAY_VISUAL      = XInternAtom(display, "_NET_SYSTEM_TRAY_VISUAL", False);
+        XEMBED                      = XInternAtom(display, "_XEMBED", False);
+        XEMBED_INFO                 = XInternAtom(display, "_XEMBED_INFO", False);
+    }
 
     normalCursor = XCreateFontCursor(display, XC_left_ptr);
     moveCursor   = XCreateFontCursor(display, XC_fleur);
@@ -675,8 +689,12 @@ void handleUnmapNotify(XEvent* event) {
 }
 
 void handleDestroyNotify(XEvent* event) {
-    XDestroyWindowEvent* ev     = &event->xdestroywindow;
-    SClient*             client = findClient(ev->window);
+    XDestroyWindowEvent* ev = &event->xdestroywindow;
+
+    if (ENABLE_SYSTRAY)
+        removeSystrayIcon(ev->window);
+
+    SClient* client = findClient(ev->window);
     if (client)
         unmanageClient(ev->window);
 }
@@ -1880,8 +1898,14 @@ void updateWMHints(SClient* client) {
 }
 
 void handleClientMessage(XEvent* event) {
-    XClientMessageEvent* cme    = &event->xclient;
-    SClient*             client = findClient(cme->window);
+    XClientMessageEvent* cme = &event->xclient;
+
+    if (ENABLE_SYSTRAY && cme->message_type == NET_SYSTEM_TRAY_OPCODE) {
+        handleSystrayClientMessage(event);
+        return;
+    }
+
+    SClient* client = findClient(cme->window);
 
     if (!client)
         return;

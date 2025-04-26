@@ -149,6 +149,9 @@ void createBars(void) {
         XMapWindow(display, barWindows[i]);
     }
 
+    if (ENABLE_SYSTRAY)
+        createSystray();
+
     updateBars();
 }
 
@@ -282,7 +285,14 @@ void updateBars(void) {
         if (statusText[0] != '\0')
             statusWidth = getTextWidth(statusText) + PADDING * 2;
 
-        int titleBackgroundWidth = monitors[i].width - x - statusWidth;
+        int systrayWidth = 0;
+        if (ENABLE_SYSTRAY && i == 0) {
+            systrayWidth = getSystrayWidth();
+            if (systrayWidth > 0)
+                systrayWidth += PADDING;
+        }
+
+        int titleBackgroundWidth = monitors[i].width - x - statusWidth - systrayWidth;
 
         if (monFocused) {
             char* windowTitle = getWindowTitle(monFocused);
@@ -291,6 +301,23 @@ void updateBars(void) {
                 XFillRectangle(display, barWindows[i], DefaultGC(display, DefaultScreen(display)), x, 0, titleBackgroundWidth, BAR_HEIGHT);
 
                 drawText(i, windowTitle, x + PADDING, 0, &barTitleTextColor, 0);
+            }
+        }
+
+        if (ENABLE_SYSTRAY && systrayWidth > 0 && i == 0) {
+            int           systrayX = monitors[i].width - statusWidth - systrayWidth + PADDING;
+
+            SSystrayIcon* icon;
+            int           iconX = systrayX;
+
+            for (icon = systrayIcons; icon; icon = icon->next) {
+                XWindowAttributes wa;
+                if (!XGetWindowAttributes(display, icon->win, &wa))
+                    continue;
+
+                XMoveResizeWindow(display, icon->win, iconX, (BAR_HEIGHT - systrayIconSize) / 2, systrayIconSize, systrayIconSize);
+                XMapWindow(display, icon->win);
+                iconX += systrayIconSize + systraySpacing;
             }
         }
 
@@ -328,6 +355,9 @@ void cleanupBars(void) {
         XftFontClose(display, barFont);
         barFont = NULL;
     }
+
+    if (ENABLE_SYSTRAY)
+        cleanupSystray();
 }
 
 void handleBarExpose(XEvent* event) {
@@ -392,4 +422,195 @@ void updateClientPositionsForBar(void) {
         }
         client = client->next;
     }
+}
+
+SSystrayIcon* systrayIcons = NULL;
+Window        systrayWin   = None;
+
+int           systrayIconSize = BAR_HEIGHT - 4;
+int           systraySpacing  = 2;
+
+int           createSystray(void) {
+    if (!ENABLE_SYSTRAY)
+        return 0;
+
+    if (systrayWin != None)
+        return 1;
+
+    if (NET_SYSTEM_TRAY_OPCODE == None) {
+        NET_SYSTEM_TRAY_OPCODE      = XInternAtom(display, "_NET_SYSTEM_TRAY_OPCODE", False);
+        NET_SYSTEM_TRAY_ORIENTATION = XInternAtom(display, "_NET_SYSTEM_TRAY_ORIENTATION", False);
+        NET_SYSTEM_TRAY_VISUAL      = XInternAtom(display, "_NET_SYSTEM_TRAY_VISUAL", False);
+        XEMBED                      = XInternAtom(display, "_XEMBED", False);
+        XEMBED_INFO                 = XInternAtom(display, "_XEMBED_INFO", False);
+    }
+
+    systrayWin = XCreateSimpleWindow(display, root, 0, 0, 1, 1, 0, 0, barBgColor);
+    if (!systrayWin)
+        return 0;
+
+    char atomName[32];
+    snprintf(atomName, sizeof(atomName), "_NET_SYSTEM_TRAY_S%d", DefaultScreen(display));
+    Atom systrayAtom = XInternAtom(display, atomName, False);
+
+    if (XGetSelectionOwner(display, systrayAtom) != None) {
+        XDestroyWindow(display, systrayWin);
+        systrayWin = None;
+        return 0;
+    }
+
+    XSetSelectionOwner(display, systrayAtom, systrayWin, CurrentTime);
+    if (XGetSelectionOwner(display, systrayAtom) != systrayWin) {
+        XDestroyWindow(display, systrayWin);
+        systrayWin = None;
+        return 0;
+    }
+
+    XClientMessageEvent ev;
+    ev.type         = ClientMessage;
+    ev.window       = root;
+    ev.message_type = XInternAtom(display, "MANAGER", False);
+    ev.format       = 32;
+    ev.data.l[0]    = CurrentTime;
+    ev.data.l[1]    = systrayAtom;
+    ev.data.l[2]    = systrayWin;
+    ev.data.l[3]    = 0;
+    ev.data.l[4]    = 0;
+    XSendEvent(display, root, False, StructureNotifyMask, (XEvent*)&ev);
+
+    long orientation = 0;
+    XChangeProperty(display, systrayWin, NET_SYSTEM_TRAY_ORIENTATION, XA_CARDINAL, 32, PropModeReplace, (unsigned char*)&orientation, 1);
+
+    XSelectInput(display, systrayWin, StructureNotifyMask | SubstructureNotifyMask);
+
+    return 1;
+}
+
+void handleSystrayClientMessage(XEvent* event) {
+    if (!ENABLE_SYSTRAY || systrayWin == None)
+        return;
+
+    XClientMessageEvent* ev = &event->xclient;
+
+    if (ev->message_type == NET_SYSTEM_TRAY_OPCODE && ev->format == 32) {
+        if (ev->data.l[1] == SYSTEM_TRAY_REQUEST_DOCK) {
+            Window icon = ev->data.l[2];
+            if (icon == None)
+                return;
+
+            SSystrayIcon* i;
+            for (i = systrayIcons; i; i = i->next)
+                if (i->win == icon)
+                    return;
+
+            SSystrayIcon* newIcon = malloc(sizeof(SSystrayIcon));
+            if (!newIcon)
+                return;
+
+            newIcon->win  = icon;
+            newIcon->next = systrayIcons;
+            systrayIcons  = newIcon;
+
+            if (barWindows && barWindows[0]) {
+                XSetWindowAttributes wa;
+                wa.event_mask = StructureNotifyMask | PropertyChangeMask;
+                XChangeWindowAttributes(display, icon, CWEventMask, &wa);
+
+                long xembedInfo[2];
+                xembedInfo[0] = 0;
+                xembedInfo[1] = 1;
+                XChangeProperty(display, icon, XEMBED_INFO, XEMBED_INFO, 32, PropModeReplace, (unsigned char*)xembedInfo, 2);
+
+                XReparentWindow(display, icon, barWindows[0], 0, 0);
+                XMapRaised(display, icon);
+
+                XClientMessageEvent xemEv;
+                xemEv.type         = ClientMessage;
+                xemEv.window       = icon;
+                xemEv.message_type = XEMBED;
+                xemEv.format       = 32;
+                xemEv.data.l[0]    = CurrentTime;
+                xemEv.data.l[1]    = XEMBED_EMBEDDED_NOTIFY;
+                xemEv.data.l[2]    = 0;
+                xemEv.data.l[3]    = systrayWin;
+                xemEv.data.l[4]    = 0;
+                XSendEvent(display, icon, False, NoEventMask, (XEvent*)&xemEv);
+
+                updateSystray();
+            }
+        }
+    }
+}
+
+void removeSystrayIcon(Window win) {
+    SSystrayIcon** p = &systrayIcons;
+    SSystrayIcon*  i;
+
+    while (*p) {
+        i = *p;
+        if (i->win == win) {
+            *p = i->next;
+            free(i);
+            break;
+        }
+        p = &i->next;
+    }
+
+    updateSystray();
+}
+
+void updateSystray(void) {
+    if (!ENABLE_SYSTRAY || !barWindows || !barWindows[0] || systrayWin == None)
+        return;
+
+    SSystrayIcon* i;
+    int           x = 0;
+
+    for (i = systrayIcons; i; i = i->next) {
+        XWindowAttributes wa;
+        if (!XGetWindowAttributes(display, i->win, &wa))
+            continue;
+
+        XMoveResizeWindow(display, i->win, x, (BAR_HEIGHT - systrayIconSize) / 2, systrayIconSize, systrayIconSize);
+        XMapWindow(display, i->win);
+        x += systrayIconSize + systraySpacing;
+    }
+
+    updateBars();
+}
+
+int getSystrayWidth(void) {
+    if (!ENABLE_SYSTRAY || systrayWin == None)
+        return 0;
+
+    int           width     = 0;
+    int           iconCount = 0;
+    SSystrayIcon* i;
+
+    for (i = systrayIcons; i; i = i->next) {
+        XWindowAttributes wa;
+        if (XGetWindowAttributes(display, i->win, &wa))
+            iconCount++;
+    }
+
+    if (iconCount > 0)
+        width = (systrayIconSize + systraySpacing) * iconCount;
+
+    return width > 0 ? width : 0;
+}
+
+void cleanupSystray(void) {
+    if (systrayWin == None)
+        return;
+
+    SSystrayIcon* i = systrayIcons;
+    while (i) {
+        SSystrayIcon* next = i->next;
+        free(i);
+        i = next;
+    }
+    systrayIcons = NULL;
+
+    XDestroyWindow(display, systrayWin);
+    systrayWin = None;
 }
