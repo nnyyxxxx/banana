@@ -172,8 +172,14 @@ char* getWindowTitle(SClient* client) {
 
         XFree(textProp.value);
 
-        if (strlen(title) > MAX_TITLE_LENGTH)
-            strcpy(&title[MAX_TITLE_LENGTH - 3], "...");
+        if (strlen(title) > MAX_TITLE_LENGTH) {
+            int truncPos = MAX_TITLE_LENGTH - 3;
+
+            while (truncPos > 0 && title[truncPos - 1] == ' ')
+                truncPos--;
+
+            strcpy(&title[truncPos], "...");
+        }
 
         return title;
     }
