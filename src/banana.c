@@ -300,11 +300,12 @@ void handleButtonPress(XEvent* event) {
 
     if (ev->button == Button1) {
         if (!client->isFloating) {
-            windowSwap.client     = client;
-            windowSwap.x          = ev->x_root;
-            windowSwap.y          = ev->y_root;
-            windowSwap.active     = 1;
-            windowSwap.lastTarget = NULL;
+            windowSwap.client             = client;
+            windowSwap.client->oldMonitor = client->monitor;
+            windowSwap.x                  = ev->x_root;
+            windowSwap.y                  = ev->y_root;
+            windowSwap.active             = 1;
+            windowSwap.lastTarget         = NULL;
             XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, moveCursor, CurrentTime);
         } else {
             windowMovement.client = client;
@@ -336,6 +337,8 @@ void handleButtonRelease(XEvent* event) {
 
     if (windowSwap.active && ev->button == Button1) {
         fprintf(stderr, "  Ending window swap\n");
+        if (windowSwap.client && windowSwap.client->monitor != windowSwap.client->oldMonitor)
+            fprintf(stderr, "  Window moved from monitor %d to monitor %d\n", windowSwap.client->oldMonitor, windowSwap.client->monitor);
         windowSwap.active     = 0;
         windowSwap.client     = NULL;
         windowSwap.lastTarget = NULL;
@@ -386,11 +389,25 @@ void handleMotionNotify(XEvent* event) {
         windowMovement.x = ev->x_root;
         windowMovement.y = ev->y_root;
     } else if (windowSwap.active && windowSwap.client) {
-        SClient* targetClient = clientAtPoint(ev->x_root, ev->y_root);
+        SMonitor* targetMonitor = monitorAtPoint(ev->x_root, ev->y_root);
+        SClient*  targetClient  = clientAtPoint(ev->x_root, ev->y_root);
 
-        if (targetClient && targetClient != windowSwap.client && !targetClient->isFloating && targetClient->monitor == windowSwap.client->monitor &&
-            targetClient->workspace == windowSwap.client->workspace) {
+        if (targetMonitor->num != windowSwap.client->monitor) {
+            int prevMonitor              = windowSwap.client->monitor;
+            windowSwap.client->monitor   = targetMonitor->num;
+            windowSwap.client->workspace = targetMonitor->currentWorkspace;
 
+            arrangeClients(&monitors[prevMonitor]);
+            arrangeClients(targetMonitor);
+
+            focusClient(windowSwap.client);
+
+            windowSwap.x = ev->x_root;
+            windowSwap.y = ev->y_root;
+
+            fprintf(stderr, "Window moved to monitor %d\n", targetMonitor->num);
+        } else if (targetClient && targetClient != windowSwap.client && !targetClient->isFloating && targetClient->monitor == windowSwap.client->monitor &&
+                   targetClient->workspace == windowSwap.client->workspace) {
             swapClients(windowSwap.client, targetClient);
 
             SMonitor* monitor = &monitors[windowSwap.client->monitor];

@@ -37,6 +37,7 @@ typedef struct SClient {
     int             oldx, oldy;
     int             oldwidth, oldheight;
     int             monitor;
+    int             oldMonitor;
     int             workspace;
     int             isFloating;
     int             isFullscreen;
