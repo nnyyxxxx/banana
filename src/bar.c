@@ -14,30 +14,45 @@
 #define MAX_STATUS_LENGTH 256
 #define PADDING           4
 
-static const char* const workspaceNames[WORKSPACE_COUNT] = {"1", "2", "3", "4", "5", "6", "7", "8", "9"};
+static char*         workspaceNames[WORKSPACE_COUNT];
 
-Window*                  barWindows = NULL;
+Window*              barWindows = NULL;
 
-static unsigned long     barBgColor;
-static unsigned long     barFgColor;
-static unsigned long     barBorderColor;
-static unsigned long     barActiveWsColor;
-static unsigned long     barUrgentWsColor;
-static unsigned long     barTitleBgColor;
+static unsigned long barBgColor;
+static unsigned long barFgColor;
+static unsigned long barBorderColor;
+static unsigned long barActiveWsColor;
+static unsigned long barUrgentWsColor;
+static unsigned long barTitleBgColor;
 
-static XftFont*          barFont = NULL;
-static XftColor          barActiveTextColor;
-static XftColor          barInactiveTextColor;
-static XftColor          barUrgentTextColor;
-static XftColor          barStatusTextColor;
-static XftColor          barTitleTextColor;
-static XftDraw**         barDraws = NULL;
+static XftFont*      barFont = NULL;
+static XftColor      barActiveTextColor;
+static XftColor      barInactiveTextColor;
+static XftColor      barUrgentTextColor;
+static XftColor      barStatusTextColor;
+static XftColor      barTitleTextColor;
+static XftDraw**     barDraws = NULL;
 
-static Atom              WM_NAME;
+static Atom          WM_NAME;
 
-static char              statusText[MAX_STATUS_LENGTH] = "";
+static char          statusText[MAX_STATUS_LENGTH] = "";
 
-static void              initColors(void) {
+static void          initWorkspaceNames(void) {
+    for (int i = 0; i < WORKSPACE_COUNT; i++) {
+        workspaceNames[i] = malloc(8);
+        if (workspaceNames[i])
+            snprintf(workspaceNames[i], 8, "%d", i + 1);
+    }
+}
+
+static void freeWorkspaceNames(void) {
+    for (int i = 0; i < WORKSPACE_COUNT; i++) {
+        free(workspaceNames[i]);
+        workspaceNames[i] = NULL;
+    }
+}
+
+static void initColors(void) {
     XColor   color;
     Colormap cmap = DefaultColormap(display, DefaultScreen(display));
 
@@ -130,6 +145,8 @@ void createBars(void) {
         }
 
         WM_NAME = XInternAtom(display, "WM_NAME", False);
+
+        initWorkspaceNames();
 
         initialized = 1;
     }
@@ -358,6 +375,8 @@ void cleanupBars(void) {
 
     if (ENABLE_SYSTRAY)
         cleanupSystray();
+
+    freeWorkspaceNames();
 }
 
 void handleBarExpose(XEvent* event) {
