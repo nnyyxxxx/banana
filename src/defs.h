@@ -92,6 +92,8 @@ typedef struct {
     int         isFloating;
     int         workspace;
     int         monitor;
+    int         width;
+    int         height;
 } SRule;
 
 void                   setup();

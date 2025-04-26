@@ -827,9 +827,6 @@ void manageClient(Window window) {
     client->oldheight       = 0;
     client->sizeHints.valid = 0;
 
-    client->window = window;
-    applyRules(client);
-
     SMonitor* monitor = &monitors[client->monitor];
 
     updateSizeHints(client);
@@ -856,6 +853,8 @@ void manageClient(Window window) {
 
     if (client->y < monitor->y + BAR_HEIGHT && !client->isFloating)
         client->y = monitor->y + BAR_HEIGHT;
+
+    applyRules(client);
 
     client->next = NULL;
     if (!clients)
@@ -1977,6 +1976,23 @@ int applyRules(SClient* client) {
             if (rules[i].isFloating != -1) {
                 client->isFloating = rules[i].isFloating;
                 matched            = 1;
+
+                if (client->isFloating == 1) {
+                    SMonitor* monitor = &monitors[client->monitor];
+
+                    if (rules[i].width > 0) {
+                        client->width = rules[i].width;
+                        client->x     = monitor->x + (monitor->width - client->width) / 2;
+                    }
+
+                    if (rules[i].height > 0) {
+                        client->height = rules[i].height;
+                        client->y      = monitor->y + (monitor->height - client->height) / 2;
+                    }
+
+                    if (client->y < monitor->y + BAR_HEIGHT)
+                        client->y = monitor->y + BAR_HEIGHT;
+                }
             }
 
             if (rules[i].workspace != -1 && rules[i].workspace < WORKSPACE_COUNT) {

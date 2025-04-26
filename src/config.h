@@ -63,12 +63,13 @@ void adjustMasterFactor(const char* arg);
 #define WALL     "pocky"
 
 /* Window rules
- * Format: { class, instance, title, float, workspace, monitor }
+ * Format: { class, instance, title, float, workspace, monitor, width, height }
  * class/instance: X11 window class/instance (NULL = match any)
  * title: window title substring to match (NULL = match any)
  * float: 1=force float, 0=force tile, -1=don't change
  * workspace: workspace to place window (0-8, or -1 for current)
  * monitor: monitor to place window (0+ for specific, -1 for current)
+ * width/height: dimensions for floating windows (-1 = don't change)
  */
 static const struct {
     const char* className;
@@ -77,9 +78,11 @@ static const struct {
     int         isFloating;
     int         workspace;
     int         monitor;
+    int         width;
+    int         height;
 } rules[] = {
-    /* class  instance  title  floating  workspace   monitor */
-    {"Pocky", NULL, NULL, 1, -1, -1},
+    /* class  instance  title  floating  workspace  monitor  width  height */
+    {"Pocky", NULL, NULL, 1, -1, -1, 1100, 700},
     /* Add more rules here */
 };
 
