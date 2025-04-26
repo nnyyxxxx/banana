@@ -55,6 +55,7 @@ void adjustMasterFactor(const char* arg);
 
 /* Applications */
 #define TERMINAL "alacritty"
+#define LAUNCHER "dmenu_run"
 
 /* Key bindings */
 static const struct {
@@ -65,6 +66,7 @@ static const struct {
 } keys[] = {
     /* Mod    Key    Function    Argument */
     {MODKEY, XK_q, spawnProgram, TERMINAL},
+    {MODKEY, XK_e, spawnProgram, LAUNCHER},
     {MODKEY, XK_c, killClient, NULL},
     {MODKEY, XK_w, quit, NULL},
     {MODKEY, XK_space, toggleFloating, NULL},
