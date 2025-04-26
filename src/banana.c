@@ -1915,13 +1915,15 @@ void handleClientMessage(XEvent* event) {
             setFullscreen(client, (cme->data.l[0] == 1 /* _NET_WM_STATE_ADD */ || (cme->data.l[0] == 2 /* _NET_WM_STATE_TOGGLE */ && !client->isFullscreen)));
     } else if (cme->message_type == NET_ACTIVE_WINDOW) {
         if (client != focused && !client->isUrgent) {
-            client->isUrgent = 1;
-            updateBorders();
-            updateBars();
-
             SMonitor* m = &monitors[client->monitor];
-            if (client->workspace != m->currentWorkspace)
+
+            if (client->workspace != m->currentWorkspace) {
+                client->isUrgent = 1;
+                updateBorders();
+                updateBars();
                 XUnmapWindow(display, client->window);
+            } else
+                focusClient(client);
         }
     }
 }
