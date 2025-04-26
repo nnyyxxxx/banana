@@ -22,11 +22,13 @@ static unsigned long     barBgColor;
 static unsigned long     barFgColor;
 static unsigned long     barBorderColor;
 static unsigned long     barActiveWsColor;
+static unsigned long     barUrgentWsColor;
 static unsigned long     barTitleBgColor;
 
 static XftFont*          barFont = NULL;
 static XftColor          barActiveTextColor;
 static XftColor          barInactiveTextColor;
+static XftColor          barUrgentTextColor;
 static XftColor          barStatusTextColor;
 static XftColor          barTitleTextColor;
 static XftDraw**         barDraws = NULL;
@@ -59,12 +61,19 @@ static void              initColors(void) {
     else
         barActiveWsColor = barFgColor;
 
+    if (XAllocNamedColor(display, cmap, BAR_URGENT_WS_COLOR, &color, &color))
+        barUrgentWsColor = color.pixel;
+    else
+        barUrgentWsColor = 0xFF0000;
+
     if (XAllocNamedColor(display, cmap, BAR_TITLE_BG_COLOR, &color, &color))
         barTitleBgColor = color.pixel;
     else
         barTitleBgColor = barBgColor;
 
     XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), BAR_ACTIVE_TEXT_COLOR, &barActiveTextColor);
+
+    XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), BAR_URGENT_TEXT_COLOR, &barUrgentTextColor);
 
     XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), BAR_INACTIVE_TEXT_COLOR, &barInactiveTextColor);
 
@@ -205,6 +214,16 @@ void updateStatus(void) {
     updateBars();
 }
 
+static int workspaceHasUrgentWindow(int monitor, int workspace) {
+    SClient* client = clients;
+    while (client) {
+        if (client->monitor == monitor && client->workspace == workspace && client->isUrgent)
+            return 1;
+        client = client->next;
+    }
+    return 0;
+}
+
 void updateBars(void) {
     for (int i = 0; i < numMonitors; i++) {
         if (!barWindows[i] || !barDraws[i])
@@ -225,14 +244,24 @@ void updateBars(void) {
 
         for (int w = 0; w < WORKSPACE_COUNT; w++) {
             int isSelected = (monitors[i].currentWorkspace == w);
+            int isUrgent   = workspaceHasUrgentWindow(i, w);
 
             if (isSelected) {
                 XSetForeground(display, DefaultGC(display, DefaultScreen(display)), barActiveWsColor);
                 XFillRectangle(display, barWindows[i], DefaultGC(display, DefaultScreen(display)), x, 0, wsWidth, BAR_HEIGHT);
+            } else if (isUrgent) {
+                XSetForeground(display, DefaultGC(display, DefaultScreen(display)), barUrgentWsColor);
+                XFillRectangle(display, barWindows[i], DefaultGC(display, DefaultScreen(display)), x, 0, wsWidth, BAR_HEIGHT);
             }
 
-            int centerX = x + (wsWidth / 2);
-            drawText(i, workspaceNames[w], centerX, 0, isSelected ? &barActiveTextColor : &barInactiveTextColor, 1);
+            int       centerX   = x + (wsWidth / 2);
+            XftColor* textColor = &barInactiveTextColor;
+            if (isSelected)
+                textColor = &barActiveTextColor;
+            else if (isUrgent)
+                textColor = &barUrgentTextColor;
+
+            drawText(i, workspaceNames[w], centerX, 0, textColor, 1);
 
             x += wsWidth;
         }

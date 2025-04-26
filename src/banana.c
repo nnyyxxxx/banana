@@ -741,16 +741,6 @@ void focusClient(SClient* client) {
         return;
     }
 
-    SMonitor* monitor = &monitors[client->monitor];
-
-    if (client->workspace != monitor->currentWorkspace) {
-        monitor->currentWorkspace = client->workspace;
-        updateClientVisibility();
-        updateBars();
-    }
-
-    fprintf(stderr, "  Window is valid and viewable, setting focus\n");
-
     if (focused && focused != client)
         XSetWindowBorder(display, focused->window, 0x444444);
 
@@ -1866,17 +1856,15 @@ void handleClientMessage(XEvent* event) {
         if (cme->data.l[1] == (long)NET_WM_STATE_FULLSCREEN || cme->data.l[2] == (long)NET_WM_STATE_FULLSCREEN)
             setFullscreen(client, (cme->data.l[0] == 1 /* _NET_WM_STATE_ADD */ || (cme->data.l[0] == 2 /* _NET_WM_STATE_TOGGLE */ && !client->isFullscreen)));
     } else if (cme->message_type == NET_ACTIVE_WINDOW) {
-        SMonitor* monitor = &monitors[client->monitor];
-
-        if (monitor->currentWorkspace != client->workspace) {
-            fprintf(stderr, "Window on workspace %d requests focus, switching workspace\n", client->workspace);
-            monitor->currentWorkspace = client->workspace;
-            updateClientVisibility();
+        if (client != focused && !client->isUrgent) {
+            client->isUrgent = 1;
+            updateBorders();
             updateBars();
-        }
 
-        if (client != focused)
-            focusClient(client);
+            SMonitor* m = &monitors[client->monitor];
+            if (client->workspace != m->currentWorkspace)
+                XUnmapWindow(display, client->window);
+        }
     }
 }
 
