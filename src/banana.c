@@ -2035,6 +2035,47 @@ int applyRules(SClient* client) {
     return matched;
 }
 
+void focusMonitor(const char* arg) {
+    if (!arg)
+        return;
+
+    SMonitor* currentMonitor = getCurrentMonitor();
+    int       currentNum     = currentMonitor->num;
+    int       targetMonitor  = currentNum;
+
+    if (strcmp(arg, "right") == 0)
+        targetMonitor = (currentNum + 1) % numMonitors;
+    else if (strcmp(arg, "left") == 0)
+        targetMonitor = (currentNum - 1 + numMonitors) % numMonitors;
+    else {
+        int monitorNum = atoi(arg);
+        if (monitorNum >= 0 && monitorNum < numMonitors)
+            targetMonitor = monitorNum;
+    }
+
+    if (targetMonitor == currentNum)
+        return;
+
+    SMonitor* monitor = &monitors[targetMonitor];
+
+    int       centerX = monitor->x + monitor->width / 2;
+    int       centerY = monitor->y + monitor->height / 2;
+
+    XWarpPointer(display, None, root, 0, 0, 0, 0, centerX, centerY);
+
+    SClient* clientToFocus = findVisibleClientInWorkspace(targetMonitor, monitor->currentWorkspace);
+
+    if (clientToFocus) {
+        focusClient(clientToFocus);
+    } else {
+        XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
+        focused = NULL;
+        updateBorders();
+    }
+
+    updateBars();
+}
+
 int main() {
     signal(SIGCHLD, SIG_IGN);
 

@@ -16,6 +16,7 @@ void toggleFullscreen(const char* arg);
 void moveWindowInStack(const char* arg);
 void focusWindowInStack(const char* arg);
 void adjustMasterFactor(const char* arg);
+void focusMonitor(const char* arg);
 
 /* Number of workspaces */
 #define WORKSPACE_COUNT 9
@@ -116,6 +117,10 @@ static const struct {
     /* Window stack focus */
     {MODKEY, XK_j, focusWindowInStack, "down"},
     {MODKEY, XK_k, focusWindowInStack, "up"},
+
+    /* Monitor focus */
+    {MODKEY, XK_comma, focusMonitor, "left"},
+    {MODKEY, XK_period, focusMonitor, "right"},
 
     /* Workspace switching */
     {MODKEY, XK_1, switchToWorkspace, "0"},
