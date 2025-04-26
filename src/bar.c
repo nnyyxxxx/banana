@@ -32,7 +32,6 @@ static XftColor          barTitleTextColor;
 static XftDraw**         barDraws = NULL;
 
 static Atom              WM_NAME;
-static Atom              NET_WM_NAME;
 
 static char              statusText[MAX_STATUS_LENGTH] = "";
 
@@ -121,8 +120,7 @@ void createBars(void) {
             return;
         }
 
-        WM_NAME     = XInternAtom(display, "WM_NAME", False);
-        NET_WM_NAME = XInternAtom(display, "_NET_WM_NAME", False);
+        WM_NAME = XInternAtom(display, "WM_NAME", False);
 
         initialized = 1;
     }
@@ -145,7 +143,7 @@ void createBars(void) {
     updateBars();
 }
 
-static char* getClientTitle(SClient* client) {
+char* getWindowTitle(SClient* client) {
     static char title[256];
 
     if (!client) {
@@ -248,7 +246,7 @@ void updateBars(void) {
         int titleBackgroundWidth = monitors[i].width - x - statusWidth;
 
         if (monFocused) {
-            char* windowTitle = getClientTitle(monFocused);
+            char* windowTitle = getWindowTitle(monFocused);
             if (windowTitle && windowTitle[0] != '\0') {
                 XSetForeground(display, DefaultGC(display, DefaultScreen(display)), barTitleBgColor);
                 XFillRectangle(display, barWindows[i], DefaultGC(display, DefaultScreen(display)), x, 0, titleBackgroundWidth, BAR_HEIGHT);

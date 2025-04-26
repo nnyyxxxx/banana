@@ -19,13 +19,31 @@ typedef enum {
     LAYOUT_MAX
 } Layout;
 
+typedef struct {
+    int minWidth, minHeight;
+    int maxWidth, maxHeight;
+    int baseWidth, baseHeight;
+    int incWidth, incHeight;
+    int minAspectNum, minAspectDen;
+    int maxAspectNum, maxAspectDen;
+    int gravity;
+    int valid;
+} SizeHints;
+
 typedef struct SClient {
     Window          window;
     int             x, y;
     int             width, height;
+    int             oldx, oldy;
+    int             oldwidth, oldheight;
     int             monitor;
     int             workspace;
     int             isFloating;
+    int             isFullscreen;
+    int             neverfocus;
+    int             isUrgent;
+    int             oldState;
+    SizeHints       sizeHints;
     struct SClient* next;
 } SClient;
 
@@ -82,6 +100,7 @@ void                   handleUnmapNotify(XEvent* event);
 void                   handleDestroyNotify(XEvent* event);
 void                   handleExpose(XEvent* event);
 void                   handlePropertyNotify(XEvent* event);
+void                   handleClientMessage(XEvent* event);
 
 void                   spawnProgram(const char* program);
 void                   killClient(const char* arg);
@@ -89,6 +108,7 @@ void                   quit(const char* arg);
 void                   switchToWorkspace(const char* arg);
 void                   moveClientToWorkspace(const char* arg);
 void                   toggleFloating(const char* arg);
+void                   toggleFullscreen(const char* arg);
 void                   moveWindowInStack(const char* arg);
 void                   focusWindowInStack(const char* arg);
 void                   adjustMasterFactor(const char* arg);
@@ -108,6 +128,13 @@ void                   restackFloatingWindows();
 void                   warpPointerToClientCenter(SClient* client);
 SClient*               findVisibleClientInWorkspace(int monitor, int workspace);
 SMonitor*              getCurrentMonitor();
+Atom                   getAtomProperty(SClient* client, Atom prop);
+void                   setClientState(SClient* client, long state);
+int                    sendEvent(SClient* client, Atom proto);
+void                   setFullscreen(SClient* client, int fullscreen);
+void                   updateWindowType(SClient* client);
+void                   updateWMHints(SClient* client);
+void                   updateSizeHints(SClient* client);
 
 void                   tileClients(SMonitor* monitor);
 void                   arrangeClients(SMonitor* monitor);
@@ -128,6 +155,25 @@ extern SWindowMovement windowMovement;
 extern SWindowResize   windowResize;
 extern SMFactAdjust    mfactAdjust;
 extern SWindowSwap     windowSwap;
+
+extern Atom            WM_PROTOCOLS;
+extern Atom            WM_DELETE_WINDOW;
+extern Atom            WM_STATE;
+extern Atom            WM_TAKE_FOCUS;
+
+extern Atom            NET_SUPPORTED;
+extern Atom            NET_WM_NAME;
+extern Atom            NET_SUPPORTING_WM_CHECK;
+extern Atom            NET_CLIENT_LIST;
+extern Atom            NET_NUMBER_OF_DESKTOPS;
+extern Atom            NET_CURRENT_DESKTOP;
+extern Atom            NET_DESKTOP_NAMES;
+extern Atom            NET_ACTIVE_WINDOW;
+extern Atom            NET_WM_STATE;
+extern Atom            NET_WM_STATE_FULLSCREEN;
+extern Atom            NET_WM_WINDOW_TYPE;
+extern Atom            NET_WM_WINDOW_TYPE_DIALOG;
+extern Atom            UTF8_STRING;
 
 SClient*               focusWindowUnderCursor(SMonitor* monitor);
 

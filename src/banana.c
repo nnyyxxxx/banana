@@ -35,6 +35,8 @@ int             currentWorkspace = 0;
 
 Atom            WM_PROTOCOLS;
 Atom            WM_DELETE_WINDOW;
+Atom            WM_STATE;
+Atom            WM_TAKE_FOCUS;
 
 Atom            NET_SUPPORTED;
 Atom            NET_WM_NAME;
@@ -44,6 +46,10 @@ Atom            NET_NUMBER_OF_DESKTOPS;
 Atom            NET_CURRENT_DESKTOP;
 Atom            NET_DESKTOP_NAMES;
 Atom            NET_ACTIVE_WINDOW;
+Atom            NET_WM_STATE;
+Atom            NET_WM_STATE_FULLSCREEN;
+Atom            NET_WM_WINDOW_TYPE;
+Atom            NET_WM_WINDOW_TYPE_DIALOG;
 Atom            UTF8_STRING;
 Window          wmcheckwin;
 
@@ -79,7 +85,7 @@ void checkOtherWM() {
 static void (*eventHandlers[LASTEvent])(XEvent*) = {
     [KeyPress] = handleKeyPress,           [ButtonPress] = handleButtonPress, [ButtonRelease] = handleButtonRelease,       [MotionNotify] = handleMotionNotify,
     [EnterNotify] = handleEnterNotify,     [MapRequest] = handleMapRequest,   [ConfigureRequest] = handleConfigureRequest, [UnmapNotify] = handleUnmapNotify,
-    [DestroyNotify] = handleDestroyNotify, [Expose] = handleExpose,           [PropertyNotify] = handlePropertyNotify,
+    [DestroyNotify] = handleDestroyNotify, [Expose] = handleExpose,           [PropertyNotify] = handlePropertyNotify,     [ClientMessage] = handleClientMessage,
 };
 
 void scanExistingWindows() {
@@ -100,15 +106,19 @@ void scanExistingWindows() {
 }
 
 void setupEWMH() {
-    NET_SUPPORTED           = XInternAtom(display, "_NET_SUPPORTED", False);
-    NET_WM_NAME             = XInternAtom(display, "_NET_WM_NAME", False);
-    NET_SUPPORTING_WM_CHECK = XInternAtom(display, "_NET_SUPPORTING_WM_CHECK", False);
-    NET_CLIENT_LIST         = XInternAtom(display, "_NET_CLIENT_LIST", False);
-    NET_NUMBER_OF_DESKTOPS  = XInternAtom(display, "_NET_NUMBER_OF_DESKTOPS", False);
-    NET_CURRENT_DESKTOP     = XInternAtom(display, "_NET_CURRENT_DESKTOP", False);
-    NET_DESKTOP_NAMES       = XInternAtom(display, "_NET_DESKTOP_NAMES", False);
-    NET_ACTIVE_WINDOW       = XInternAtom(display, "_NET_ACTIVE_WINDOW", False);
-    UTF8_STRING             = XInternAtom(display, "UTF8_STRING", False);
+    NET_SUPPORTED             = XInternAtom(display, "_NET_SUPPORTED", False);
+    NET_WM_NAME               = XInternAtom(display, "_NET_WM_NAME", False);
+    NET_SUPPORTING_WM_CHECK   = XInternAtom(display, "_NET_SUPPORTING_WM_CHECK", False);
+    NET_CLIENT_LIST           = XInternAtom(display, "_NET_CLIENT_LIST", False);
+    NET_NUMBER_OF_DESKTOPS    = XInternAtom(display, "_NET_NUMBER_OF_DESKTOPS", False);
+    NET_CURRENT_DESKTOP       = XInternAtom(display, "_NET_CURRENT_DESKTOP", False);
+    NET_DESKTOP_NAMES         = XInternAtom(display, "_NET_DESKTOP_NAMES", False);
+    NET_ACTIVE_WINDOW         = XInternAtom(display, "_NET_ACTIVE_WINDOW", False);
+    NET_WM_STATE              = XInternAtom(display, "_NET_WM_STATE", False);
+    NET_WM_STATE_FULLSCREEN   = XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", False);
+    NET_WM_WINDOW_TYPE        = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
+    NET_WM_WINDOW_TYPE_DIALOG = XInternAtom(display, "_NET_WM_WINDOW_TYPE_DIALOG", False);
+    UTF8_STRING               = XInternAtom(display, "UTF8_STRING", False);
 
     wmcheckwin = XCreateSimpleWindow(display, root, 0, 0, 1, 1, 0, 0, 0);
     XChangeProperty(display, root, NET_SUPPORTING_WM_CHECK, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&wmcheckwin, 1);
@@ -116,7 +126,9 @@ void setupEWMH() {
     XChangeProperty(display, wmcheckwin, NET_WM_NAME, UTF8_STRING, 8, PropModeReplace, (unsigned char*)"banana", 6);
     XChangeProperty(display, root, NET_WM_NAME, UTF8_STRING, 8, PropModeReplace, (unsigned char*)"banana", 6);
 
-    Atom supported[] = {NET_SUPPORTED, NET_WM_NAME, NET_SUPPORTING_WM_CHECK, NET_CLIENT_LIST, NET_NUMBER_OF_DESKTOPS, NET_CURRENT_DESKTOP, NET_DESKTOP_NAMES, NET_ACTIVE_WINDOW};
+    Atom supported[] = {NET_SUPPORTED,     NET_WM_NAME,  NET_SUPPORTING_WM_CHECK, NET_CLIENT_LIST,    NET_NUMBER_OF_DESKTOPS,   NET_CURRENT_DESKTOP, NET_DESKTOP_NAMES,
+                        NET_ACTIVE_WINDOW, NET_WM_STATE, NET_WM_STATE_FULLSCREEN, NET_WM_WINDOW_TYPE, NET_WM_WINDOW_TYPE_DIALOG};
+
     XChangeProperty(display, root, NET_SUPPORTED, XA_ATOM, 32, PropModeReplace, (unsigned char*)supported, sizeof(supported) / sizeof(Atom));
 
     long numDesktops = WORKSPACE_COUNT;
@@ -156,6 +168,8 @@ void setup() {
 
     WM_PROTOCOLS     = XInternAtom(display, "WM_PROTOCOLS", False);
     WM_DELETE_WINDOW = XInternAtom(display, "WM_DELETE_WINDOW", False);
+    WM_STATE         = XInternAtom(display, "WM_STATE", False);
+    WM_TAKE_FOCUS    = XInternAtom(display, "WM_TAKE_FOCUS", False);
 
     setupEWMH();
 
@@ -453,6 +467,11 @@ void moveWindow(SClient* client, int x, int y) {
     if (!client->isFloating)
         return;
 
+    if (client->isFullscreen)
+        return;
+
+    int prevMonitor = client->monitor;
+
     client->x = x;
     client->y = y;
 
@@ -466,6 +485,12 @@ void moveWindow(SClient* client, int x, int y) {
 
     configureClient(client);
 
+    if (prevMonitor != client->monitor && !windowMovement.active) {
+        fprintf(stderr, "Window moved to a different monitor, updating layout\n");
+        arrangeClients(&monitors[prevMonitor]);
+        arrangeClients(monitor);
+    }
+
     if (windowMovement.active && windowMovement.client == client)
         XRaiseWindow(display, client->window);
 }
@@ -476,11 +501,34 @@ void resizeWindow(SClient* client, int width, int height) {
 
     if (!client->isFloating)
         return;
+    if (client->isFullscreen) {
+        SMonitor* monitor = &monitors[client->monitor];
+        client->x         = monitor->x;
+        client->y         = monitor->y;
+        client->width     = monitor->width;
+        client->height    = monitor->height;
 
-    if (width < 20)
-        width = 20;
-    if (height < 20)
-        height = 20;
+        XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+        configureClient(client);
+        return;
+    }
+
+    if (client->sizeHints.valid) {
+        if (client->sizeHints.minWidth > 0 && width < client->sizeHints.minWidth)
+            width = client->sizeHints.minWidth;
+        if (client->sizeHints.minHeight > 0 && height < client->sizeHints.minHeight)
+            height = client->sizeHints.minHeight;
+
+        if (client->sizeHints.maxWidth > 0 && width > client->sizeHints.maxWidth)
+            width = client->sizeHints.maxWidth;
+        if (client->sizeHints.maxHeight > 0 && height > client->sizeHints.maxHeight)
+            height = client->sizeHints.maxHeight;
+    } else {
+        if (width < 20)
+            width = 20;
+        if (height < 20)
+            height = 20;
+    }
 
     client->width  = width;
     client->height = height;
@@ -517,9 +565,39 @@ void handleMapRequest(XEvent* event) {
     XMapRequestEvent* ev = &event->xmaprequest;
 
     manageClient(ev->window);
+
+    SClient* client = findClient(ev->window);
+    if (client) {
+        Atom state = getAtomProperty(client, NET_WM_STATE);
+        if (state == NET_WM_STATE_FULLSCREEN) {
+            fprintf(stderr, "Detected fullscreen window during map request, forcing proper position\n");
+
+            SMonitor* monitor = &monitors[client->monitor];
+            client->oldx      = client->x;
+            client->oldy      = client->y;
+            client->oldwidth  = client->width;
+            client->oldheight = client->height;
+
+            client->x            = monitor->x;
+            client->y            = monitor->y;
+            client->width        = monitor->width;
+            client->height       = monitor->height;
+            client->isFullscreen = 1;
+            client->isFloating   = 1;
+
+            XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+            XSetWindowBorderWidth(display, client->window, 0);
+            configureClient(client);
+            XRaiseWindow(display, client->window);
+        }
+    }
+
     XMapWindow(display, ev->window);
 
-    XSync(display, False);
+    if (client && !client->isFloating && !client->isFullscreen) {
+        XSync(display, False);
+        arrangeClients(&monitors[client->monitor]);
+    }
 }
 
 void handleConfigureRequest(XEvent* event) {
@@ -532,7 +610,31 @@ void handleConfigureRequest(XEvent* event) {
     wc.border_width = ev->border_width;
     wc.sibling      = ev->above;
     wc.stack_mode   = ev->detail;
+
+    SClient* client = findClient(ev->window);
+    if (client) {
+        if (client->isFullscreen) {
+            fprintf(stderr, "Intercepting configure request for fullscreen window\n");
+            SMonitor* monitor = &monitors[client->monitor];
+            wc.x              = monitor->x;
+            wc.y              = monitor->y;
+            wc.width          = monitor->width;
+            wc.height         = monitor->height;
+            wc.border_width   = 0;
+        } else if (!client->isFloating) {
+            fprintf(stderr, "Intercepting configure request for tiled window\n");
+            wc.x            = client->x;
+            wc.y            = client->y;
+            wc.width        = client->width;
+            wc.height       = client->height;
+            wc.border_width = BORDER_WIDTH;
+        }
+    }
+
     XConfigureWindow(display, ev->window, ev->value_mask, &wc);
+
+    if (client)
+        configureClient(client);
 }
 
 void handleUnmapNotify(XEvent* event) {
@@ -566,41 +668,21 @@ void spawnProgram(const char* program) {
 }
 
 void killClient(const char* arg) {
-    SClient* clientToKill = focused;
+    (void)arg;
 
-    if (arg && *arg) {
-        XTextProperty windowName;
-        SClient*      client = clients;
-
-        while (client) {
-            if (XGetWMName(display, client->window, &windowName) && windowName.value && strstr((char*)windowName.value, arg)) {
-                clientToKill = client;
-                XFree(windowName.value);
-                break;
-            }
-
-            if (windowName.value)
-                XFree(windowName.value);
-
-            client = client->next;
-        }
-    }
-
-    if (!clientToKill)
+    if (!focused)
         return;
 
-    XEvent event;
-    event.type                 = ClientMessage;
-    event.xclient.window       = clientToKill->window;
-    event.xclient.message_type = WM_PROTOCOLS;
-    event.xclient.format       = 32;
-    event.xclient.data.l[0]    = WM_DELETE_WINDOW;
-    event.xclient.data.l[1]    = CurrentTime;
-    XSendEvent(display, clientToKill->window, False, NoEventMask, &event);
+    fprintf(stderr, "Killing client 0x%lx\n", focused->window);
 
-    XGrabServer(display);
-    XKillClient(display, clientToKill->window);
-    XUngrabServer(display);
+    if (!sendEvent(focused, WM_DELETE_WINDOW)) {
+        XGrabServer(display);
+        XSetErrorHandler(xerrorHandler);
+        XSetCloseDownMode(display, DestroyAll);
+        XKillClient(display, focused->window);
+        XSync(display, False);
+        XUngrabServer(display);
+    }
 }
 
 void quit(const char* arg) {
@@ -669,16 +751,24 @@ void focusClient(SClient* client) {
 
     fprintf(stderr, "  Window is valid and viewable, setting focus\n");
 
+    if (focused && focused != client)
+        XSetWindowBorder(display, focused->window, 0x444444);
+
     focused = client;
 
-    XSetInputFocus(display, client->window, RevertToPointerRoot, CurrentTime);
+    XSetWindowBorder(display, client->window, 0xFF0000);
+    XRaiseWindow(display, client->window);
 
-    XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&client->window, 1);
+    if (!client->neverfocus) {
+        XSetInputFocus(display, client->window, RevertToPointerRoot, CurrentTime);
+        XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&client->window, 1);
+    }
+
+    sendEvent(client, WM_TAKE_FOCUS);
+    client->isUrgent = 0;
 
     updateBorders();
-
     restackFloatingWindows();
-
     updateBars();
 }
 
@@ -727,9 +817,20 @@ void manageClient(Window window) {
     client->workspace = monitors[monitorNum].currentWorkspace;
     SMonitor* monitor = &monitors[client->monitor];
 
-    client->isFloating = 0;
+    client->isFloating      = 0;
+    client->isFullscreen    = 0;
+    client->isUrgent        = 0;
+    client->neverfocus      = 0;
+    client->oldState        = 0;
+    client->oldx            = 0;
+    client->oldy            = 0;
+    client->oldwidth        = 0;
+    client->oldheight       = 0;
+    client->sizeHints.valid = 0;
 
     client->window = window;
+
+    updateSizeHints(client);
 
     if (wa.width > monitor->width - 2 * BORDER_WIDTH)
         client->width = monitor->width - 2 * BORDER_WIDTH;
@@ -741,22 +842,15 @@ void manageClient(Window window) {
     else
         client->height = wa.height;
 
-    if (pointerQuerySuccess) {
-        client->x = rootX - client->width / 2;
-        client->y = rootY - client->height / 2;
-
-        if (client->x < monitor->x)
-            client->x = monitor->x;
-        else if (client->x + client->width > monitor->x + monitor->width)
-            client->x = monitor->x + monitor->width - client->width;
-
-        if (client->y < monitor->y)
-            client->y = monitor->y;
-        else if (client->y + client->height > monitor->y + monitor->height)
-            client->y = monitor->y + monitor->height - client->height;
-
-        fprintf(stderr, "Positioning window at cursor position (%d,%d)\n", rootX, rootY);
+    if (client->sizeHints.valid && client->isFloating) {
+        if (client->sizeHints.minWidth > 0 && client->width < client->sizeHints.minWidth)
+            client->width = client->sizeHints.minWidth;
+        if (client->sizeHints.minHeight > 0 && client->height < client->sizeHints.minHeight)
+            client->height = client->sizeHints.minHeight;
     }
+
+    client->x = monitor->x + (monitor->width - client->width) / 2;
+    client->y = monitor->y + (monitor->height - client->height) / 2;
 
     if (client->y < monitor->y + BAR_HEIGHT && !client->isFloating)
         client->y = monitor->y + BAR_HEIGHT;
@@ -790,6 +884,14 @@ void manageClient(Window window) {
 
     updateBorders();
 
+    XChangeProperty(display, root, NET_CLIENT_LIST, XA_WINDOW, 32, PropModeAppend, (unsigned char*)&window, 1);
+    setClientState(client, NormalState);
+
+    updateWindowType(client);
+    updateWMHints(client);
+
+    configureClient(client);
+
     if (wa.map_state == IsViewable) {
         fprintf(stderr, "Window is viewable, focusing now\n");
         focusClient(client);
@@ -798,7 +900,7 @@ void manageClient(Window window) {
 
     arrangeClients(monitor);
 
-    if (!client->isFloating)
+    if (!client->isFloating && !client->isFullscreen)
         XLowerWindow(display, client->window);
 
     restackFloatingWindows();
@@ -873,7 +975,7 @@ void configureClient(SClient* client) {
     wc.y              = client->y;
     wc.width          = client->width;
     wc.height         = client->height;
-    wc.border_width   = BORDER_WIDTH;
+    wc.border_width   = client->isFullscreen ? 0 : BORDER_WIDTH;
     unsigned int mask = CWX | CWY | CWWidth | CWHeight | CWBorderWidth;
     XConfigureWindow(display, client->window, mask, &wc);
 
@@ -886,10 +988,13 @@ void configureClient(SClient* client) {
     event.y                 = client->y;
     event.width             = client->width;
     event.height            = client->height;
-    event.border_width      = BORDER_WIDTH;
+    event.border_width      = client->isFullscreen ? 0 : BORDER_WIDTH;
     event.above             = None;
     event.override_redirect = False;
     XSendEvent(display, client->window, False, StructureNotifyMask, (XEvent*)&event);
+
+    fprintf(stderr, "Configure client 0x%lx: monitor=%d pos=%d,%d size=%dx%d border=%d\n", client->window, client->monitor, client->x, client->y, client->width, client->height,
+            client->isFullscreen ? 0 : BORDER_WIDTH);
 }
 
 void updateBorders() {
@@ -975,6 +1080,10 @@ void updateMonitors() {
                         monitors[i].currentWorkspace = oldWorkspaces[i];
                     else
                         monitors[i].currentWorkspace = 0;
+
+                    for (int ws = 0; ws < WORKSPACE_COUNT; ws++) {
+                        monitors[i].masterFactors[ws] = DEFAULT_MASTER_FACTOR;
+                    }
                 }
             }
             XFree(info);
@@ -998,19 +1107,34 @@ void updateMonitors() {
                 monitors[0].masterFactors[ws] = DEFAULT_MASTER_FACTOR;
             }
         }
-    } else {
-        for (int i = 0; i < numMonitors; i++) {
-            for (int ws = 0; ws < WORKSPACE_COUNT; ws++) {
-                monitors[i].masterFactors[ws] = DEFAULT_MASTER_FACTOR;
-            }
-        }
     }
 
     if (oldWorkspaces)
         free(oldWorkspaces);
 
-    if (numMonitors > 0)
+    if (numMonitors > 0) {
         createBars();
+        for (SClient* c = clients; c; c = c->next) {
+            SMonitor* mon = &monitors[c->monitor];
+
+            if (c->x < mon->x)
+                c->x = mon->x;
+            if (c->y < mon->y + BAR_HEIGHT)
+                c->y = mon->y + BAR_HEIGHT;
+            if (c->x + c->width > mon->x + mon->width)
+                c->x = mon->x + mon->width - c->width;
+            if (c->y + c->height > mon->y + mon->height)
+                c->y = mon->y + mon->height - c->height;
+
+            if (!c->isFloating && !c->isFullscreen)
+                arrangeClients(mon);
+            else {
+                XMoveResizeWindow(display, c->window, c->x, c->y, c->width, c->height);
+                configureClient(c);
+            }
+        }
+        updateBars();
+    }
 }
 
 void handlePropertyNotify(XEvent* event) {
@@ -1022,6 +1146,21 @@ void handlePropertyNotify(XEvent* event) {
         SClient* client = findClient(ev->window);
         if (client)
             updateBars();
+    }
+
+    SClient* client = findClient(ev->window);
+    if (client) {
+        if (ev->atom == XA_WM_NORMAL_HINTS || ev->atom == XA_WM_HINTS)
+            updateWMHints(client);
+        else if (ev->atom == NET_WM_WINDOW_TYPE)
+            updateWindowType(client);
+        else if (ev->atom == NET_WM_STATE) {
+            Atom state = getAtomProperty(client, NET_WM_STATE);
+            if (state == NET_WM_STATE_FULLSCREEN)
+                setFullscreen(client, 1);
+            else if (client->isFullscreen)
+                setFullscreen(client, 0);
+        }
     }
 }
 
@@ -1078,12 +1217,15 @@ void switchToWorkspace(const char* arg) {
     if (monitor->currentWorkspace == workspace)
         return;
 
+    fprintf(stderr, "Switching from workspace %d to %d on monitor %d\n", monitor->currentWorkspace, workspace, monitor->num);
+
     monitor->currentWorkspace = workspace;
-    updateClientVisibility();
-    updateBars();
 
     long currentDesktop = workspace;
     XChangeProperty(display, root, NET_CURRENT_DESKTOP, XA_CARDINAL, 32, PropModeReplace, (unsigned char*)&currentDesktop, 1);
+
+    updateClientVisibility();
+    updateBars();
 
     arrangeClients(monitor);
 
@@ -1122,6 +1264,15 @@ void moveClientToWorkspace(const char* arg) {
                 fprintf(stderr, "No window under cursor, focusing remaining window in workspace %d\n", currentMon->currentWorkspace);
                 focusClient(remainingWindow);
             }
+        }
+    }
+
+    arrangeClients(currentMon);
+
+    for (int i = 0; i < numMonitors; i++) {
+        if (i != currentMon->num && monitors[i].currentWorkspace == workspace) {
+            arrangeClients(&monitors[i]);
+            break;
         }
     }
 
@@ -1173,6 +1324,9 @@ void toggleFloating(const char* arg) {
     if (!focused)
         return;
 
+    if (focused->isFullscreen)
+        return;
+
     int wasFloating = focused->isFloating;
 
     focused->isFloating = !focused->isFloating;
@@ -1184,6 +1338,13 @@ void toggleFloating(const char* arg) {
             int newWidth  = MAX(400, focused->width);
             int newHeight = MAX(300, focused->height);
 
+            if (focused->sizeHints.valid) {
+                if (focused->sizeHints.minWidth > 0 && newWidth < focused->sizeHints.minWidth)
+                    newWidth = focused->sizeHints.minWidth;
+                if (focused->sizeHints.minHeight > 0 && newHeight < focused->sizeHints.minHeight)
+                    newHeight = focused->sizeHints.minHeight;
+            }
+
             focused->x      = monitor->x + (monitor->width - newWidth) / 2;
             focused->y      = monitor->y + (monitor->height - newHeight) / 2;
             focused->width  = newWidth;
@@ -1191,8 +1352,15 @@ void toggleFloating(const char* arg) {
 
             XMoveResizeWindow(display, focused->window, focused->x, focused->y, focused->width, focused->height);
         }
-    } else if (wasFloating)
+    } else if (wasFloating) {
         XLowerWindow(display, focused->window);
+        SMonitor* newMonitor = monitorAtPoint(focused->x + focused->width / 2, focused->y + focused->height / 2);
+
+        if (newMonitor->num != focused->monitor) {
+            focused->monitor   = newMonitor->num;
+            focused->workspace = newMonitor->currentWorkspace;
+        }
+    }
 
     arrangeClients(&monitors[focused->monitor]);
     updateBorders();
@@ -1242,7 +1410,7 @@ void tileClients(SMonitor* monitor) {
     int      visibleCount = 0;
     SClient* client       = clients;
     while (client) {
-        if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace && !client->isFloating)
+        if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace && !client->isFloating && !client->isFullscreen)
             visibleCount++;
         client = client->next;
     }
@@ -1252,16 +1420,13 @@ void tileClients(SMonitor* monitor) {
 
     float masterFactor = monitor->masterFactors[currentWorkspace];
 
-    int   masterArea = monitor->width * masterFactor;
-    int   stackArea  = monitor->width - masterArea;
-
     int   x               = monitor->x + OUTER_GAP;
     int   y               = monitor->y + BAR_HEIGHT + OUTER_GAP;
     int   availableWidth  = monitor->width - (2 * OUTER_GAP);
     int   availableHeight = monitor->height - BAR_HEIGHT - (2 * OUTER_GAP);
 
-    masterArea = availableWidth * masterFactor;
-    stackArea  = availableWidth - masterArea;
+    int   masterArea = availableWidth * masterFactor;
+    int   stackArea  = availableWidth - masterArea;
 
     if (visibleCount == 0)
         return;
@@ -1269,13 +1434,18 @@ void tileClients(SMonitor* monitor) {
     if (visibleCount == 1) {
         client = clients;
         while (client) {
-            if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace && !client->isFloating) {
+            if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace && !client->isFloating && !client->isFullscreen) {
+                int width  = availableWidth - 2 * BORDER_WIDTH;
+                int height = availableHeight - 2 * BORDER_WIDTH;
+
                 client->x      = x;
                 client->y      = y;
-                client->width  = availableWidth - 2 * BORDER_WIDTH;
-                client->height = availableHeight - 2 * BORDER_WIDTH;
+                client->width  = width;
+                client->height = height;
 
                 XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+                configureClient(client);
+                fprintf(stderr, "Single window tiled: monitor=%d pos=%d,%d size=%dx%d\n", monitor->num, client->x, client->y, client->width, client->height);
                 return;
             }
             client = client->next;
@@ -1307,7 +1477,7 @@ void tileClients(SMonitor* monitor) {
     int stackX      = x + masterArea + INNER_GAP / 2;
 
     while (client) {
-        if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace && !client->isFloating) {
+        if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace && !client->isFloating && !client->isFullscreen) {
             if (currentMaster < masterCount) {
                 int heightAdjustment = (currentMaster < masterRemainder) ? 1 : 0;
                 int currentHeight    = masterHeight + heightAdjustment;
@@ -1317,10 +1487,13 @@ void tileClients(SMonitor* monitor) {
                     currentHeight -= INNER_GAP;
                 }
 
+                int width  = masterWidth;
+                int height = currentHeight - 2 * BORDER_WIDTH;
+
                 client->x      = x;
                 client->y      = masterY;
-                client->width  = masterWidth;
-                client->height = currentHeight - 2 * BORDER_WIDTH;
+                client->width  = width;
+                client->height = height;
 
                 masterY += currentHeight;
                 currentMaster++;
@@ -1333,16 +1506,21 @@ void tileClients(SMonitor* monitor) {
                     currentHeight -= INNER_GAP;
                 }
 
+                int width  = stackWidth;
+                int height = currentHeight - 2 * BORDER_WIDTH;
+
                 client->x      = stackX;
                 client->y      = stackY;
-                client->width  = stackWidth;
-                client->height = currentHeight - 2 * BORDER_WIDTH;
+                client->width  = width;
+                client->height = height;
 
                 stackY += currentHeight;
                 currentStack++;
             }
 
             XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+            configureClient(client);
+            fprintf(stderr, "Tiling window: monitor=%d pos=%d,%d size=%dx%d\n", monitor->num, client->x, client->y, client->width, client->height);
         }
 
         client = client->next;
@@ -1536,6 +1714,218 @@ void updateClientList() {
     }
 
     XChangeProperty(display, root, NET_CLIENT_LIST, XA_WINDOW, 32, PropModeReplace, (unsigned char*)windowList, count);
+}
+
+Atom getAtomProperty(SClient* client, Atom prop) {
+    int            di;
+    unsigned long  dl;
+    unsigned char* p = NULL;
+    Atom           da, atom = None;
+
+    if (XGetWindowProperty(display, client->window, prop, 0L, sizeof atom, False, XA_ATOM, &da, &di, &dl, &dl, &p) == Success && p) {
+        atom = *(Atom*)p;
+        XFree(p);
+    }
+    return atom;
+}
+
+void setClientState(SClient* client, long state) {
+    long data[] = {state, None};
+
+    XChangeProperty(display, client->window, WM_STATE, WM_STATE, 32, PropModeReplace, (unsigned char*)data, 2);
+}
+
+int sendEvent(SClient* client, Atom proto) {
+    int    n;
+    Atom*  protocols;
+    int    exists = 0;
+    XEvent ev;
+
+    if (XGetWMProtocols(display, client->window, &protocols, &n)) {
+        while (!exists && n--)
+            exists = protocols[n] == proto;
+        XFree(protocols);
+    }
+
+    if (exists) {
+        ev.type                 = ClientMessage;
+        ev.xclient.window       = client->window;
+        ev.xclient.message_type = WM_PROTOCOLS;
+        ev.xclient.format       = 32;
+        ev.xclient.data.l[0]    = proto;
+        ev.xclient.data.l[1]    = CurrentTime;
+        XSendEvent(display, client->window, False, NoEventMask, &ev);
+    }
+    return exists;
+}
+
+void setFullscreen(SClient* client, int fullscreen) {
+    if (fullscreen && !client->isFullscreen) {
+        XChangeProperty(display, client->window, NET_WM_STATE, XA_ATOM, 32, PropModeReplace, (unsigned char*)&NET_WM_STATE_FULLSCREEN, 1);
+        client->isFullscreen = 1;
+        client->oldState     = client->isFloating;
+        client->isFloating   = 1;
+
+        client->oldx      = client->x;
+        client->oldy      = client->y;
+        client->oldwidth  = client->width;
+        client->oldheight = client->height;
+
+        XSetWindowBorderWidth(display, client->window, 0);
+
+        SMonitor* monitor = &monitors[client->monitor];
+        client->x         = monitor->x;
+        client->y         = monitor->y;
+        client->width     = monitor->width;
+        client->height    = monitor->height;
+
+        XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+        configureClient(client);
+        XRaiseWindow(display, client->window);
+    } else if (!fullscreen && client->isFullscreen) {
+        XChangeProperty(display, client->window, NET_WM_STATE, XA_ATOM, 32, PropModeReplace, (unsigned char*)0, 0);
+        client->isFullscreen = 0;
+        client->isFloating   = client->oldState;
+
+        client->x      = client->oldx;
+        client->y      = client->oldy;
+        client->width  = client->oldwidth;
+        client->height = client->oldheight;
+
+        XSetWindowBorderWidth(display, client->window, BORDER_WIDTH);
+
+        XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+        configureClient(client);
+        arrangeClients(&monitors[client->monitor]);
+    }
+}
+
+void updateWindowType(SClient* client) {
+    Atom state = getAtomProperty(client, NET_WM_STATE);
+    Atom wtype = getAtomProperty(client, NET_WM_WINDOW_TYPE);
+
+    fprintf(stderr, "Checking window type for 0x%lx, state=%ld, fullscreen=%ld\n", client->window, state, NET_WM_STATE_FULLSCREEN);
+
+    if (state == NET_WM_STATE_FULLSCREEN) {
+        fprintf(stderr, "Fullscreen window detected, forcing proper position\n");
+        if (!client->isFullscreen) {
+            client->oldx      = client->x;
+            client->oldy      = client->y;
+            client->oldwidth  = client->width;
+            client->oldheight = client->height;
+
+            SMonitor* monitor    = &monitors[client->monitor];
+            client->isFullscreen = 1;
+            client->oldState     = client->isFloating;
+            client->isFloating   = 1;
+
+            client->x      = monitor->x;
+            client->y      = monitor->y;
+            client->width  = monitor->width;
+            client->height = monitor->height;
+
+            XSetWindowBorderWidth(display, client->window, 0);
+            XChangeProperty(display, client->window, NET_WM_STATE, XA_ATOM, 32, PropModeReplace, (unsigned char*)&NET_WM_STATE_FULLSCREEN, 1);
+
+            XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+            configureClient(client);
+            XRaiseWindow(display, client->window);
+        }
+    }
+    if (wtype == NET_WM_WINDOW_TYPE_DIALOG)
+        client->isFloating = 1;
+}
+
+void updateWMHints(SClient* client) {
+    XWMHints* wmh;
+
+    if ((wmh = XGetWMHints(display, client->window))) {
+        if (client == focused && wmh->flags & XUrgencyHint) {
+            wmh->flags &= ~XUrgencyHint;
+            XSetWMHints(display, client->window, wmh);
+        } else
+            client->isUrgent = (wmh->flags & XUrgencyHint) ? 1 : 0;
+
+        if (wmh->flags & InputHint)
+            client->neverfocus = !wmh->input;
+        else
+            client->neverfocus = 0;
+
+        XFree(wmh);
+    }
+}
+
+void handleClientMessage(XEvent* event) {
+    XClientMessageEvent* cme    = &event->xclient;
+    SClient*             client = findClient(cme->window);
+
+    if (!client)
+        return;
+
+    if (cme->message_type == NET_WM_STATE) {
+        if (cme->data.l[1] == (long)NET_WM_STATE_FULLSCREEN || cme->data.l[2] == (long)NET_WM_STATE_FULLSCREEN)
+            setFullscreen(client, (cme->data.l[0] == 1 /* _NET_WM_STATE_ADD */ || (cme->data.l[0] == 2 /* _NET_WM_STATE_TOGGLE */ && !client->isFullscreen)));
+    } else if (cme->message_type == NET_ACTIVE_WINDOW) {
+        SMonitor* monitor = &monitors[client->monitor];
+
+        if (monitor->currentWorkspace != client->workspace) {
+            fprintf(stderr, "Window on workspace %d requests focus, switching workspace\n", client->workspace);
+            monitor->currentWorkspace = client->workspace;
+            updateClientVisibility();
+            updateBars();
+        }
+
+        if (client != focused)
+            focusClient(client);
+    }
+}
+
+void toggleFullscreen(const char* arg) {
+    (void)arg;
+
+    if (!focused)
+        return;
+
+    setFullscreen(focused, !focused->isFullscreen);
+}
+
+void updateSizeHints(SClient* client) {
+    XSizeHints hints;
+    long       supplied;
+
+    client->sizeHints.valid = 0;
+
+    if (!XGetWMNormalHints(display, client->window, &hints, &supplied))
+        return;
+
+    if (supplied & PMinSize) {
+        client->sizeHints.minWidth  = hints.min_width;
+        client->sizeHints.minHeight = hints.min_height;
+    } else {
+        client->sizeHints.minWidth  = 0;
+        client->sizeHints.minHeight = 0;
+    }
+
+    if (supplied & PMaxSize) {
+        client->sizeHints.maxWidth  = hints.max_width;
+        client->sizeHints.maxHeight = hints.max_height;
+    } else {
+        client->sizeHints.maxWidth  = 0;
+        client->sizeHints.maxHeight = 0;
+    }
+
+    if (supplied & PBaseSize) {
+        client->sizeHints.baseWidth  = hints.base_width;
+        client->sizeHints.baseHeight = hints.base_height;
+    } else {
+        client->sizeHints.baseWidth  = 0;
+        client->sizeHints.baseHeight = 0;
+    }
+
+    client->sizeHints.valid = 1;
+
+    fprintf(stderr, "Size hints for 0x%lx: min=%dx%d, max=%dx%d, base=%dx%d\n", client->window, client->sizeHints.minWidth, client->sizeHints.minHeight, client->sizeHints.maxWidth,
+            client->sizeHints.maxHeight, client->sizeHints.baseWidth, client->sizeHints.baseHeight);
 }
 
 int main() {

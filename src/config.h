@@ -12,6 +12,7 @@ void quit(const char* arg);
 void switchToWorkspace(const char* arg);
 void moveClientToWorkspace(const char* arg);
 void toggleFloating(const char* arg);
+void toggleFullscreen(const char* arg);
 void moveWindowInStack(const char* arg);
 void focusWindowInStack(const char* arg);
 void adjustMasterFactor(const char* arg);
@@ -70,6 +71,7 @@ static const struct {
     {MODKEY, XK_c, killClient, NULL},
     {MODKEY, XK_w, quit, NULL},
     {MODKEY, XK_space, toggleFloating, NULL},
+    {MODKEY, XK_f, toggleFullscreen, NULL},
 
     /* Master factor adjustment */
     {MODKEY, XK_h, adjustMasterFactor, "decrease"},
