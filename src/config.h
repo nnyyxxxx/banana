@@ -32,9 +32,10 @@ void adjustMasterFactor(const char* arg);
 #define MODKEY Mod1Mask
 
 /* Bar configuration */
-#define BAR_HEIGHT  20
-#define BAR_PADDING 4
-#define BAR_FONT    "monospace-12"
+#define BAR_HEIGHT       20
+#define BAR_PADDING      4
+#define BAR_FONT         "monospace-12"
+#define MAX_TITLE_LENGTH 40
 
 /* Colors */
 #define ACTIVE_BORDER_COLOR   "#CD78A0"
