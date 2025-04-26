@@ -485,8 +485,14 @@ void moveWindow(SClient* client, int x, int y) {
 
     configureClient(client);
 
-    if (prevMonitor != client->monitor && !windowMovement.active) {
+    if (prevMonitor != client->monitor) {
         fprintf(stderr, "Window moved to a different monitor, updating layout\n");
+
+        if (windowMovement.active && windowMovement.client == client) {
+            fprintf(stderr, "Window being dragged to different monitor, focusing it\n");
+            focusClient(client);
+        }
+
         arrangeClients(&monitors[prevMonitor]);
         arrangeClients(monitor);
     }
