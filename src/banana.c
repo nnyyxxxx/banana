@@ -574,11 +574,11 @@ void handleMapRequest(XEvent* event) {
 
     SClient* client = findClient(ev->window);
     if (client) {
-        Atom state = getAtomProperty(client, NET_WM_STATE);
+        SMonitor* monitor = &monitors[client->monitor];
+        Atom      state   = getAtomProperty(client, NET_WM_STATE);
         if (state == NET_WM_STATE_FULLSCREEN) {
             fprintf(stderr, "Detected fullscreen window during map request, forcing proper position\n");
 
-            SMonitor* monitor = &monitors[client->monitor];
             client->oldx      = client->x;
             client->oldy      = client->y;
             client->oldwidth  = client->width;
@@ -596,14 +596,18 @@ void handleMapRequest(XEvent* event) {
             configureClient(client);
             XRaiseWindow(display, client->window);
         }
-    }
 
-    XMapWindow(display, ev->window);
+        if (client->workspace == monitor->currentWorkspace)
+            XMapWindow(display, ev->window);
+        else
+            XUnmapWindow(display, ev->window);
 
-    if (client && !client->isFloating && !client->isFullscreen) {
-        XSync(display, False);
-        arrangeClients(&monitors[client->monitor]);
-    }
+        if (!client->isFloating && !client->isFullscreen) {
+            XSync(display, False);
+            arrangeClients(monitor);
+        }
+    } else
+        XMapWindow(display, ev->window);
 }
 
 void handleConfigureRequest(XEvent* event) {
@@ -809,10 +813,9 @@ void manageClient(Window window) {
         fprintf(stderr, "Using monitor %d at cursor position for new window\n", monitorNum);
     }
 
-    client->monitor   = monitorNum;
-    client->workspace = monitors[monitorNum].currentWorkspace;
-    SMonitor* monitor = &monitors[client->monitor];
-
+    client->monitor         = monitorNum;
+    client->workspace       = monitors[monitorNum].currentWorkspace;
+    client->window          = window;
     client->isFloating      = 0;
     client->isFullscreen    = 0;
     client->isUrgent        = 0;
@@ -825,6 +828,9 @@ void manageClient(Window window) {
     client->sizeHints.valid = 0;
 
     client->window = window;
+    applyRules(client);
+
+    SMonitor* monitor = &monitors[client->monitor];
 
     updateSizeHints(client);
 
@@ -1920,6 +1926,74 @@ void updateSizeHints(SClient* client) {
 
     fprintf(stderr, "Size hints for 0x%lx: min=%dx%d, max=%dx%d, base=%dx%d\n", client->window, client->sizeHints.minWidth, client->sizeHints.minHeight, client->sizeHints.maxWidth,
             client->sizeHints.maxHeight, client->sizeHints.baseWidth, client->sizeHints.baseHeight);
+}
+
+void getWindowClass(Window window, char* className, char* instanceName, size_t bufSize) {
+    XClassHint classHint;
+
+    className[0]    = '\0';
+    instanceName[0] = '\0';
+
+    if (XGetClassHint(display, window, &classHint)) {
+        if (classHint.res_class) {
+            strncpy(className, classHint.res_class, bufSize - 1);
+            className[bufSize - 1] = '\0';
+            XFree(classHint.res_class);
+        }
+
+        if (classHint.res_name) {
+            strncpy(instanceName, classHint.res_name, bufSize - 1);
+            instanceName[bufSize - 1] = '\0';
+            XFree(classHint.res_name);
+        }
+    }
+}
+
+int applyRules(SClient* client) {
+    char className[256]    = {0};
+    char instanceName[256] = {0};
+    char title[256]        = {0};
+    int  matched           = 0;
+
+    getWindowClass(client->window, className, instanceName, sizeof(className));
+
+    XTextProperty textProp;
+    if (XGetTextProperty(display, client->window, &textProp, NET_WM_NAME) || XGetTextProperty(display, client->window, &textProp, XA_WM_NAME)) {
+        strncpy(title, (char*)textProp.value, sizeof(title) - 1);
+        title[sizeof(title) - 1] = '\0';
+        XFree(textProp.value);
+    }
+
+    fprintf(stderr, "Checking rules for window: class='%s' instance='%s' title='%s'\n", className, instanceName, title);
+
+    for (size_t i = 0; i < sizeof(rules) / sizeof(rules[0]); i++) {
+        const char* ruleClass    = rules[i].className;
+        const char* ruleInstance = rules[i].instanceName;
+        const char* ruleTitle    = rules[i].title;
+
+        if ((ruleClass == NULL || strcmp(className, ruleClass) == 0) && (ruleInstance == NULL || strcmp(instanceName, ruleInstance) == 0) &&
+            (ruleTitle == NULL || (title[0] != '\0' && strstr(title, ruleTitle) != NULL))) {
+
+            if (rules[i].isFloating != -1) {
+                client->isFloating = rules[i].isFloating;
+                matched            = 1;
+            }
+
+            if (rules[i].workspace != -1 && rules[i].workspace < WORKSPACE_COUNT) {
+                client->workspace = rules[i].workspace;
+                matched           = 1;
+            }
+
+            if (rules[i].monitor != -1 && rules[i].monitor < numMonitors) {
+                client->monitor = rules[i].monitor;
+                matched         = 1;
+            }
+
+            fprintf(stderr, "Applied rule %zu to window\n", i);
+        }
+    }
+
+    return matched;
 }
 
 int main() {

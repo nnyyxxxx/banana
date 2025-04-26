@@ -85,6 +85,15 @@ typedef struct {
     SClient* lastTarget;
 } SWindowSwap;
 
+typedef struct {
+    const char* className;
+    const char* instanceName;
+    const char* title;
+    int         isFloating;
+    int         workspace;
+    int         monitor;
+} SRule;
+
 void                   setup();
 void                   run();
 void                   cleanup();
@@ -144,6 +153,8 @@ SClient*               findClient(Window window);
 SClient*               clientAtPoint(int x, int y);
 SMonitor*              monitorAtPoint(int x, int y);
 void                   updateMonitors();
+void                   getWindowClass(Window window, char* className, char* instanceName, size_t bufSize);
+int                    applyRules(SClient* client);
 
 extern Display*        display;
 extern Window          root;

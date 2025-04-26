@@ -60,6 +60,28 @@ void adjustMasterFactor(const char* arg);
 /* Applications */
 #define TERMINAL "alacritty"
 #define LAUNCHER "dmenu_run"
+#define WALL     "pocky"
+
+/* Window rules
+ * Format: { class, instance, title, float, workspace, monitor }
+ * class/instance: X11 window class/instance (NULL = match any)
+ * title: window title substring to match (NULL = match any)
+ * float: 1=force float, 0=force tile, -1=don't change
+ * workspace: workspace to place window (0-8, or -1 for current)
+ * monitor: monitor to place window (0+ for specific, -1 for current)
+ */
+static const struct {
+    const char* className;
+    const char* instanceName;
+    const char* title;
+    int         isFloating;
+    int         workspace;
+    int         monitor;
+} rules[] = {
+    /* class  instance  title  floating  workspace   monitor */
+    {"Pocky", NULL, NULL, 1, -1, -1},
+    /* Add more rules here */
+};
 
 /* Key bindings */
 static const struct {
@@ -71,6 +93,7 @@ static const struct {
     /* Mod    Key    Function    Argument */
     {MODKEY, XK_q, spawnProgram, TERMINAL},
     {MODKEY, XK_e, spawnProgram, LAUNCHER},
+    {MODKEY, XK_a, spawnProgram, WALL},
     {MODKEY, XK_c, killClient, NULL},
     {MODKEY, XK_w, quit, NULL},
     {MODKEY, XK_space, toggleFloating, NULL},
