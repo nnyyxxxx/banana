@@ -139,7 +139,7 @@ void createBars(void) {
 
         barDraws[i] = XftDrawCreate(display, barWindows[i], DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)));
 
-        XMapRaised(display, barWindows[i]);
+        XMapWindow(display, barWindows[i]);
     }
 
     updateBars();
@@ -260,8 +260,6 @@ void updateBars(void) {
         if (statusText[0] != '\0')
             drawText(i, statusText, monitors[i].width - PADDING - getTextWidth(statusText), 0, &barStatusTextColor, 0);
     }
-
-    raiseBars();
 }
 
 void raiseBars(void) {
@@ -351,7 +349,7 @@ void updateClientPositionsForBar(void) {
     SClient* client = clients;
 
     while (client) {
-        if (client->y < monitors[client->monitor].y + BAR_HEIGHT) {
+        if (!client->isFloating && client->y < monitors[client->monitor].y + BAR_HEIGHT) {
             client->y = monitors[client->monitor].y + BAR_HEIGHT;
             XMoveWindow(display, client->window, client->x, client->y);
         }

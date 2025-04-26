@@ -457,13 +457,10 @@ void moveWindow(SClient* client, int x, int y) {
     client->y = y;
 
     SMonitor* monitor = &monitors[client->monitor];
-    if (client->y < monitor->y + BAR_HEIGHT)
-        client->y = monitor->y + BAR_HEIGHT;
-
-    int centerX     = client->x + client->width / 2;
-    int centerY     = client->y + client->height / 2;
-    monitor         = monitorAtPoint(centerX, centerY);
-    client->monitor = monitor->num;
+    int       centerX = client->x + client->width / 2;
+    int       centerY = client->y + client->height / 2;
+    monitor           = monitorAtPoint(centerX, centerY);
+    client->monitor   = monitor->num;
 
     XMoveWindow(display, client->window, client->x, client->y);
 
@@ -761,7 +758,7 @@ void manageClient(Window window) {
         fprintf(stderr, "Positioning window at cursor position (%d,%d)\n", rootX, rootY);
     }
 
-    if (client->y < monitor->y + BAR_HEIGHT)
+    if (client->y < monitor->y + BAR_HEIGHT && !client->isFloating)
         client->y = monitor->y + BAR_HEIGHT;
 
     client->next = NULL;
@@ -1201,6 +1198,8 @@ void toggleFloating(const char* arg) {
     updateBorders();
 
     restackFloatingWindows();
+
+    updateBars();
 }
 
 void arrangeClients(SMonitor* monitor) {
@@ -1232,8 +1231,6 @@ void restackFloatingWindows() {
             }
         }
     }
-
-    raiseBars();
 }
 
 void tileClients(SMonitor* monitor) {
