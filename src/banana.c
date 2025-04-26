@@ -1353,6 +1353,12 @@ void toggleFloating(const char* arg) {
 
             XMoveResizeWindow(display, focused->window, focused->x, focused->y, focused->width, focused->height);
         }
+
+        XRaiseWindow(display, focused->window);
+        if (!focused->neverfocus) {
+            XSetInputFocus(display, focused->window, RevertToPointerRoot, CurrentTime);
+            XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&focused->window, 1);
+        }
     } else if (wasFloating) {
         XLowerWindow(display, focused->window);
         SMonitor* newMonitor = monitorAtPoint(focused->x + focused->width / 2, focused->y + focused->height / 2);
