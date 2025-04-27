@@ -792,7 +792,9 @@ void focusClient(SClient* client) {
     focused = client;
 
     XSetWindowBorder(display, client->window, 0xFF0000);
-    XRaiseWindow(display, client->window);
+
+    if ((windowMovement.active && windowMovement.client == client) || (windowResize.active && windowResize.client == client))
+        XRaiseWindow(display, client->window);
 
     if (!client->neverfocus) {
         XSetInputFocus(display, client->window, RevertToPointerRoot, CurrentTime);
