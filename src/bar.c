@@ -11,7 +11,6 @@
 
 #define BAR_HEIGHT        20
 #define MAX_STATUS_LENGTH 256
-#define PADDING           4
 
 static char*         workspaceNames[WORKSPACE_COUNT];
 
@@ -283,7 +282,7 @@ void updateBars(void) {
 
         XClearWindow(display, barWindows[i]);
 
-        int x = PADDING;
+        int x = 0;
 
         int maxTextWidth = 0;
         for (int w = 0; w < WORKSPACE_COUNT; w++) {
@@ -292,7 +291,7 @@ void updateBars(void) {
                 maxTextWidth = textWidth;
         }
 
-        int wsWidth = maxTextWidth + (PADDING * 4);
+        int wsWidth = maxTextWidth + 16;
 
         for (int w = 0; w < WORKSPACE_COUNT; w++) {
             int isSelected = (monitors[i].currentWorkspace == w);
@@ -325,12 +324,10 @@ void updateBars(void) {
 
         if (i == activeMonitor->num) {
             if (statusText[0] != '\0')
-                statusWidth = getTextWidth(statusText) + PADDING * 2;
+                statusWidth = getTextWidth(statusText);
 
             if (ENABLE_SYSTRAY) {
                 systrayWidth = getSystrayWidth();
-                if (systrayWidth > 0)
-                    systrayWidth += PADDING;
             }
         }
 
@@ -342,12 +339,12 @@ void updateBars(void) {
                 XSetForeground(display, DefaultGC(display, DefaultScreen(display)), barTitleBgColor);
                 XFillRectangle(display, barWindows[i], DefaultGC(display, DefaultScreen(display)), x, 0, titleBackgroundWidth, BAR_HEIGHT);
 
-                drawText(i, windowTitle, x + PADDING, 0, &barTitleTextColor, 0);
+                drawText(i, windowTitle, x, 0, &barTitleTextColor, 0);
             }
         }
 
         if (ENABLE_SYSTRAY && systrayWidth > 0 && i == activeMonitor->num) {
-            int           systrayX = monitors[i].width - statusWidth - systrayWidth + PADDING;
+            int           systrayX = monitors[i].width - statusWidth - systrayWidth;
 
             SSystrayIcon* icon;
             int           iconX = systrayX;
@@ -364,7 +361,7 @@ void updateBars(void) {
         }
 
         if (statusText[0] != '\0' && i == activeMonitor->num)
-            drawText(i, statusText, monitors[i].width - PADDING - getTextWidth(statusText), 0, &barStatusTextColor, 0);
+            drawText(i, statusText, monitors[i].width - getTextWidth(statusText), 0, &barStatusTextColor, 0);
     }
 }
 
@@ -414,7 +411,7 @@ void handleBarClick(XEvent* event) {
 
     for (int i = 0; i < numMonitors; i++) {
         if (ev->window == barWindows[i]) {
-            int x = PADDING;
+            int x = 0;
 
             int maxTextWidth = 0;
             for (int w = 0; w < WORKSPACE_COUNT; w++) {
@@ -423,7 +420,7 @@ void handleBarClick(XEvent* event) {
                     maxTextWidth = textWidth;
             }
 
-            int wsWidth = maxTextWidth + (PADDING * 4);
+            int wsWidth = maxTextWidth + 16;
 
             for (int w = 0; w < WORKSPACE_COUNT; w++) {
                 if (ev->x >= x && ev->x < x + wsWidth) {
