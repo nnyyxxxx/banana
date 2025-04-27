@@ -5,6 +5,7 @@
 #include "defs.h"
 
 extern Window* barWindows;
+extern int     barVisible;
 
 void           createBars(void);
 void           updateStatus(void);
@@ -15,6 +16,7 @@ void           handleBarClick(XEvent* event);
 void           cleanupBars(void);
 void           updateClientPositionsForBar(void);
 char*          getWindowTitle(SClient* client);
+void           showHideBars(int show);
 
 int            createSystray(void);
 void           updateSystray(void);

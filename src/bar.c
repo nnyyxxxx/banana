@@ -17,6 +17,7 @@
 static char*         workspaceNames[WORKSPACE_COUNT];
 
 Window*              barWindows = NULL;
+int                  barVisible = SHOW_BAR;
 
 static unsigned long barBgColor;
 static unsigned long barFgColor;
@@ -112,6 +113,22 @@ static int getTextWidth(const char* text) {
     return extents.xOff;
 }
 
+void showHideBars(int show) {
+    if (!barWindows)
+        return;
+
+    barVisible = show;
+
+    for (int i = 0; i < numMonitors; i++) {
+        if (barWindows[i]) {
+            if (show)
+                XMapWindow(display, barWindows[i]);
+            else
+                XUnmapWindow(display, barWindows[i]);
+        }
+    }
+}
+
 void createBars(void) {
     if (barWindows) {
         for (int i = 0; i < numMonitors; i++) {
@@ -163,7 +180,8 @@ void createBars(void) {
 
         barDraws[i] = XftDrawCreate(display, barWindows[i], DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)));
 
-        XMapWindow(display, barWindows[i]);
+        if (barVisible)
+            XMapWindow(display, barWindows[i]);
     }
 
     if (ENABLE_SYSTRAY)
@@ -255,6 +273,9 @@ static int workspaceHasUrgentWindow(int monitor, int workspace) {
 }
 
 void updateBars(void) {
+    if (!barWindows || !barVisible)
+        return;
+
     SMonitor* activeMonitor = getCurrentMonitor();
 
     for (int i = 0; i < numMonitors; i++) {
@@ -440,9 +461,15 @@ void updateClientPositionsForBar(void) {
     SClient* client = clients;
 
     while (client) {
-        if (!client->isFloating && client->y < monitors[client->monitor].y + BAR_HEIGHT) {
-            client->y = monitors[client->monitor].y + BAR_HEIGHT;
-            XMoveWindow(display, client->window, client->x, client->y);
+        if (!client->isFloating && !client->isFullscreen) {
+            SMonitor* m = &monitors[client->monitor];
+            if (barVisible && client->y < m->y + BAR_HEIGHT + OUTER_GAP) {
+                client->y = m->y + BAR_HEIGHT + OUTER_GAP;
+                XMoveWindow(display, client->window, client->x, client->y);
+            } else if (!barVisible && client->y == m->y + BAR_HEIGHT + OUTER_GAP) {
+                client->y = m->y + OUTER_GAP;
+                XMoveWindow(display, client->window, client->x, client->y);
+            }
         }
         client = client->next;
     }

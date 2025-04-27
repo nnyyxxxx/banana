@@ -1510,9 +1510,9 @@ void tileClients(SMonitor* monitor) {
     float masterFactor = monitor->masterFactors[currentWorkspace];
 
     int   x               = monitor->x + OUTER_GAP;
-    int   y               = monitor->y + BAR_HEIGHT + OUTER_GAP;
+    int   y               = monitor->y + (barVisible ? BAR_HEIGHT : 0) + OUTER_GAP;
     int   availableWidth  = monitor->width - (2 * OUTER_GAP);
-    int   availableHeight = monitor->height - BAR_HEIGHT - (2 * OUTER_GAP);
+    int   availableHeight = monitor->height - (barVisible ? BAR_HEIGHT : 0) - (2 * OUTER_GAP);
 
     int   masterArea = availableWidth * masterFactor;
     int   stackArea  = availableWidth - masterArea;
@@ -2169,4 +2169,14 @@ int main() {
     cleanup();
 
     return 0;
+}
+
+void toggleBar(const char* arg) {
+    (void)arg;
+
+    showHideBars(!barVisible);
+
+    for (int i = 0; i < numMonitors; i++) {
+        arrangeClients(&monitors[i]);
+    }
 }

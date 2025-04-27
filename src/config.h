@@ -17,6 +17,7 @@ void moveWindowInStack(const char* arg);
 void focusWindowInStack(const char* arg);
 void adjustMasterFactor(const char* arg);
 void focusMonitor(const char* arg);
+void toggleBar(const char* arg);
 
 /* Number of workspaces */
 #define WORKSPACE_COUNT 5
@@ -38,6 +39,7 @@ void focusMonitor(const char* arg);
 #define BAR_FONT         "monospace-12"
 #define MAX_TITLE_LENGTH 40
 #define ENABLE_SYSTRAY   1
+#define SHOW_BAR         1
 
 /* Colors */
 #define ACTIVE_BORDER_COLOR   "#CD78A0"
@@ -106,6 +108,7 @@ static const struct {
     {MODKEY, XK_w, quit, NULL},
     {MODKEY, XK_space, toggleFloating, NULL},
     {MODKEY, XK_f, toggleFullscreen, NULL},
+    {MODKEY, XK_b, toggleBar, NULL},
 
     /* Master factor adjustment */
     {MODKEY, XK_h, adjustMasterFactor, "decrease"},
