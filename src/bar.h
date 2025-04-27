@@ -32,7 +32,6 @@ void                 handleBarExpose(XEvent* event);
 void                 handleBarClick(XEvent* event);
 void                 cleanupBars(void);
 void                 updateClientPositionsForBar(void);
-char*                getWindowTitle(SClient* client);
 void                 showHideBars(int show);
 
 int                  createSystray(void);
