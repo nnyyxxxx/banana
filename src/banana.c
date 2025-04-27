@@ -869,9 +869,11 @@ void manageClient(Window window) {
 
     XSelectInput(display, window, EnterWindowMask | FocusChangeMask | PropertyChangeMask | StructureNotifyMask);
 
-    XGrabButton(display, Button1, MODKEY, window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, moveCursor);
+    if (!client->isFullscreen)
+        XGrabButton(display, Button1, MODKEY, window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, moveCursor);
 
-    XGrabButton(display, Button3, MODKEY, window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, resizeCursor);
+    if (client->isFloating)
+        XGrabButton(display, Button3, MODKEY, window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, resizeCursor);
 
     XSync(display, False);
     XSetErrorHandler(oldHandler);
@@ -1370,12 +1372,16 @@ void toggleFloating(const char* arg) {
             XMoveResizeWindow(display, focused->window, focused->x, focused->y, focused->width, focused->height);
         }
 
+        XGrabButton(display, Button3, MODKEY, focused->window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, resizeCursor);
+
         XRaiseWindow(display, focused->window);
         if (!focused->neverfocus) {
             XSetInputFocus(display, focused->window, RevertToPointerRoot, CurrentTime);
             XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&focused->window, 1);
         }
     } else if (wasFloating) {
+        XUngrabButton(display, Button3, MODKEY, focused->window);
+
         XLowerWindow(display, focused->window);
         SMonitor* newMonitor = monitorAtPoint(focused->x + focused->width / 2, focused->y + focused->height / 2);
 
@@ -1795,6 +1801,9 @@ void setFullscreen(SClient* client, int fullscreen) {
         client->oldwidth  = client->width;
         client->oldheight = client->height;
 
+        XUngrabButton(display, Button1, MODKEY, client->window);
+        XUngrabButton(display, Button3, MODKEY, client->window);
+
         XSetWindowBorderWidth(display, client->window, 0);
 
         SMonitor* monitor = &monitors[client->monitor];
@@ -1820,6 +1829,11 @@ void setFullscreen(SClient* client, int fullscreen) {
         client->y      = client->oldy;
         client->width  = client->oldwidth;
         client->height = client->oldheight;
+
+        XGrabButton(display, Button1, MODKEY, client->window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, moveCursor);
+
+        if (client->isFloating)
+            XGrabButton(display, Button3, MODKEY, client->window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, resizeCursor);
 
         XSetWindowBorderWidth(display, client->window, BORDER_WIDTH);
 
