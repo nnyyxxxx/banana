@@ -660,8 +660,6 @@ void updateSystray(void) {
 
     if (activeMonitor->num < numMonitors && barWindows[activeMonitor->num])
         XRaiseWindow(display, barWindows[activeMonitor->num]);
-
-    updateBars();
 }
 
 int getSystrayWidth(void) {

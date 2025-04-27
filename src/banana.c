@@ -717,14 +717,29 @@ void handleUnmapNotify(XEvent* event) {
 void handleDestroyNotify(XEvent* event) {
     XDestroyWindowEvent* ev = &event->xdestroywindow;
 
+    SClient*             client  = findClient(ev->window);
+    int                  wasIcon = 0;
+
     if (ENABLE_SYSTRAY) {
-        removeSystrayIcon(ev->window);
-        updateSystray();
+        SSystrayIcon* icon = systrayIcons;
+        while (icon) {
+            if (icon->win == ev->window) {
+                wasIcon = 1;
+                break;
+            }
+            icon = icon->next;
+        }
+
+        if (wasIcon)
+            removeSystrayIcon(ev->window);
     }
 
-    SClient* client = findClient(ev->window);
     if (client)
         unmanageClient(ev->window);
+    else if (wasIcon) {
+        updateSystray();
+        updateBars();
+    }
 }
 
 void spawnProgram(const char* program) {
