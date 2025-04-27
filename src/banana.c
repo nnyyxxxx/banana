@@ -1397,8 +1397,8 @@ void toggleFloating(const char* arg) {
             int newWidth  = oldWidth * 0.8;
             int newHeight = oldHeight * 0.8;
 
-            newWidth  = MAX(400, newWidth);
-            newHeight = MAX(300, newHeight);
+            newWidth  = MAX(20, newWidth);
+            newHeight = MAX(10, newHeight);
 
             if (focused->sizeHints.valid) {
                 if (focused->sizeHints.minWidth > 0 && newWidth < focused->sizeHints.minWidth)
