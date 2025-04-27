@@ -374,12 +374,10 @@ void handleButtonRelease(XEvent* event) {
 }
 
 SClient* clientAtPoint(int x, int y) {
-    SClient*  client = clients;
-    SMonitor* m      = monitorAtPoint(x, y);
+    SClient* client = clients;
 
     while (client) {
-        if (client->monitor == m->num && client->workspace == m->currentWorkspace && x >= client->x && x < client->x + client->width && y >= client->y &&
-            y < client->y + client->height)
+        if (x >= client->x && x < client->x + client->width && y >= client->y && y < client->y + client->height)
             return client;
         client = client->next;
     }
@@ -482,8 +480,8 @@ void handleMotionNotify(XEvent* event) {
         SClient* clientUnderCursor = clientAtPoint(ev->x_root, ev->y_root);
 
         if (clientUnderCursor) {
-            if (focused != clientUnderCursor && clientUnderCursor->monitor == currentMonitor->num) {
-                fprintf(stderr, "Cursor over window on monitor %d, focusing\n", currentMonitor->num);
+            if (focused != clientUnderCursor) {
+                fprintf(stderr, "Cursor over window, focusing\n");
                 focusClient(clientUnderCursor);
             }
         } else if (focused && (focused->monitor != currentMonitor->num || !clientAtPoint(ev->x_root, ev->y_root))) {
@@ -604,10 +602,9 @@ void handleEnterNotify(XEvent* event) {
 
     SClient* client = findClient(ev->window);
     if (client) {
-        SMonitor* monitor       = &monitors[client->monitor];
-        SMonitor* activeMonitor = getCurrentMonitor();
+        SMonitor* monitor = &monitors[client->monitor];
 
-        if (monitor->num == activeMonitor->num && client->workspace == monitor->currentWorkspace && client != focused) {
+        if (client->workspace == monitor->currentWorkspace && client != focused) {
             fprintf(stderr, "Focusing window 0x%lx after enter notify\n", ev->window);
             focusClient(client);
         }
