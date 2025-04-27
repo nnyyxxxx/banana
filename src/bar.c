@@ -241,6 +241,14 @@ void updateBars(void) {
         return;
 
     SMonitor* activeMonitor = getCurrentMonitor();
+    int       statusWidth   = 0;
+    int       systrayWidth  = 0;
+
+    if (statusText[0] != '\0')
+        statusWidth = getTextWidth(statusText);
+
+    if (ENABLE_SYSTRAY)
+        systrayWidth = getSystrayWidth();
 
     for (int i = 0; i < numMonitors; i++) {
         if (!barWindows[i] || !barDraws[i])
@@ -283,38 +291,28 @@ void updateBars(void) {
             x += wsWidth;
         }
 
-        int statusWidth  = 0;
-        int systrayWidth = 0;
-
-        if (i == activeMonitor->num) {
-            if (statusText[0] != '\0')
-                statusWidth = getTextWidth(statusText);
-
-            if (ENABLE_SYSTRAY) {
-                systrayWidth = getSystrayWidth();
-            }
-        }
-
         int barWidth = monitors[i].width - BAR_STRUTS_LEFT - BAR_STRUTS_RIGHT;
 
-        if (ENABLE_SYSTRAY && systrayWidth > 0 && i == activeMonitor->num) {
-            int           systrayX = barWidth - statusWidth - systrayWidth;
+        if (ENABLE_SYSTRAY && systrayWidth > 0) {
+            int systrayX = barWidth - statusWidth - systrayWidth;
 
-            SSystrayIcon* icon;
-            int           iconX = systrayX;
+            if (i == activeMonitor->num) {
+                SSystrayIcon* icon;
+                int           iconX = systrayX;
 
-            for (icon = systrayIcons; icon; icon = icon->next) {
-                XWindowAttributes wa;
-                if (!XGetWindowAttributes(display, icon->win, &wa))
-                    continue;
+                for (icon = systrayIcons; icon; icon = icon->next) {
+                    XWindowAttributes wa;
+                    if (!XGetWindowAttributes(display, icon->win, &wa))
+                        continue;
 
-                XMoveResizeWindow(display, icon->win, iconX, (BAR_HEIGHT - systrayIconSize) / 2, systrayIconSize, systrayIconSize);
-                XMapWindow(display, icon->win);
-                iconX += systrayIconSize + systraySpacing;
+                    XMoveResizeWindow(display, icon->win, iconX, (BAR_HEIGHT - systrayIconSize) / 2, systrayIconSize, systrayIconSize);
+                    XMapWindow(display, icon->win);
+                    iconX += systrayIconSize + systraySpacing;
+                }
             }
         }
 
-        if (statusText[0] != '\0' && i == activeMonitor->num)
+        if (statusText[0] != '\0')
             drawText(i, statusText, barWidth - getTextWidth(statusText), 0, &barStatusTextColor, 0);
     }
 }
@@ -592,8 +590,7 @@ void updateSystray(void) {
         x += systrayIconSize + systraySpacing;
     }
 
-    if (activeMonitor->num < numMonitors && barWindows[activeMonitor->num])
-        XRaiseWindow(display, barWindows[activeMonitor->num]);
+    XRaiseWindow(display, barWindows[activeMonitor->num]);
 }
 
 int getSystrayWidth(void) {
