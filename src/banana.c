@@ -28,7 +28,6 @@ Cursor          moveCursor;
 Cursor          resizeCursor;
 SWindowMovement windowMovement   = {0, 0, NULL, 0};
 SWindowResize   windowResize     = {0, 0, NULL, 0};
-SMFactAdjust    mfactAdjust      = {0, 0, NULL};
 SWindowSwap     windowSwap       = {0, 0, NULL, 0, NULL};
 int             currentWorkspace = 0;
 
@@ -284,22 +283,6 @@ void handleButtonPress(XEvent* event) {
 
     SClient* client = findClient(ev->window);
 
-    if (ev->window == root && (ev->state & MODKEY) && ev->button == Button3) {
-        SMonitor* monitor   = monitorAtPoint(ev->x_root, ev->y_root);
-        mfactAdjust.monitor = monitor;
-        mfactAdjust.x       = ev->x_root;
-        mfactAdjust.active  = 1;
-        XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, resizeCursor, CurrentTime);
-        return;
-    } else if (client && (ev->state & MODKEY) && !client->isFloating && ev->button == Button3) {
-        SMonitor* monitor   = &monitors[client->monitor];
-        mfactAdjust.monitor = monitor;
-        mfactAdjust.x       = ev->x_root;
-        mfactAdjust.active  = 1;
-        XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, resizeCursor, CurrentTime);
-        return;
-    }
-
     if (!client || (ev->state & MODKEY) == 0)
         return;
 
@@ -358,15 +341,6 @@ void handleButtonRelease(XEvent* event) {
         fprintf(stderr, "  Ending window resize\n");
         windowResize.active = 0;
         windowResize.client = NULL;
-        XUngrabPointer(display, CurrentTime);
-
-        updateBars();
-    }
-
-    if (mfactAdjust.active && ev->button == Button3) {
-        fprintf(stderr, "  Ending mfact adjustment\n");
-        mfactAdjust.active  = 0;
-        mfactAdjust.monitor = NULL;
         XUngrabPointer(display, CurrentTime);
 
         updateBars();
@@ -451,31 +425,6 @@ void handleMotionNotify(XEvent* event) {
 
         windowResize.x = ev->x_root;
         windowResize.y = ev->y_root;
-    } else if (mfactAdjust.active && mfactAdjust.monitor) {
-        int   dx = ev->x_root - mfactAdjust.x;
-
-        float delta     = (float)dx / mfactAdjust.monitor->width * 0.95;
-        int   workspace = mfactAdjust.monitor->currentWorkspace;
-
-        mfactAdjust.monitor->masterFactors[workspace] += delta;
-
-        if (mfactAdjust.monitor->masterFactors[workspace] < 0.1)
-            mfactAdjust.monitor->masterFactors[workspace] = 0.1;
-        else if (mfactAdjust.monitor->masterFactors[workspace] > 0.9)
-            mfactAdjust.monitor->masterFactors[workspace] = 0.9;
-
-        tileClients(mfactAdjust.monitor);
-        for (int m = 0; m < numMonitors; m++) {
-            SMonitor* monitor = &monitors[m];
-            if (monitor->num == mfactAdjust.monitor->num) {
-                for (SClient* c = clients; c; c = c->next) {
-                    if (c->monitor == monitor->num && c->workspace == monitor->currentWorkspace && !c->isFloating)
-                        XLowerWindow(display, c->window);
-                }
-            }
-        }
-
-        mfactAdjust.x = ev->x_root;
     } else {
         SClient* clientUnderCursor = clientAtPoint(ev->x_root, ev->y_root);
 
