@@ -477,7 +477,7 @@ void handleMotionNotify(XEvent* event) {
         SClient* clientUnderCursor = clientAtPoint(ev->x_root, ev->y_root);
 
         if (clientUnderCursor) {
-            if (focused != clientUnderCursor) {
+            if (focused != clientUnderCursor && clientUnderCursor->monitor == currentMonitor->num) {
                 fprintf(stderr, "Cursor over window on monitor %d, focusing\n", currentMonitor->num);
                 focusClient(clientUnderCursor);
             }
@@ -597,9 +597,10 @@ void handleEnterNotify(XEvent* event) {
 
     SClient* client = findClient(ev->window);
     if (client) {
-        SMonitor* monitor = &monitors[client->monitor];
+        SMonitor* monitor       = &monitors[client->monitor];
+        SMonitor* activeMonitor = getCurrentMonitor();
 
-        if (client->workspace == monitor->currentWorkspace && client != focused) {
+        if (monitor->num == activeMonitor->num && client->workspace == monitor->currentWorkspace && client != focused) {
             fprintf(stderr, "Focusing window 0x%lx after enter notify\n", ev->window);
             focusClient(client);
             if (focused && focused->monitor != client->monitor)
@@ -1934,15 +1935,21 @@ void handleClientMessage(XEvent* event) {
             setFullscreen(client, (cme->data.l[0] == 1 /* _NET_WM_STATE_ADD */ || (cme->data.l[0] == 2 /* _NET_WM_STATE_TOGGLE */ && !client->isFullscreen)));
     } else if (cme->message_type == NET_ACTIVE_WINDOW) {
         if (client != focused && !client->isUrgent) {
-            SMonitor* m = &monitors[client->monitor];
+            SMonitor* m             = &monitors[client->monitor];
+            SMonitor* activeMonitor = getCurrentMonitor();
 
             if (client->workspace != m->currentWorkspace) {
                 client->isUrgent = 1;
                 updateBorders();
                 updateBars();
                 XUnmapWindow(display, client->window);
-            } else
+            } else if (m->num == activeMonitor->num)
                 focusClient(client);
+            else {
+                client->isUrgent = 1;
+                updateBorders();
+                updateBars();
+            }
         }
     }
 }
