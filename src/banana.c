@@ -465,8 +465,16 @@ void handleMotionNotify(XEvent* event) {
 
         mfactAdjust.x = ev->x_root;
     } else {
-        SMonitor* currentMonitor    = monitorAtPoint(ev->x_root, ev->y_root);
-        SClient*  clientUnderCursor = clientAtPoint(ev->x_root, ev->y_root);
+        static int lastMonitor    = -1;
+        SMonitor*  currentMonitor = monitorAtPoint(ev->x_root, ev->y_root);
+
+        if (lastMonitor != currentMonitor->num) {
+            lastMonitor = currentMonitor->num;
+            updateSystray();
+            updateBars();
+        }
+
+        SClient* clientUnderCursor = clientAtPoint(ev->x_root, ev->y_root);
 
         if (clientUnderCursor) {
             if (focused != clientUnderCursor) {
@@ -594,6 +602,8 @@ void handleEnterNotify(XEvent* event) {
         if (client->workspace == monitor->currentWorkspace && client != focused) {
             fprintf(stderr, "Focusing window 0x%lx after enter notify\n", ev->window);
             focusClient(client);
+            if (focused && focused->monitor != client->monitor)
+                updateSystray();
         }
     }
 }
@@ -789,7 +799,14 @@ void focusClient(SClient* client) {
     if (focused && focused != client)
         XSetWindowBorder(display, focused->window, 0x444444);
 
+    int oldMonitor = -1;
+    if (focused)
+        oldMonitor = focused->monitor;
+
     focused = client;
+
+    if (oldMonitor != -1 && oldMonitor != client->monitor)
+        updateSystray();
 
     XSetWindowBorder(display, client->window, 0xFF0000);
 
@@ -2100,6 +2117,8 @@ void focusMonitor(const char* arg) {
         focused = NULL;
         updateBorders();
     }
+
+    updateSystray();
 
     updateBars();
 }

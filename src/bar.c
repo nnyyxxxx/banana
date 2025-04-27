@@ -255,6 +255,8 @@ static int workspaceHasUrgentWindow(int monitor, int workspace) {
 }
 
 void updateBars(void) {
+    SMonitor* activeMonitor = getCurrentMonitor();
+
     for (int i = 0; i < numMonitors; i++) {
         if (!barWindows[i] || !barDraws[i])
             continue;
@@ -298,15 +300,18 @@ void updateBars(void) {
 
         SClient* monFocused = getMonitorFocusedClient(i);
 
-        int      statusWidth = 0;
-        if (statusText[0] != '\0')
-            statusWidth = getTextWidth(statusText) + PADDING * 2;
+        int      statusWidth  = 0;
+        int      systrayWidth = 0;
 
-        int systrayWidth = 0;
-        if (ENABLE_SYSTRAY && i == 0) {
-            systrayWidth = getSystrayWidth();
-            if (systrayWidth > 0)
-                systrayWidth += PADDING;
+        if (i == activeMonitor->num) {
+            if (statusText[0] != '\0')
+                statusWidth = getTextWidth(statusText) + PADDING * 2;
+
+            if (ENABLE_SYSTRAY) {
+                systrayWidth = getSystrayWidth();
+                if (systrayWidth > 0)
+                    systrayWidth += PADDING;
+            }
         }
 
         int titleBackgroundWidth = monitors[i].width - x - statusWidth - systrayWidth;
@@ -321,7 +326,7 @@ void updateBars(void) {
             }
         }
 
-        if (ENABLE_SYSTRAY && systrayWidth > 0 && i == 0) {
+        if (ENABLE_SYSTRAY && systrayWidth > 0 && i == activeMonitor->num) {
             int           systrayX = monitors[i].width - statusWidth - systrayWidth + PADDING;
 
             SSystrayIcon* icon;
@@ -338,7 +343,7 @@ void updateBars(void) {
             }
         }
 
-        if (statusText[0] != '\0')
+        if (statusText[0] != '\0' && i == activeMonitor->num)
             drawText(i, statusText, monitors[i].width - PADDING - getTextWidth(statusText), 0, &barStatusTextColor, 0);
     }
 }
@@ -530,7 +535,13 @@ void handleSystrayClientMessage(XEvent* event) {
             newIcon->next = systrayIcons;
             systrayIcons  = newIcon;
 
-            if (barWindows && barWindows[0]) {
+            if (barWindows) {
+                SMonitor* activeMonitor = getCurrentMonitor();
+                if (activeMonitor->num >= numMonitors || !barWindows[activeMonitor->num])
+                    activeMonitor->num = 0;
+
+                Window               parentWindow = barWindows[activeMonitor->num];
+
                 XSetWindowAttributes wa;
                 wa.event_mask = StructureNotifyMask | PropertyChangeMask;
                 XChangeWindowAttributes(display, icon, CWEventMask, &wa);
@@ -540,7 +551,7 @@ void handleSystrayClientMessage(XEvent* event) {
                 xembedInfo[1] = 1;
                 XChangeProperty(display, icon, XEMBED_INFO, XEMBED_INFO, 32, PropModeReplace, (unsigned char*)xembedInfo, 2);
 
-                XReparentWindow(display, icon, barWindows[0], 0, 0);
+                XReparentWindow(display, icon, parentWindow, 0, 0);
                 XMapRaised(display, icon);
 
                 XClientMessageEvent xemEv;
@@ -579,16 +590,32 @@ void removeSystrayIcon(Window win) {
 }
 
 void updateSystray(void) {
-    if (!ENABLE_SYSTRAY || !barWindows || !barWindows[0] || systrayWin == None)
+    if (!ENABLE_SYSTRAY || systrayWin == None)
         return;
 
-    SSystrayIcon* i;
+    SMonitor* activeMonitor = getCurrentMonitor();
+    if (!barWindows || !barDraws || activeMonitor->num >= numMonitors || !barWindows[activeMonitor->num])
+        return;
+
     int           x = 0;
+    SSystrayIcon* i;
 
     for (i = systrayIcons; i; i = i->next) {
         XWindowAttributes wa;
         if (!XGetWindowAttributes(display, i->win, &wa))
             continue;
+
+        Window       currentParent = None;
+        Window*      children      = NULL;
+        unsigned int numChildren;
+
+        if (XQueryTree(display, i->win, &wa.root, &currentParent, &children, &numChildren)) {
+            if (children)
+                XFree(children);
+
+            if (currentParent != barWindows[activeMonitor->num])
+                XReparentWindow(display, i->win, barWindows[activeMonitor->num], 0, 0);
+        }
 
         XMoveResizeWindow(display, i->win, x, (BAR_HEIGHT - systrayIconSize) / 2, systrayIconSize, systrayIconSize);
         XMapWindow(display, i->win);
