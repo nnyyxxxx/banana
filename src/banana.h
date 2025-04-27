@@ -1,5 +1,5 @@
-#ifndef DEFS_H
-#define DEFS_H
+#ifndef BANANA_H
+#define BANANA_H
 
 #include <X11/Xlib.h>
 #include <X11/keysym.h>
@@ -8,6 +8,7 @@
 #include <X11/extensions/Xinerama.h>
 
 #include "config.h"
+#include "bar.h"
 
 #define MOUSEMASK (ButtonPressMask | ButtonReleaseMask | ButtonMotionMask)
 #define MAX(A, B) ((A) > (B) ? (A) : (B))
@@ -102,11 +103,6 @@ typedef struct {
     int         height;
 } SRule;
 
-typedef struct SSystrayIcon {
-    Window               win;
-    struct SSystrayIcon* next;
-} SSystrayIcon;
-
 void                   setup();
 void                   run();
 void                   cleanup();
@@ -135,7 +131,6 @@ void                   moveWindowInStack(const char* arg);
 void                   focusWindowInStack(const char* arg);
 void                   adjustMasterFactor(const char* arg);
 void                   focusMonitor(const char* arg);
-void                   toggleBar(const char* arg);
 
 void                   grabKeys();
 void                   updateFocus();
@@ -201,16 +196,6 @@ extern Atom            NET_WM_WINDOW_TYPE;
 extern Atom            NET_WM_WINDOW_TYPE_DIALOG;
 extern Atom            UTF8_STRING;
 
-extern Atom            NET_SYSTEM_TRAY_OPCODE;
-extern Atom            NET_SYSTEM_TRAY_ORIENTATION;
-extern Atom            NET_SYSTEM_TRAY_VISUAL;
-extern Atom            XEMBED;
-extern Atom            XEMBED_INFO;
-extern Window          systrayWin;
-extern SSystrayIcon*   systrayIcons;
-extern int             systrayIconSize;
-extern int             systraySpacing;
-
 SClient*               focusWindowUnderCursor(SMonitor* monitor);
 
-#endif // DEFS_H
+#endif // BANANA_H

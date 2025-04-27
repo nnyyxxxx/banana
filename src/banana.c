@@ -12,7 +12,6 @@
 #include <sys/wait.h>
 #include <err.h>
 
-#include "defs.h"
 #include "config.h"
 #include "bar.h"
 

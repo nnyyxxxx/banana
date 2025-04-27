@@ -2,27 +2,44 @@
 #define BAR_H
 
 #include <X11/Xlib.h>
-#include "defs.h"
+#include "banana.h"
 
-extern Window* barWindows;
-extern int     barVisible;
+typedef struct SSystrayIcon {
+    Window               win;
+    struct SSystrayIcon* next;
+} SSystrayIcon;
 
-void           createBars(void);
-void           updateStatus(void);
-void           updateBars(void);
-void           raiseBars(void);
-void           handleBarExpose(XEvent* event);
-void           handleBarClick(XEvent* event);
-void           cleanupBars(void);
-void           updateClientPositionsForBar(void);
-char*          getWindowTitle(SClient* client);
-void           showHideBars(int show);
+extern Atom          NET_SYSTEM_TRAY_OPCODE;
+extern Atom          NET_SYSTEM_TRAY_ORIENTATION;
+extern Atom          NET_SYSTEM_TRAY_VISUAL;
+extern Atom          XEMBED;
+extern Atom          XEMBED_INFO;
+extern Window        systrayWin;
+extern SSystrayIcon* systrayIcons;
+extern int           systrayIconSize;
+extern int           systraySpacing;
 
-int            createSystray(void);
-void           updateSystray(void);
-void           removeSystrayIcon(Window win);
-void           cleanupSystray(void);
-void           handleSystrayClientMessage(XEvent* event);
-int            getSystrayWidth(void);
+void                 toggleBar(const char* arg);
+
+extern Window*       barWindows;
+extern int           barVisible;
+
+void                 createBars(void);
+void                 updateStatus(void);
+void                 updateBars(void);
+void                 raiseBars(void);
+void                 handleBarExpose(XEvent* event);
+void                 handleBarClick(XEvent* event);
+void                 cleanupBars(void);
+void                 updateClientPositionsForBar(void);
+char*                getWindowTitle(SClient* client);
+void                 showHideBars(int show);
+
+int                  createSystray(void);
+void                 updateSystray(void);
+void                 removeSystrayIcon(Window win);
+void                 cleanupSystray(void);
+void                 handleSystrayClientMessage(XEvent* event);
+int                  getSystrayWidth(void);
 
 #endif /* BAR_H */
