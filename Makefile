@@ -9,6 +9,7 @@ SRC_DIR := src
 OBJ_DIR := build
 SRC     := $(wildcard $(SRC_DIR)/*.c)
 OBJ     := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SRC))
+LOGO    := .github/banana.svg
 
 all: clean release
 
@@ -33,8 +34,11 @@ clean:
 install: $(BIN)
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
 	install -m 755 $(BIN) $(DESTDIR)$(PREFIX)/bin/$(BIN:build/%=%)
+	mkdir -p $(DESTDIR)$(PREFIX)/share/pixmaps
+	install -m 644 $(LOGO) $(DESTDIR)$(PREFIX)/share/pixmaps/banana.svg
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/$(BIN:build/%=%)
+	rm -f $(DESTDIR)$(PREFIX)/share/pixmaps/banana.svg
 
 .PHONY: all clean release debug install uninstall
