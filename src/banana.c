@@ -29,7 +29,6 @@ Cursor          moveCursor;
 Cursor          resizeCursor;
 SWindowMovement windowMovement   = {0, 0, NULL, 0};
 SWindowResize   windowResize     = {0, 0, NULL, 0};
-SWindowSwap     windowSwap       = {0, 0, NULL, 0, NULL};
 int             currentWorkspace = 0;
 
 Atom            WM_PROTOCOLS;
@@ -289,13 +288,44 @@ void handleButtonPress(XEvent* event) {
 
     if (ev->button == Button1) {
         if (!client->isFloating) {
-            windowSwap.client             = client;
-            windowSwap.client->oldMonitor = client->monitor;
-            windowSwap.x                  = ev->x_root;
-            windowSwap.y                  = ev->y_root;
-            windowSwap.active             = 1;
-            windowSwap.lastTarget         = NULL;
+            client->isFloating = 1;
+
+            SMonitor* monitor = &monitors[client->monitor];
+
+            int       oldWidth  = client->width;
+            int       oldHeight = client->height;
+
+            int       newWidth  = oldWidth * 0.8;
+            int       newHeight = oldHeight * 0.8;
+
+            newWidth  = MAX(20, newWidth);
+            newHeight = MAX(10, newHeight);
+
+            if (client->sizeHints.valid) {
+                if (client->sizeHints.minWidth > 0 && newWidth < client->sizeHints.minWidth)
+                    newWidth = client->sizeHints.minWidth;
+                if (client->sizeHints.minHeight > 0 && newHeight < client->sizeHints.minHeight)
+                    newHeight = client->sizeHints.minHeight;
+            }
+
+            int newX = ev->x_root - newWidth / 2;
+            int newY = ev->y_root - newHeight / 2;
+
+            client->x      = newX;
+            client->y      = newY;
+            client->width  = newWidth;
+            client->height = newHeight;
+
+            XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+            XRaiseWindow(display, client->window);
+
+            windowMovement.client = client;
+            windowMovement.x      = ev->x_root;
+            windowMovement.y      = ev->y_root;
+            windowMovement.active = 1;
             XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, moveCursor, CurrentTime);
+
+            arrangeClients(monitor);
         } else {
             windowMovement.client = client;
             windowMovement.x      = ev->x_root;
@@ -321,18 +351,6 @@ void handleButtonRelease(XEvent* event) {
         fprintf(stderr, "  Ending window movement\n");
         windowMovement.active = 0;
         windowMovement.client = NULL;
-        XUngrabPointer(display, CurrentTime);
-
-        updateBars();
-    }
-
-    if (windowSwap.active && ev->button == Button1) {
-        fprintf(stderr, "  Ending window swap\n");
-        if (windowSwap.client && windowSwap.client->monitor != windowSwap.client->oldMonitor)
-            fprintf(stderr, "  Window moved from monitor %d to monitor %d\n", windowSwap.client->oldMonitor, windowSwap.client->monitor);
-        windowSwap.active     = 0;
-        windowSwap.client     = NULL;
-        windowSwap.lastTarget = NULL;
         XUngrabPointer(display, CurrentTime);
 
         updateBars();
@@ -388,36 +406,6 @@ void handleMotionNotify(XEvent* event) {
 
         windowMovement.x = ev->x_root;
         windowMovement.y = ev->y_root;
-    } else if (windowSwap.active && windowSwap.client) {
-        SMonitor* targetMonitor = monitorAtPoint(ev->x_root, ev->y_root);
-        SClient*  targetClient  = clientAtPoint(ev->x_root, ev->y_root);
-
-        if (targetMonitor->num != windowSwap.client->monitor) {
-            int prevMonitor              = windowSwap.client->monitor;
-            windowSwap.client->monitor   = targetMonitor->num;
-            windowSwap.client->workspace = targetMonitor->currentWorkspace;
-
-            arrangeClients(&monitors[prevMonitor]);
-            arrangeClients(targetMonitor);
-
-            focusClient(windowSwap.client);
-            updateBars();
-
-            windowSwap.x = ev->x_root;
-            windowSwap.y = ev->y_root;
-
-            fprintf(stderr, "Window moved to monitor %d\n", targetMonitor->num);
-        } else if (targetClient && targetClient != windowSwap.client && targetClient->monitor == windowSwap.client->monitor &&
-                   targetClient->workspace == windowSwap.client->workspace) {
-            swapClients(windowSwap.client, targetClient);
-
-            SMonitor* monitor = &monitors[windowSwap.client->monitor];
-            arrangeClients(monitor);
-
-            windowSwap.x          = ev->x_root;
-            windowSwap.y          = ev->y_root;
-            windowSwap.lastTarget = targetClient;
-        }
     } else if (windowResize.active && windowResize.client) {
         int dx = ev->x_root - windowResize.x;
         int dy = ev->y_root - windowResize.y;

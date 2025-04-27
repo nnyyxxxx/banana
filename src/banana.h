@@ -80,14 +80,6 @@ typedef struct {
 } SMFactAdjust;
 
 typedef struct {
-    int      x;
-    int      y;
-    SClient* client;
-    int      active;
-    SClient* lastTarget;
-} SWindowSwap;
-
-typedef struct {
     const char* className;
     const char* instanceName;
     const char* title;
@@ -170,7 +162,6 @@ extern SClient*        focused;
 extern SWindowMovement windowMovement;
 extern SWindowResize   windowResize;
 extern SMFactAdjust    mfactAdjust;
-extern SWindowSwap     windowSwap;
 
 extern Atom            WM_PROTOCOLS;
 extern Atom            WM_DELETE_WINDOW;
