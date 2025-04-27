@@ -37,7 +37,6 @@ void toggleBar(const char* arg);
 #define BAR_HEIGHT       20
 #define BAR_FONT         "monospace-12"
 #define MAX_TITLE_LENGTH 40
-#define ENABLE_SYSTRAY   1
 #define SHOW_BAR         1
 #define BAR_BORDER_WIDTH 0
 #define BAR_STRUTS_TOP   0

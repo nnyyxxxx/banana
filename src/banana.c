@@ -178,14 +178,6 @@ void setup() {
 
     setupEWMH();
 
-    if (ENABLE_SYSTRAY) {
-        NET_SYSTEM_TRAY_OPCODE      = XInternAtom(display, "_NET_SYSTEM_TRAY_OPCODE", False);
-        NET_SYSTEM_TRAY_ORIENTATION = XInternAtom(display, "_NET_SYSTEM_TRAY_ORIENTATION", False);
-        NET_SYSTEM_TRAY_VISUAL      = XInternAtom(display, "_NET_SYSTEM_TRAY_VISUAL", False);
-        XEMBED                      = XInternAtom(display, "_XEMBED", False);
-        XEMBED_INFO                 = XInternAtom(display, "_XEMBED_INFO", False);
-    }
-
     normalCursor = XCreateFontCursor(display, XC_left_ptr);
     moveCursor   = XCreateFontCursor(display, XC_fleur);
     resizeCursor = XCreateFontCursor(display, XC_bottom_right_corner);
@@ -347,7 +339,6 @@ void handleButtonRelease(XEvent* event) {
         windowMovement.client = NULL;
         XUngrabPointer(display, CurrentTime);
 
-        updateSystray();
         updateBars();
     }
 
@@ -360,7 +351,6 @@ void handleButtonRelease(XEvent* event) {
         windowSwap.lastTarget = NULL;
         XUngrabPointer(display, CurrentTime);
 
-        updateSystray();
         updateBars();
     }
 
@@ -370,7 +360,6 @@ void handleButtonRelease(XEvent* event) {
         windowResize.client = NULL;
         XUngrabPointer(display, CurrentTime);
 
-        updateSystray();
         updateBars();
     }
 
@@ -380,7 +369,6 @@ void handleButtonRelease(XEvent* event) {
         mfactAdjust.monitor = NULL;
         XUngrabPointer(display, CurrentTime);
 
-        updateSystray();
         updateBars();
     }
 }
@@ -406,7 +394,6 @@ void handleMotionNotify(XEvent* event) {
 
     if (lastMonitor != currentMonitor->num) {
         lastMonitor = currentMonitor->num;
-        updateSystray();
         updateBars();
 
         int barY = currentMonitor->y + BAR_STRUTS_TOP;
@@ -441,7 +428,6 @@ void handleMotionNotify(XEvent* event) {
             arrangeClients(targetMonitor);
 
             focusClient(windowSwap.client);
-            updateSystray();
             updateBars();
 
             windowSwap.x = ev->x_root;
@@ -554,7 +540,6 @@ void moveWindow(SClient* client, int x, int y) {
         arrangeClients(&monitors[prevMonitor]);
         arrangeClients(monitor);
 
-        updateSystray();
         updateBars();
     }
 
@@ -625,8 +610,6 @@ void handleEnterNotify(XEvent* event) {
         if (monitor->num == activeMonitor->num && client->workspace == monitor->currentWorkspace && client != focused) {
             fprintf(stderr, "Focusing window 0x%lx after enter notify\n", ev->window);
             focusClient(client);
-            if (focused && focused->monitor != client->monitor)
-                updateSystray();
         }
     }
 }
@@ -722,31 +705,11 @@ void handleUnmapNotify(XEvent* event) {
 }
 
 void handleDestroyNotify(XEvent* event) {
-    XDestroyWindowEvent* ev = &event->xdestroywindow;
-
-    SClient*             client  = findClient(ev->window);
-    int                  wasIcon = 0;
-
-    if (ENABLE_SYSTRAY) {
-        SSystrayIcon* icon = systrayIcons;
-        while (icon) {
-            if (icon->win == ev->window) {
-                wasIcon = 1;
-                break;
-            }
-            icon = icon->next;
-        }
-
-        if (wasIcon)
-            removeSystrayIcon(ev->window);
-    }
+    XDestroyWindowEvent* ev     = &event->xdestroywindow;
+    SClient*             client = findClient(ev->window);
 
     if (client)
         unmanageClient(ev->window);
-    else if (wasIcon) {
-        updateSystray();
-        updateBars();
-    }
 }
 
 void spawnProgram(const char* program) {
@@ -839,14 +802,7 @@ void focusClient(SClient* client) {
     if (focused && focused != client)
         XSetWindowBorder(display, focused->window, 0x444444);
 
-    int oldMonitor = -1;
-    if (focused)
-        oldMonitor = focused->monitor;
-
     focused = client;
-
-    if (oldMonitor != -1 && oldMonitor != client->monitor)
-        updateSystray();
 
     XSetWindowBorder(display, client->window, 0xFF0000);
 
@@ -1971,12 +1927,7 @@ void updateWMHints(SClient* client) {
 void handleClientMessage(XEvent* event) {
     XClientMessageEvent* cme = &event->xclient;
 
-    if (ENABLE_SYSTRAY && cme->message_type == NET_SYSTEM_TRAY_OPCODE) {
-        handleSystrayClientMessage(event);
-        return;
-    }
-
-    SClient* client = findClient(cme->window);
+    SClient*             client = findClient(cme->window);
 
     if (!client)
         return;
@@ -2176,9 +2127,17 @@ void focusMonitor(const char* arg) {
         updateBorders();
     }
 
-    updateSystray();
-
     updateBars();
+}
+
+void toggleBar(const char* arg) {
+    (void)arg;
+
+    showHideBars(!barVisible);
+
+    for (int i = 0; i < numMonitors; i++) {
+        arrangeClients(&monitors[i]);
+    }
 }
 
 int main() {
@@ -2193,14 +2152,4 @@ int main() {
     cleanup();
 
     return 0;
-}
-
-void toggleBar(const char* arg) {
-    (void)arg;
-
-    showHideBars(!barVisible);
-
-    for (int i = 0; i < numMonitors; i++) {
-        arrangeClients(&monitors[i]);
-    }
 }

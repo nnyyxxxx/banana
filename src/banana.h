@@ -14,11 +14,6 @@
 #define MAX(A, B) ((A) > (B) ? (A) : (B))
 #define MIN(A, B) ((A) < (B) ? (A) : (B))
 
-#define SYSTEM_TRAY_REQUEST_DOCK   0
-#define SYSTEM_TRAY_BEGIN_MESSAGE  1
-#define SYSTEM_TRAY_CANCEL_MESSAGE 2
-#define XEMBED_EMBEDDED_NOTIFY     0
-
 typedef enum {
     LAYOUT_FLOATING,
     LAYOUT_TILED,
