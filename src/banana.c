@@ -347,6 +347,9 @@ void handleButtonRelease(XEvent* event) {
         windowMovement.active = 0;
         windowMovement.client = NULL;
         XUngrabPointer(display, CurrentTime);
+
+        updateSystray();
+        updateBars();
     }
 
     if (windowSwap.active && ev->button == Button1) {
@@ -357,6 +360,9 @@ void handleButtonRelease(XEvent* event) {
         windowSwap.client     = NULL;
         windowSwap.lastTarget = NULL;
         XUngrabPointer(display, CurrentTime);
+
+        updateSystray();
+        updateBars();
     }
 
     if (windowResize.active && ev->button == Button3) {
@@ -364,6 +370,9 @@ void handleButtonRelease(XEvent* event) {
         windowResize.active = 0;
         windowResize.client = NULL;
         XUngrabPointer(display, CurrentTime);
+
+        updateSystray();
+        updateBars();
     }
 
     if (mfactAdjust.active && ev->button == Button3) {
@@ -371,6 +380,9 @@ void handleButtonRelease(XEvent* event) {
         mfactAdjust.active  = 0;
         mfactAdjust.monitor = NULL;
         XUngrabPointer(display, CurrentTime);
+
+        updateSystray();
+        updateBars();
     }
 }
 
@@ -389,7 +401,15 @@ SClient* clientAtPoint(int x, int y) {
 }
 
 void handleMotionNotify(XEvent* event) {
-    XMotionEvent* ev = &event->xmotion;
+    XMotionEvent* ev             = &event->xmotion;
+    static int    lastMonitor    = -1;
+    SMonitor*     currentMonitor = monitorAtPoint(ev->x_root, ev->y_root);
+
+    if (lastMonitor != currentMonitor->num) {
+        lastMonitor = currentMonitor->num;
+        updateSystray();
+        updateBars();
+    }
 
     while (XCheckTypedWindowEvent(display, ev->window, MotionNotify, event))
         ;
@@ -415,6 +435,8 @@ void handleMotionNotify(XEvent* event) {
             arrangeClients(targetMonitor);
 
             focusClient(windowSwap.client);
+            updateSystray();
+            updateBars();
 
             windowSwap.x = ev->x_root;
             windowSwap.y = ev->y_root;
@@ -465,15 +487,6 @@ void handleMotionNotify(XEvent* event) {
 
         mfactAdjust.x = ev->x_root;
     } else {
-        static int lastMonitor    = -1;
-        SMonitor*  currentMonitor = monitorAtPoint(ev->x_root, ev->y_root);
-
-        if (lastMonitor != currentMonitor->num) {
-            lastMonitor = currentMonitor->num;
-            updateSystray();
-            updateBars();
-        }
-
         SClient* clientUnderCursor = clientAtPoint(ev->x_root, ev->y_root);
 
         if (clientUnderCursor) {
@@ -534,6 +547,9 @@ void moveWindow(SClient* client, int x, int y) {
 
         arrangeClients(&monitors[prevMonitor]);
         arrangeClients(monitor);
+
+        updateSystray();
+        updateBars();
     }
 
     if (windowMovement.active && windowMovement.client == client)
