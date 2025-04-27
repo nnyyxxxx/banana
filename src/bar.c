@@ -216,11 +216,13 @@ char* getWindowTitle(SClient* client) {
 
     XTextProperty textProp;
     if (XGetTextProperty(display, client->window, &textProp, NET_WM_NAME) || XGetTextProperty(display, client->window, &textProp, WM_NAME)) {
+        title[0] = ' ';
+
         if (textProp.encoding == XA_STRING) {
-            strncpy(title, (char*)textProp.value, sizeof(title) - 1);
+            strncpy(title + 1, (char*)textProp.value, sizeof(title) - 2);
             title[sizeof(title) - 1] = '\0';
         } else {
-            strncpy(title, (char*)textProp.value, sizeof(title) - 1);
+            strncpy(title + 1, (char*)textProp.value, sizeof(title) - 2);
             title[sizeof(title) - 1] = '\0';
         }
 
