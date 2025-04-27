@@ -9,7 +9,6 @@
 #include "bar.h"
 #include "config.h"
 
-#define BAR_HEIGHT        20
 #define MAX_STATUS_LENGTH 256
 
 static char*         workspaceNames[WORKSPACE_COUNT];
@@ -33,6 +32,8 @@ static XftColor      barTitleTextColor;
 static XftDraw**     barDraws = NULL;
 
 static Atom          WM_NAME;
+static Atom          NET_WM_STRUT;
+static Atom          NET_WM_STRUT_PARTIAL;
 
 static char          statusText[MAX_STATUS_LENGTH] = "";
 
@@ -159,7 +160,9 @@ void createBars(void) {
             return;
         }
 
-        WM_NAME = XInternAtom(display, "WM_NAME", False);
+        WM_NAME              = XInternAtom(display, "WM_NAME", False);
+        NET_WM_STRUT         = XInternAtom(display, "_NET_WM_STRUT", False);
+        NET_WM_STRUT_PARTIAL = XInternAtom(display, "_NET_WM_STRUT_PARTIAL", False);
 
         initWorkspaceNames();
 
@@ -173,10 +176,25 @@ void createBars(void) {
     wa.event_mask        = ExposureMask | ButtonPressMask;
 
     for (int i = 0; i < numMonitors; i++) {
-        barWindows[i] = XCreateWindow(display, root, monitors[i].x, monitors[i].y, monitors[i].width, BAR_HEIGHT, 0, DefaultDepth(display, DefaultScreen(display)), CopyFromParent,
+        int barX     = monitors[i].x + BAR_STRUTS_LEFT;
+        int barY     = monitors[i].y + BAR_STRUTS_TOP;
+        int barWidth = monitors[i].width - BAR_STRUTS_LEFT - BAR_STRUTS_RIGHT;
+
+        barWindows[i] = XCreateWindow(display, root, barX, barY, barWidth, BAR_HEIGHT, BAR_BORDER_WIDTH, DefaultDepth(display, DefaultScreen(display)), CopyFromParent,
                                       DefaultVisual(display, DefaultScreen(display)), CWOverrideRedirect | CWBackPixel | CWBorderPixel | CWEventMask, &wa);
 
         barDraws[i] = XftDrawCreate(display, barWindows[i], DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)));
+
+        long struts[12] = {0};
+
+        struts[2] = barY + BAR_HEIGHT + BAR_BORDER_WIDTH * 2;
+
+        struts[4] = monitors[i].x;
+        struts[5] = monitors[i].x + monitors[i].width - 1;
+
+        XChangeProperty(display, barWindows[i], NET_WM_STRUT, XA_CARDINAL, 32, PropModeReplace, (unsigned char*)&struts, 4);
+
+        XChangeProperty(display, barWindows[i], NET_WM_STRUT_PARTIAL, XA_CARDINAL, 32, PropModeReplace, (unsigned char*)&struts, 12);
 
         if (barVisible)
             XMapWindow(display, barWindows[i]);
@@ -331,7 +349,9 @@ void updateBars(void) {
             }
         }
 
-        int titleBackgroundWidth = monitors[i].width - x - statusWidth - systrayWidth;
+        int barWidth = monitors[i].width - BAR_STRUTS_LEFT - BAR_STRUTS_RIGHT;
+
+        int titleBackgroundWidth = barWidth - x - statusWidth - systrayWidth;
 
         if (monFocused) {
             char* windowTitle = getWindowTitle(monFocused);
@@ -344,7 +364,7 @@ void updateBars(void) {
         }
 
         if (ENABLE_SYSTRAY && systrayWidth > 0 && i == activeMonitor->num) {
-            int           systrayX = monitors[i].width - statusWidth - systrayWidth;
+            int           systrayX = barWidth - statusWidth - systrayWidth;
 
             SSystrayIcon* icon;
             int           iconX = systrayX;
@@ -361,7 +381,7 @@ void updateBars(void) {
         }
 
         if (statusText[0] != '\0' && i == activeMonitor->num)
-            drawText(i, statusText, monitors[i].width - getTextWidth(statusText), 0, &barStatusTextColor, 0);
+            drawText(i, statusText, barWidth - getTextWidth(statusText), 0, &barStatusTextColor, 0);
     }
 }
 
@@ -459,10 +479,13 @@ void updateClientPositionsForBar(void) {
     while (client) {
         if (!client->isFloating && !client->isFullscreen) {
             SMonitor* m = &monitors[client->monitor];
-            if (barVisible && client->y < m->y + BAR_HEIGHT + OUTER_GAP) {
-                client->y = m->y + BAR_HEIGHT + OUTER_GAP;
-                XMoveWindow(display, client->window, client->x, client->y);
-            } else if (!barVisible && client->y == m->y + BAR_HEIGHT + OUTER_GAP) {
+            if (barVisible) {
+                int barBottom = m->y + BAR_STRUTS_TOP + BAR_HEIGHT + BAR_BORDER_WIDTH * 2;
+                if (client->y < barBottom + OUTER_GAP) {
+                    client->y = barBottom + OUTER_GAP;
+                    XMoveWindow(display, client->window, client->x, client->y);
+                }
+            } else if (!barVisible && client->y == m->y + BAR_STRUTS_TOP + BAR_HEIGHT + BAR_BORDER_WIDTH * 2 + OUTER_GAP) {
                 client->y = m->y + OUTER_GAP;
                 XMoveWindow(display, client->window, client->x, client->y);
             }

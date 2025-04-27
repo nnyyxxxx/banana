@@ -1509,9 +1509,10 @@ void tileClients(SMonitor* monitor) {
     float masterFactor = monitor->masterFactors[currentWorkspace];
 
     int   x               = monitor->x + OUTER_GAP;
-    int   y               = monitor->y + (barVisible ? BAR_HEIGHT : 0) + OUTER_GAP;
+    int   barBottom       = barVisible ? (monitor->y + BAR_STRUTS_TOP + BAR_HEIGHT + BAR_BORDER_WIDTH * 2) : monitor->y;
+    int   y               = barBottom + OUTER_GAP;
     int   availableWidth  = monitor->width - (2 * OUTER_GAP);
-    int   availableHeight = monitor->height - (barVisible ? BAR_HEIGHT : 0) - (2 * OUTER_GAP);
+    int   availableHeight = monitor->height - (barVisible ? (BAR_STRUTS_TOP + BAR_HEIGHT + BAR_BORDER_WIDTH * 2) : 0) - (2 * OUTER_GAP);
 
     int   masterArea = availableWidth * masterFactor;
     int   stackArea  = availableWidth - masterArea;

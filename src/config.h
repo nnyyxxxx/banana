@@ -39,15 +39,19 @@ void toggleBar(const char* arg);
 #define MAX_TITLE_LENGTH 40
 #define ENABLE_SYSTRAY   1
 #define SHOW_BAR         1
+#define BAR_BORDER_WIDTH 0
+#define BAR_STRUTS_TOP   0
+#define BAR_STRUTS_LEFT  0
+#define BAR_STRUTS_RIGHT 0
 
 /* Colors */
 #define ACTIVE_BORDER_COLOR   "#CD78A0"
 #define INACTIVE_BORDER_COLOR "#CD78A0"
+#define BAR_BORDER_COLOR      "#000000"
 
 /* Bar colors */
 #define BAR_BACKGROUND_COLOR    "#000000"
 #define BAR_FOREGROUND_COLOR    "#d3c1da"
-#define BAR_BORDER_COLOR        "#000000"
 #define BAR_ACTIVE_WS_COLOR     "#CD78A0"
 #define BAR_URGENT_WS_COLOR     "#A0326C"
 #define BAR_ACTIVE_TEXT_COLOR   "#000000"
