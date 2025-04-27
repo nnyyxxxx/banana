@@ -1391,8 +1391,14 @@ void toggleFloating(const char* arg) {
         SMonitor* monitor = &monitors[focused->monitor];
 
         if (monitor->currentLayout == LAYOUT_TILED) {
-            int newWidth  = MAX(400, focused->width);
-            int newHeight = MAX(300, focused->height);
+            int oldWidth  = focused->width;
+            int oldHeight = focused->height;
+
+            int newWidth  = oldWidth * 0.8;
+            int newHeight = oldHeight * 0.8;
+
+            newWidth  = MAX(400, newWidth);
+            newHeight = MAX(300, newHeight);
 
             if (focused->sizeHints.valid) {
                 if (focused->sizeHints.minWidth > 0 && newWidth < focused->sizeHints.minWidth)
@@ -1401,8 +1407,13 @@ void toggleFloating(const char* arg) {
                     newHeight = focused->sizeHints.minHeight;
             }
 
-            focused->x      = monitor->x + (monitor->width - newWidth) / 2;
-            focused->y      = monitor->y + (monitor->height - newHeight) / 2;
+            int xOffset = (oldWidth - newWidth) / 2;
+            int yOffset = (oldHeight - newHeight) / 2;
+            int newX    = focused->x + xOffset;
+            int newY    = focused->y + yOffset;
+
+            focused->x      = newX;
+            focused->y      = newY;
             focused->width  = newWidth;
             focused->height = newHeight;
 
