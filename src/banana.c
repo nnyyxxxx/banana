@@ -717,8 +717,10 @@ void handleUnmapNotify(XEvent* event) {
 void handleDestroyNotify(XEvent* event) {
     XDestroyWindowEvent* ev = &event->xdestroywindow;
 
-    if (ENABLE_SYSTRAY)
+    if (ENABLE_SYSTRAY) {
         removeSystrayIcon(ev->window);
+        updateSystray();
+    }
 
     SClient* client = findClient(ev->window);
     if (client)

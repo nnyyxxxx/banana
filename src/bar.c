@@ -651,22 +651,15 @@ void updateSystray(void) {
         if (!XGetWindowAttributes(display, i->win, &wa))
             continue;
 
-        Window       currentParent = None;
-        Window*      children      = NULL;
-        unsigned int numChildren;
-
-        if (XQueryTree(display, i->win, &wa.root, &currentParent, &children, &numChildren)) {
-            if (children)
-                XFree(children);
-
-            if (currentParent != barWindows[activeMonitor->num])
-                XReparentWindow(display, i->win, barWindows[activeMonitor->num], 0, 0);
-        }
+        XReparentWindow(display, i->win, barWindows[activeMonitor->num], 0, 0);
 
         XMoveResizeWindow(display, i->win, x, (BAR_HEIGHT - systrayIconSize) / 2, systrayIconSize, systrayIconSize);
-        XMapWindow(display, i->win);
+        XMapRaised(display, i->win);
         x += systrayIconSize + systraySpacing;
     }
+
+    if (activeMonitor->num < numMonitors && barWindows[activeMonitor->num])
+        XRaiseWindow(display, barWindows[activeMonitor->num]);
 
     updateBars();
 }
