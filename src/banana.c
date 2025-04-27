@@ -408,6 +408,13 @@ void handleMotionNotify(XEvent* event) {
         lastMonitor = currentMonitor->num;
         updateSystray();
         updateBars();
+
+        int barY = currentMonitor->y + BAR_STRUTS_TOP;
+        if (ev->y_root >= barY && ev->y_root <= barY + BAR_HEIGHT) {
+            SClient* clientInWorkspace = findVisibleClientInWorkspace(currentMonitor->num, currentMonitor->currentWorkspace);
+            if (clientInWorkspace && (focused == NULL || focused->monitor != currentMonitor->num))
+                focusClient(clientInWorkspace);
+        }
     }
 
     while (XCheckTypedWindowEvent(display, ev->window, MotionNotify, event))
