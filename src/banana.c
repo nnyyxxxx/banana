@@ -15,7 +15,8 @@
 #include "config.h"
 #include "bar.h"
 
-#define MAX_CLIENTS 64
+#define MAX_CLIENTS  64
+#define MAX_MONITORS 16
 
 Display*        display;
 Window          root;
@@ -406,7 +407,7 @@ void handleMotionNotify(XEvent* event) {
             windowSwap.y = ev->y_root;
 
             fprintf(stderr, "Window moved to monitor %d\n", targetMonitor->num);
-        } else if (targetClient && targetClient != windowSwap.client && !targetClient->isFloating && targetClient->monitor == windowSwap.client->monitor &&
+        } else if (targetClient && targetClient != windowSwap.client && targetClient->monitor == windowSwap.client->monitor &&
                    targetClient->workspace == windowSwap.client->workspace) {
             swapClients(windowSwap.client, targetClient);
 
@@ -590,7 +591,17 @@ void handleMapRequest(XEvent* event) {
             XRaiseWindow(display, client->window);
         }
 
-        if (client->workspace == monitor->currentWorkspace)
+        int hasFullscreenWindow = 0;
+        if (!client->isFullscreen) {
+            for (SClient* c = clients; c; c = c->next) {
+                if (c->monitor == client->monitor && c->workspace == client->workspace && c->isFullscreen) {
+                    hasFullscreenWindow = 1;
+                    break;
+                }
+            }
+        }
+
+        if (client->workspace == monitor->currentWorkspace && !hasFullscreenWindow)
             XMapWindow(display, ev->window);
         else
             XUnmapWindow(display, ev->window);
@@ -958,6 +969,7 @@ void unmanageClient(Window window) {
     free(client);
 
     arrangeClients(monitor);
+    updateClientVisibility();
     updateBars();
 
     updateClientList();
@@ -1279,12 +1291,21 @@ void moveClientToWorkspace(const char* arg) {
 void updateClientVisibility() {
     SClient* client = clients;
 
+    int      hasFullscreen[MAX_MONITORS][WORKSPACE_COUNT] = {0};
+    for (SClient* c = clients; c; c = c->next) {
+        if (c->isFullscreen && c->monitor < MAX_MONITORS)
+            hasFullscreen[c->monitor][c->workspace] = 1;
+    }
+
     while (client) {
         SMonitor* m = &monitors[client->monitor];
 
-        if (client->workspace == m->currentWorkspace)
-            XMapWindow(display, client->window);
-        else
+        if (client->workspace == m->currentWorkspace) {
+            if (hasFullscreen[client->monitor][client->workspace] && !client->isFullscreen)
+                XUnmapWindow(display, client->window);
+            else
+                XMapWindow(display, client->window);
+        } else
             XUnmapWindow(display, client->window);
         client = client->next;
     }
@@ -1797,6 +1818,11 @@ void setFullscreen(SClient* client, int fullscreen) {
         XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
         configureClient(client);
         XRaiseWindow(display, client->window);
+
+        for (SClient* c = clients; c; c = c->next) {
+            if (c != client && c->monitor == client->monitor && c->workspace == client->workspace)
+                XUnmapWindow(display, c->window);
+        }
     } else if (!fullscreen && client->isFullscreen) {
         XChangeProperty(display, client->window, NET_WM_STATE, XA_ATOM, 32, PropModeReplace, (unsigned char*)0, 0);
         client->isFullscreen = 0;
@@ -1811,6 +1837,9 @@ void setFullscreen(SClient* client, int fullscreen) {
 
         XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
         configureClient(client);
+
+        updateClientVisibility();
+
         arrangeClients(&monitors[client->monitor]);
     }
 }
