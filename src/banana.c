@@ -11,6 +11,7 @@
 #include <X11/Xcursor/Xcursor.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <sys/time.h>
 #include <err.h>
 
 #include "config.h"
@@ -196,8 +197,52 @@ void setup() {
     XSync(display, False);
 }
 
+void checkCursorPosition(struct timeval *lastCheck, int *lastCursorX, int *lastCursorY, Window *lastWindow) {
+    struct timeval now;
+    gettimeofday(&now, NULL);
+
+    if ((now.tv_sec - lastCheck->tv_sec) * 1000000 + (now.tv_usec - lastCheck->tv_usec) <= 50000)
+        return;
+
+    memcpy(lastCheck, &now, sizeof(struct timeval));
+
+    Window root_return, child_return;
+    int root_x, root_y, win_x, win_y;
+    unsigned int mask;
+
+    if (!XQueryPointer(display, root, &root_return, &child_return,
+                    &root_x, &root_y, &win_x, &win_y, &mask))
+        return;
+
+    if (root_x == *lastCursorX && root_y == *lastCursorY && child_return == *lastWindow)
+        return;
+
+    *lastCursorX = root_x;
+    *lastCursorY = root_y;
+    *lastWindow = child_return;
+
+    if (child_return == None || child_return == root)
+        return;
+
+    SClient* windowUnderCursor = findClient(child_return);
+    if (!windowUnderCursor || windowUnderCursor == focused)
+        return;
+
+    SMonitor* monitor = &monitors[windowUnderCursor->monitor];
+    if (windowUnderCursor->workspace != monitor->currentWorkspace)
+        return;
+
+    fprintf(stderr, "Cursor over window 0x%lx (currently focused: 0x%lx)\n",
+            windowUnderCursor->window, focused ? focused->window : 0);
+    focusClient(windowUnderCursor);
+}
+
 void run() {
     XEvent event;
+    struct timeval lastCheck;
+    int lastCursorX = 0, lastCursorY = 0;
+    Window lastWindow = None;
+    gettimeofday(&lastCheck, NULL);
 
     XSync(display, False);
     fprintf(stderr, "Starting main event loop\n");
@@ -205,21 +250,20 @@ void run() {
     updateClientVisibility();
     updateBars();
 
-    while (XNextEvent(display, &event) == 0) {
-        if (event.type == ButtonPress)
-            fprintf(stderr, "Received ButtonPress event\n");
-
-        if (eventHandlers[event.type]) {
-            XErrorHandler oldHandler = XSetErrorHandler(xerrorHandler);
-
-            eventHandlers[event.type](&event);
-
-            XSync(display, False);
-            XSetErrorHandler(oldHandler);
+    while (1) {
+        if (XPending(display)) {
+            XNextEvent(display, &event);
+            if (eventHandlers[event.type]) {
+                XErrorHandler oldHandler = XSetErrorHandler(xerrorHandler);
+                eventHandlers[event.type](&event);
+                XSync(display, False);
+                XSetErrorHandler(oldHandler);
+            }
+        } else {
+            checkCursorPosition(&lastCheck, &lastCursorX, &lastCursorY, &lastWindow);
+            usleep(5000);
         }
     }
-
-    fprintf(stderr, "Event loop exited\n");
 }
 
 void cleanup() {
@@ -534,29 +578,6 @@ void handleMotionNotify(XEvent* event) {
 
         windowResize.x = ev->x_root;
         windowResize.y = ev->y_root;
-    } else {
-        SClient* clientUnderCursor = clientAtPoint(ev->x_root, ev->y_root);
-
-        if (clientUnderCursor) {
-            if (focused != clientUnderCursor) {
-                fprintf(stderr, "Cursor over window, focusing\n");
-                focusClient(clientUnderCursor);
-            }
-        } else if (focused && (focused->monitor != currentMonitor->num || !clientAtPoint(ev->x_root, ev->y_root))) {
-            int activeMonitor = -1;
-            if (focused)
-                activeMonitor = focused->monitor;
-
-            SClient* clientInWorkspace = findVisibleClientInWorkspace(currentMonitor->num, currentMonitor->currentWorkspace);
-
-            if (activeMonitor != currentMonitor->num || !clientInWorkspace) {
-                fprintf(stderr, "Cursor not over any window on monitor %d, focusing monitor\n", currentMonitor->num);
-                XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
-                focused = NULL;
-                updateBorders();
-                updateBars();
-            }
-        }
     }
 }
 
@@ -867,12 +888,7 @@ void focusClient(SClient* client) {
         return;
     }
 
-    if (focused && focused != client)
-        XSetWindowBorder(display, focused->window, 0x444444);
-
     focused = client;
-
-    XSetWindowBorder(display, client->window, 0xFF0000);
 
     if ((windowMovement.active && windowMovement.client == client) || (windowResize.active && windowResize.client == client))
         XRaiseWindow(display, client->window);
@@ -923,12 +939,12 @@ void manageClient(Window window) {
     if (XQueryPointer(display, root, &root_return, &child_return, &rootX, &rootY, &cursorX, &cursorY, &mask))
         pointerQuerySuccess = True;
 
-    if (focused) {
-        monitorNum = focused->monitor;
-        fprintf(stderr, "Using focused monitor %d for new window\n", monitorNum);
-    } else if (pointerQuerySuccess) {
+    if (pointerQuerySuccess) {
         monitorNum = monitorAtPoint(rootX, rootY)->num;
         fprintf(stderr, "Using monitor %d at cursor position for new window\n", monitorNum);
+    } else if (focused) {
+        monitorNum = focused->monitor;
+        fprintf(stderr, "Falling back to focused monitor %d for new window\n", monitorNum);
     }
 
     client->monitor         = monitorNum;
@@ -1004,7 +1020,7 @@ void manageClient(Window window) {
 
     XErrorHandler oldHandler = XSetErrorHandler(xerrorHandler);
 
-    XSelectInput(display, window, EnterWindowMask | FocusChangeMask | PropertyChangeMask | StructureNotifyMask);
+    XSelectInput(display, window, EnterWindowMask | FocusChangeMask | PropertyChangeMask | StructureNotifyMask | PointerMotionMask);
 
     updateWindowType(client);
     updateWMHints(client);
