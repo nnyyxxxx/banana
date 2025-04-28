@@ -513,6 +513,11 @@ void resizeWindow(SClient* client, int width, int height) {
         return;
     }
 
+    if (width < 10)
+        width = 10;
+    if (height < 10)
+        height = 10;
+
     if (client->sizeHints.valid) {
         if (client->sizeHints.minWidth > 0 && width < client->sizeHints.minWidth)
             width = client->sizeHints.minWidth;
@@ -523,11 +528,6 @@ void resizeWindow(SClient* client, int width, int height) {
             width = client->sizeHints.maxWidth;
         if (client->sizeHints.maxHeight > 0 && height > client->sizeHints.maxHeight)
             height = client->sizeHints.maxHeight;
-    } else {
-        if (width < 20)
-            width = 20;
-        if (height < 20)
-            height = 20;
     }
 
     client->width  = width;
