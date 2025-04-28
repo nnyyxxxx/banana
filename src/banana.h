@@ -176,7 +176,6 @@ extern Atom            NET_SUPPORTING_WM_CHECK;
 extern Atom            NET_CLIENT_LIST;
 extern Atom            NET_NUMBER_OF_DESKTOPS;
 extern Atom            NET_CURRENT_DESKTOP;
-extern Atom            NET_DESKTOP_NAMES;
 extern Atom            NET_ACTIVE_WINDOW;
 extern Atom            NET_WM_STATE;
 extern Atom            NET_WM_STATE_FULLSCREEN;

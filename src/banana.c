@@ -46,7 +46,6 @@ Atom            NET_SUPPORTING_WM_CHECK;
 Atom            NET_CLIENT_LIST;
 Atom            NET_NUMBER_OF_DESKTOPS;
 Atom            NET_CURRENT_DESKTOP;
-Atom            NET_DESKTOP_NAMES;
 Atom            NET_ACTIVE_WINDOW;
 Atom            NET_WM_STATE;
 Atom            NET_WM_STATE_FULLSCREEN;
@@ -54,12 +53,6 @@ Atom            NET_WM_WINDOW_TYPE;
 Atom            NET_WM_WINDOW_TYPE_DIALOG;
 Atom            UTF8_STRING;
 Window          wmcheckwin;
-
-Atom            NET_SYSTEM_TRAY_OPCODE;
-Atom            NET_SYSTEM_TRAY_ORIENTATION;
-Atom            NET_SYSTEM_TRAY_VISUAL;
-Atom            XEMBED;
-Atom            XEMBED_INFO;
 
 int             xerrorHandler(Display* dpy, XErrorEvent* ee) {
     if (ee->error_code == BadWindow || (ee->request_code == X_SetInputFocus && ee->error_code == BadMatch) ||
@@ -120,7 +113,6 @@ void setupEWMH() {
     NET_CLIENT_LIST           = XInternAtom(display, "_NET_CLIENT_LIST", False);
     NET_NUMBER_OF_DESKTOPS    = XInternAtom(display, "_NET_NUMBER_OF_DESKTOPS", False);
     NET_CURRENT_DESKTOP       = XInternAtom(display, "_NET_CURRENT_DESKTOP", False);
-    NET_DESKTOP_NAMES         = XInternAtom(display, "_NET_DESKTOP_NAMES", False);
     NET_ACTIVE_WINDOW         = XInternAtom(display, "_NET_ACTIVE_WINDOW", False);
     NET_WM_STATE              = XInternAtom(display, "_NET_WM_STATE", False);
     NET_WM_STATE_FULLSCREEN   = XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", False);
@@ -134,7 +126,7 @@ void setupEWMH() {
     XChangeProperty(display, wmcheckwin, NET_WM_NAME, UTF8_STRING, 8, PropModeReplace, (unsigned char*)"banana", 6);
     XChangeProperty(display, root, NET_WM_NAME, UTF8_STRING, 8, PropModeReplace, (unsigned char*)"banana", 6);
 
-    Atom supported[] = {NET_SUPPORTED,     NET_WM_NAME,  NET_SUPPORTING_WM_CHECK, NET_CLIENT_LIST,    NET_NUMBER_OF_DESKTOPS,   NET_CURRENT_DESKTOP, NET_DESKTOP_NAMES,
+    Atom supported[] = {NET_SUPPORTED,     NET_WM_NAME,  NET_SUPPORTING_WM_CHECK, NET_CLIENT_LIST,    NET_NUMBER_OF_DESKTOPS,   NET_CURRENT_DESKTOP,
                         NET_ACTIVE_WINDOW, NET_WM_STATE, NET_WM_STATE_FULLSCREEN, NET_WM_WINDOW_TYPE, NET_WM_WINDOW_TYPE_DIALOG};
 
     XChangeProperty(display, root, NET_SUPPORTED, XA_ATOM, 32, PropModeReplace, (unsigned char*)supported, sizeof(supported) / sizeof(Atom));
@@ -144,20 +136,6 @@ void setupEWMH() {
 
     long currentDesktop = currentWorkspace;
     XChangeProperty(display, root, NET_CURRENT_DESKTOP, XA_CARDINAL, 32, PropModeReplace, (unsigned char*)&currentDesktop, 1);
-
-    char workspaceNames[WORKSPACE_COUNT * 16] = {0};
-    int  offset                               = 0;
-
-    for (int i = 0; i < WORKSPACE_COUNT; i++) {
-        char name[16];
-        snprintf(name, sizeof(name), "Workspace %d", i + 1);
-
-        int nameLen = strlen(name) + 1;
-        memcpy(workspaceNames + offset, name, nameLen);
-        offset += nameLen;
-    }
-
-    XChangeProperty(display, root, NET_DESKTOP_NAMES, UTF8_STRING, 8, PropModeReplace, (unsigned char*)workspaceNames, offset);
 
     updateClientList();
 }
