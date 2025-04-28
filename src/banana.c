@@ -2109,9 +2109,9 @@ void focusMonitor(const char* arg) {
 
     SClient* clientToFocus = findVisibleClientInWorkspace(targetMonitor, monitor->currentWorkspace);
 
-    if (clientToFocus) {
+    if (clientToFocus)
         focusClient(clientToFocus);
-    } else {
+    else {
         if (focused) {
             if (focused->monitor != targetMonitor) {
                 XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
