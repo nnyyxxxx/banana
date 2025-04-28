@@ -26,9 +26,12 @@ SMonitor*       monitors    = NULL;
 int             numMonitors = 0;
 Cursor          normalCursor;
 Cursor          moveCursor;
-Cursor          resizeCursor;
+Cursor          resizeSECursor;
+Cursor          resizeSWCursor;
+Cursor          resizeNECursor;
+Cursor          resizeNWCursor;
 SWindowMovement windowMovement   = {0, 0, NULL, 0};
-SWindowResize   windowResize     = {0, 0, NULL, 0};
+SWindowResize   windowResize     = {0, 0, NULL, 0, 0};
 int             currentWorkspace = 0;
 
 Atom            WM_PROTOCOLS;
@@ -177,9 +180,12 @@ void setup() {
 
     setupEWMH();
 
-    normalCursor = XCreateFontCursor(display, XC_left_ptr);
-    moveCursor   = XCreateFontCursor(display, XC_fleur);
-    resizeCursor = XCreateFontCursor(display, XC_bottom_right_corner);
+    normalCursor   = XCreateFontCursor(display, XC_left_ptr);
+    moveCursor     = XCreateFontCursor(display, XC_fleur);
+    resizeSECursor = XCreateFontCursor(display, XC_bottom_right_corner);
+    resizeSWCursor = XCreateFontCursor(display, XC_bottom_left_corner);
+    resizeNECursor = XCreateFontCursor(display, XC_top_right_corner);
+    resizeNWCursor = XCreateFontCursor(display, XC_top_left_corner);
     XDefineCursor(display, root, normalCursor);
 
     XSetWindowAttributes wa;
@@ -253,7 +259,10 @@ void cleanup() {
 
     XFreeCursor(display, normalCursor);
     XFreeCursor(display, moveCursor);
-    XFreeCursor(display, resizeCursor);
+    XFreeCursor(display, resizeSECursor);
+    XFreeCursor(display, resizeSWCursor);
+    XFreeCursor(display, resizeNECursor);
+    XFreeCursor(display, resizeNWCursor);
 
     XCloseDisplay(display);
 }
@@ -319,7 +328,8 @@ void handleButtonPress(XEvent* event) {
             XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
             XRaiseWindow(display, client->window);
 
-            XGrabButton(display, Button3, MODKEY, client->window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, resizeCursor);
+            XGrabButton(display, Button3, MODKEY, client->window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None,
+                        resizeSECursor);
 
             windowMovement.client = client;
             windowMovement.x      = ev->x_root;
@@ -340,7 +350,29 @@ void handleButtonPress(XEvent* event) {
         windowResize.x      = ev->x_root;
         windowResize.y      = ev->y_root;
         windowResize.active = 1;
-        XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, resizeCursor, CurrentTime);
+
+        int relX = ev->x_root - client->x;
+        int relY = ev->y_root - client->y;
+
+        int cornerWidth  = client->width * 0.4;
+        int cornerHeight = client->height * 0.4;
+
+        if (relX < cornerWidth && relY < cornerHeight) {
+            windowResize.resizeType = 3;
+            XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, resizeNWCursor, CurrentTime);
+        } else if (relX > client->width - cornerWidth && relY < cornerHeight) {
+            windowResize.resizeType = 2;
+            XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, resizeNECursor, CurrentTime);
+        } else if (relX < cornerWidth && relY > client->height - cornerHeight) {
+            windowResize.resizeType = 1;
+            XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, resizeSWCursor, CurrentTime);
+        } else if (relX > client->width - cornerWidth && relY > client->height - cornerHeight) {
+            windowResize.resizeType = 0;
+            XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, resizeSECursor, CurrentTime);
+        } else {
+            windowResize.resizeType = 0;
+            XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, resizeSECursor, CurrentTime);
+        }
     }
 }
 
@@ -416,10 +448,87 @@ void handleMotionNotify(XEvent* event) {
         windowMovement.x = ev->x_root;
         windowMovement.y = ev->y_root;
     } else if (windowResize.active && windowResize.client) {
-        int dx = ev->x_root - windowResize.x;
-        int dy = ev->y_root - windowResize.y;
+        int      dx     = ev->x_root - windowResize.x;
+        int      dy     = ev->y_root - windowResize.y;
+        SClient* client = windowResize.client;
+        int      newWidth, newHeight, newX, newY;
 
-        resizeWindow(windowResize.client, windowResize.client->width + dx, windowResize.client->height + dy);
+        switch (windowResize.resizeType) {
+            case 1:
+                newWidth  = client->width - dx;
+                newHeight = client->height + dy;
+                newX      = client->x + dx;
+                newY      = client->y;
+
+                if (newWidth >= 10) {
+                    client->x     = newX;
+                    client->width = newWidth;
+                }
+                if (newHeight >= 10)
+                    client->height = newHeight;
+                break;
+
+            case 2:
+                newWidth  = client->width + dx;
+                newHeight = client->height - dy;
+                newX      = client->x;
+                newY      = client->y + dy;
+
+                if (newWidth >= 10)
+                    client->width = newWidth;
+                if (newHeight >= 10) {
+                    client->y      = newY;
+                    client->height = newHeight;
+                }
+                break;
+
+            case 3:
+                newWidth  = client->width - dx;
+                newHeight = client->height - dy;
+                newX      = client->x + dx;
+                newY      = client->y + dy;
+
+                if (newWidth >= 10) {
+                    client->x     = newX;
+                    client->width = newWidth;
+                }
+                if (newHeight >= 10) {
+                    client->y      = newY;
+                    client->height = newHeight;
+                }
+                break;
+
+            case 0:
+            default: resizeWindow(windowResize.client, windowResize.client->width + dx, windowResize.client->height + dy); break;
+        }
+
+        if (windowResize.resizeType != 0) {
+            if (client->sizeHints.valid) {
+                if (client->sizeHints.minWidth > 0 && client->width < client->sizeHints.minWidth) {
+                    int oldWidth  = client->width;
+                    client->width = client->sizeHints.minWidth;
+                    if (windowResize.resizeType == 1 || windowResize.resizeType == 3)
+                        client->x -= (client->width - oldWidth);
+                }
+
+                if (client->sizeHints.minHeight > 0 && client->height < client->sizeHints.minHeight) {
+                    int oldHeight  = client->height;
+                    client->height = client->sizeHints.minHeight;
+                    if (windowResize.resizeType == 2 || windowResize.resizeType == 3)
+                        client->y -= (client->height - oldHeight);
+                }
+
+                if (client->sizeHints.maxWidth > 0 && client->width > client->sizeHints.maxWidth)
+                    client->width = client->sizeHints.maxWidth;
+
+                if (client->sizeHints.maxHeight > 0 && client->height > client->sizeHints.maxHeight)
+                    client->height = client->sizeHints.maxHeight;
+            }
+
+            XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+            XRaiseWindow(display, client->window);
+            configureClient(client);
+        }
 
         windowResize.x = ev->x_root;
         windowResize.y = ev->y_root;
@@ -885,7 +994,7 @@ void manageClient(Window window) {
         XGrabButton(display, Button1, MODKEY, window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, moveCursor);
 
     if (client->isFloating)
-        XGrabButton(display, Button3, MODKEY, window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, resizeCursor);
+        XGrabButton(display, Button3, MODKEY, window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, resizeSECursor);
 
     XSync(display, False);
     XSetErrorHandler(oldHandler);
@@ -1414,7 +1523,7 @@ void toggleFloating(const char* arg) {
             XMoveResizeWindow(display, focused->window, focused->x, focused->y, focused->width, focused->height);
         }
 
-        XGrabButton(display, Button3, MODKEY, focused->window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, resizeCursor);
+        XGrabButton(display, Button3, MODKEY, focused->window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, resizeSECursor);
 
         XRaiseWindow(display, focused->window);
         if (!focused->neverfocus) {
@@ -1856,7 +1965,8 @@ void setFullscreen(SClient* client, int fullscreen) {
         XGrabButton(display, Button1, MODKEY, client->window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, moveCursor);
 
         if (client->isFloating)
-            XGrabButton(display, Button3, MODKEY, client->window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, resizeCursor);
+            XGrabButton(display, Button3, MODKEY, client->window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None,
+                        resizeSECursor);
 
         XSetWindowBorderWidth(display, client->window, BORDER_WIDTH);
 

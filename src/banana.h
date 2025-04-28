@@ -71,6 +71,7 @@ typedef struct {
     int      y;
     SClient* client;
     int      active;
+    int      resizeType;
 } SWindowResize;
 
 typedef struct {
