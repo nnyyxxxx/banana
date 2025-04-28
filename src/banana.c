@@ -942,6 +942,10 @@ void manageClient(Window window) {
     client->oldy            = 0;
     client->oldwidth        = 0;
     client->oldheight       = 0;
+    client->width           = 0;
+    client->height          = 0;
+    client->x               = 0;
+    client->y               = 0;
     client->sizeHints.valid = 0;
 
     SMonitor* monitor = &monitors[client->monitor];
@@ -958,25 +962,27 @@ void manageClient(Window window) {
 
     monitor = &monitors[client->monitor];
 
-    if (wa.width > monitor->width - 2 * BORDER_WIDTH)
-        client->width = monitor->width - 2 * BORDER_WIDTH;
-    else
-        client->width = wa.width;
+    if (client->width == 0 || client->height == 0) {
+        if (wa.width > monitor->width - 2 * BORDER_WIDTH)
+            client->width = monitor->width - 2 * BORDER_WIDTH;
+        else
+            client->width = wa.width;
 
-    if (wa.height > monitor->height - 2 * BORDER_WIDTH)
-        client->height = monitor->height - 2 * BORDER_WIDTH;
-    else
-        client->height = wa.height;
+        if (wa.height > monitor->height - 2 * BORDER_WIDTH)
+            client->height = monitor->height - 2 * BORDER_WIDTH;
+        else
+            client->height = wa.height;
 
-    if (client->sizeHints.valid && client->isFloating) {
-        if (client->sizeHints.minWidth > 0 && client->width < client->sizeHints.minWidth)
-            client->width = client->sizeHints.minWidth;
-        if (client->sizeHints.minHeight > 0 && client->height < client->sizeHints.minHeight)
-            client->height = client->sizeHints.minHeight;
+        if (client->sizeHints.valid && client->isFloating) {
+            if (client->sizeHints.minWidth > 0 && client->width < client->sizeHints.minWidth)
+                client->width = client->sizeHints.minWidth;
+            if (client->sizeHints.minHeight > 0 && client->height < client->sizeHints.minHeight)
+                client->height = client->sizeHints.minHeight;
+        }
+
+        client->x = monitor->x + (monitor->width - client->width) / 2;
+        client->y = monitor->y + (monitor->height - client->height) / 2;
     }
-
-    client->x = monitor->x + (monitor->width - client->width) / 2;
-    client->y = monitor->y + (monitor->height - client->height) / 2;
 
     if (client->y < monitor->y + BAR_HEIGHT && !client->isFloating)
         client->y = monitor->y + BAR_HEIGHT;
@@ -2178,23 +2184,29 @@ int applyRules(SClient* client) {
             if (rules[i].isFloating != -1) {
                 client->isFloating = rules[i].isFloating;
                 matched            = 1;
+            }
 
-                if (client->isFloating == 1) {
-                    SMonitor* monitor = &monitors[client->monitor];
+            SMonitor* monitor       = &monitors[client->monitor];
+            int       hasCustomSize = 0;
 
-                    if (rules[i].width > 0) {
-                        client->width = rules[i].width;
-                        client->x     = monitor->x + (monitor->width - client->width) / 2;
-                    }
+            if (rules[i].width > 0) {
+                client->width = rules[i].width;
+                hasCustomSize = 1;
+                matched       = 1;
+            }
 
-                    if (rules[i].height > 0) {
-                        client->height = rules[i].height;
-                        client->y      = monitor->y + (monitor->height - client->height) / 2;
-                    }
+            if (rules[i].height > 0) {
+                client->height = rules[i].height;
+                hasCustomSize  = 1;
+                matched        = 1;
+            }
 
-                    if (client->y < monitor->y + BAR_HEIGHT)
-                        client->y = monitor->y + BAR_HEIGHT;
-                }
+            if (hasCustomSize) {
+                client->x = monitor->x + (monitor->width - client->width) / 2;
+                client->y = monitor->y + (monitor->height - client->height) / 2;
+
+                if (client->y < monitor->y + BAR_HEIGHT)
+                    client->y = monitor->y + BAR_HEIGHT;
             }
 
             if (rules[i].workspace != -1 && rules[i].workspace < WORKSPACE_COUNT) {
