@@ -430,7 +430,29 @@ void handleMotionNotify(XEvent* event) {
         int      dx     = ev->x_root - windowResize.x;
         int      dy     = ev->y_root - windowResize.y;
         SClient* client = windowResize.client;
-        int      newWidth, newHeight, newX, newY;
+
+        if (client->isFullscreen) {
+            windowResize.x = ev->x_root;
+            windowResize.y = ev->y_root;
+            return;
+        }
+
+        if (!client->isFloating) {
+            windowResize.x = ev->x_root;
+            windowResize.y = ev->y_root;
+            return;
+        }
+
+        int isFixedSize = (client->sizeHints.valid && client->sizeHints.maxWidth && client->sizeHints.maxHeight && client->sizeHints.minWidth && client->sizeHints.minHeight &&
+                           client->sizeHints.maxWidth == client->sizeHints.minWidth && client->sizeHints.maxHeight == client->sizeHints.minHeight);
+
+        if (isFixedSize) {
+            windowResize.x = ev->x_root;
+            windowResize.y = ev->y_root;
+            return;
+        }
+
+        int newWidth, newHeight, newX, newY;
 
         switch (windowResize.resizeType) {
             case 1:
