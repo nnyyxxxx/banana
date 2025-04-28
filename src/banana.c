@@ -1467,7 +1467,10 @@ void toggleFloating(const char* arg) {
 
     int wasFloating = focused->isFloating;
 
-    focused->isFloating = !focused->isFloating;
+    int isFixedSize = (focused->sizeHints.valid && focused->sizeHints.maxWidth && focused->sizeHints.maxHeight && focused->sizeHints.minWidth && focused->sizeHints.minHeight &&
+                       focused->sizeHints.maxWidth == focused->sizeHints.minWidth && focused->sizeHints.maxHeight == focused->sizeHints.minHeight);
+
+    focused->isFloating = !focused->isFloating || isFixedSize;
 
     if (focused->isFloating) {
         SMonitor* monitor = &monitors[focused->monitor];
@@ -2088,6 +2091,12 @@ void updateSizeHints(SClient* client) {
     }
 
     client->sizeHints.valid = 1;
+
+    if (client->sizeHints.maxWidth && client->sizeHints.maxHeight && client->sizeHints.minWidth && client->sizeHints.minHeight &&
+        client->sizeHints.maxWidth == client->sizeHints.minWidth && client->sizeHints.maxHeight == client->sizeHints.minHeight) {
+        client->isFloating = 1;
+        fprintf(stderr, "Auto-floating fixed size window: %dx%d\n", client->sizeHints.minWidth, client->sizeHints.minHeight);
+    }
 
     fprintf(stderr, "Size hints for 0x%lx: min=%dx%d, max=%dx%d, base=%dx%d\n", client->window, client->sizeHints.minWidth, client->sizeHints.minHeight, client->sizeHints.maxWidth,
             client->sizeHints.maxHeight, client->sizeHints.baseWidth, client->sizeHints.baseHeight);
