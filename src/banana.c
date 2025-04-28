@@ -1985,6 +1985,9 @@ void updateWindowType(SClient* client) {
             client->width  = monitor->width;
             client->height = monitor->height;
 
+            XUngrabButton(display, Button1, MODKEY, client->window);
+            XUngrabButton(display, Button3, MODKEY, client->window);
+
             XSetWindowBorderWidth(display, client->window, 0);
             XChangeProperty(display, client->window, NET_WM_STATE, XA_ATOM, 32, PropModeReplace, (unsigned char*)&NET_WM_STATE_FULLSCREEN, 1);
 
