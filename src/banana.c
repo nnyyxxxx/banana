@@ -355,8 +355,8 @@ void handleButtonPress(XEvent* event) {
         int relX = ev->x_root - client->x;
         int relY = ev->y_root - client->y;
 
-        int cornerWidth  = client->width * 0.4;
-        int cornerHeight = client->height * 0.4;
+        int cornerWidth  = client->width * 0.5;
+        int cornerHeight = client->height * 0.5;
 
         if (relX < cornerWidth && relY < cornerHeight) {
             windowResize.resizeType = 3;
@@ -461,11 +461,11 @@ void handleMotionNotify(XEvent* event) {
                 newX      = client->x + dx;
                 newY      = client->y;
 
-                if (newWidth >= 10) {
+                if (newWidth >= 15) {
                     client->x     = newX;
                     client->width = newWidth;
                 }
-                if (newHeight >= 10)
+                if (newHeight >= 15)
                     client->height = newHeight;
                 break;
 
@@ -475,9 +475,9 @@ void handleMotionNotify(XEvent* event) {
                 newX      = client->x;
                 newY      = client->y + dy;
 
-                if (newWidth >= 10)
+                if (newWidth >= 15)
                     client->width = newWidth;
-                if (newHeight >= 10) {
+                if (newHeight >= 15) {
                     client->y      = newY;
                     client->height = newHeight;
                 }
@@ -489,11 +489,11 @@ void handleMotionNotify(XEvent* event) {
                 newX      = client->x + dx;
                 newY      = client->y + dy;
 
-                if (newWidth >= 10) {
+                if (newWidth >= 15) {
                     client->x     = newX;
                     client->width = newWidth;
                 }
-                if (newHeight >= 10) {
+                if (newHeight >= 15) {
                     client->y      = newY;
                     client->height = newHeight;
                 }
@@ -623,10 +623,10 @@ void resizeWindow(SClient* client, int width, int height) {
         return;
     }
 
-    if (width < 10)
-        width = 10;
-    if (height < 10)
-        height = 10;
+    if (width < 15)
+        width = 15;
+    if (height < 15)
+        height = 15;
 
     if (client->sizeHints.valid) {
         if (client->sizeHints.minWidth > 0 && width < client->sizeHints.minWidth)
