@@ -118,6 +118,7 @@ void                   moveWindowInStack(const char* arg);
 void                   focusWindowInStack(const char* arg);
 void                   adjustMasterFactor(const char* arg);
 void                   focusMonitor(const char* arg);
+void                   moveClientToEnd(SClient* client);
 
 void                   grabKeys();
 void                   updateFocus();

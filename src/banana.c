@@ -1254,6 +1254,8 @@ void moveClientToWorkspace(const char* arg) {
 
     movedClient->workspace = workspace;
 
+    moveClientToEnd(movedClient);
+
     if (workspace != currentMon->currentWorkspace) {
         XUnmapWindow(display, movedClient->window);
 
