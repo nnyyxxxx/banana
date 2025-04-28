@@ -1005,6 +1005,9 @@ void manageClient(Window window) {
 
     XSelectInput(display, window, EnterWindowMask | FocusChangeMask | PropertyChangeMask | StructureNotifyMask);
 
+    updateWindowType(client);
+    updateWMHints(client);
+
     if (!client->isFullscreen)
         XGrabButton(display, Button1, MODKEY, window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, moveCursor);
 
@@ -1020,9 +1023,6 @@ void manageClient(Window window) {
 
     XChangeProperty(display, root, NET_CLIENT_LIST, XA_WINDOW, 32, PropModeAppend, (unsigned char*)&window, 1);
     setClientState(client, NormalState);
-
-    updateWindowType(client);
-    updateWMHints(client);
 
     configureClient(client);
 
