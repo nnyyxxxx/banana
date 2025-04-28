@@ -132,6 +132,10 @@ static const struct {
     {MODKEY, XK_3, switchToWorkspace, "2"},
     {MODKEY, XK_4, switchToWorkspace, "3"},
     {MODKEY, XK_5, switchToWorkspace, "4"},
+    {MODKEY, XK_6, switchToWorkspace, "5"},
+    {MODKEY, XK_7, switchToWorkspace, "6"},
+    {MODKEY, XK_8, switchToWorkspace, "7"},
+    {MODKEY, XK_9, switchToWorkspace, "8"},
 
     /* Move client to workspace */
     {MODKEY | ShiftMask, XK_1, moveClientToWorkspace, "0"},
@@ -139,6 +143,10 @@ static const struct {
     {MODKEY | ShiftMask, XK_3, moveClientToWorkspace, "2"},
     {MODKEY | ShiftMask, XK_4, moveClientToWorkspace, "3"},
     {MODKEY | ShiftMask, XK_5, moveClientToWorkspace, "4"},
+    {MODKEY | ShiftMask, XK_6, moveClientToWorkspace, "5"},
+    {MODKEY | ShiftMask, XK_7, moveClientToWorkspace, "6"},
+    {MODKEY | ShiftMask, XK_8, moveClientToWorkspace, "7"},
+    {MODKEY | ShiftMask, XK_9, moveClientToWorkspace, "8"},
 };
 
 #endif /* CONFIG_H */
