@@ -1328,6 +1328,34 @@ SMonitor* getCurrentMonitor() {
     return &monitors[0];
 }
 
+void moveClientToEnd(SClient* client) {
+    if (!client || !clients)
+        return;
+
+    if (!client->next)
+        return;
+
+    if (clients == client)
+        clients = client->next;
+    else {
+        SClient* prev = clients;
+        while (prev && prev->next != client)
+            prev = prev->next;
+
+        if (!prev)
+            return;
+
+        prev->next = client->next;
+    }
+
+    SClient* last = clients;
+    while (last->next)
+        last = last->next;
+
+    last->next   = client;
+    client->next = NULL;
+}
+
 void toggleFloating(const char* arg) {
     (void)arg;
 
@@ -1395,6 +1423,8 @@ void toggleFloating(const char* arg) {
 
             arrangeClients(&monitors[oldMonitor]);
         }
+
+        moveClientToEnd(focused);
 
         XLowerWindow(display, focused->window);
 
