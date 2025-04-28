@@ -1,6 +1,6 @@
 CC      ?= gcc
 CFLAGS  ?= -Wall -Wextra -O3 -Isrc
-LDFLAGS ?= -lX11 -lXinerama -lXft -lfontconfig -lfreetype -lm
+LDFLAGS ?= -lX11 -lXinerama -lXft -lfontconfig -lfreetype -lXcursor -lm
 FT_CFLAGS = $(shell pkg-config --cflags freetype2)
 
 PREFIX  ?= /usr/local

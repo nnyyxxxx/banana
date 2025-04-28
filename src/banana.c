@@ -8,6 +8,7 @@
 #include <X11/extensions/Xinerama.h>
 #include <X11/cursorfont.h>
 #include <X11/Xproto.h>
+#include <X11/Xcursor/Xcursor.h>
 #include <signal.h>
 #include <sys/wait.h>
 #include <err.h>
@@ -180,12 +181,12 @@ void setup() {
 
     setupEWMH();
 
-    normalCursor   = XCreateFontCursor(display, XC_left_ptr);
-    moveCursor     = XCreateFontCursor(display, XC_fleur);
-    resizeSECursor = XCreateFontCursor(display, XC_bottom_right_corner);
-    resizeSWCursor = XCreateFontCursor(display, XC_bottom_left_corner);
-    resizeNECursor = XCreateFontCursor(display, XC_top_right_corner);
-    resizeNWCursor = XCreateFontCursor(display, XC_top_left_corner);
+    normalCursor   = XcursorLibraryLoadCursor(display, "left_ptr");
+    moveCursor     = XcursorLibraryLoadCursor(display, "fleur");
+    resizeSECursor = XcursorLibraryLoadCursor(display, "se-resize");
+    resizeSWCursor = XcursorLibraryLoadCursor(display, "sw-resize");
+    resizeNECursor = XcursorLibraryLoadCursor(display, "ne-resize");
+    resizeNWCursor = XcursorLibraryLoadCursor(display, "nw-resize");
     XDefineCursor(display, root, normalCursor);
 
     XSetWindowAttributes wa;
