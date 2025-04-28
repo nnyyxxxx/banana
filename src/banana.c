@@ -319,6 +319,8 @@ void handleButtonPress(XEvent* event) {
             XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
             XRaiseWindow(display, client->window);
 
+            XGrabButton(display, Button3, MODKEY, client->window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, resizeCursor);
+
             windowMovement.client = client;
             windowMovement.x      = ev->x_root;
             windowMovement.y      = ev->y_root;
