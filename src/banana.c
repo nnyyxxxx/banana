@@ -1384,20 +1384,23 @@ void toggleFloating(const char* arg) {
     } else if (wasFloating) {
         XUngrabButton(display, Button3, MODKEY, focused->window);
 
-        XLowerWindow(display, focused->window);
         SMonitor* newMonitor = monitorAtPoint(focused->x + focused->width / 2, focused->y + focused->height / 2);
 
         if (newMonitor->num != focused->monitor) {
+            int oldMonitor     = focused->monitor;
             focused->monitor   = newMonitor->num;
             focused->workspace = newMonitor->currentWorkspace;
+
+            arrangeClients(&monitors[oldMonitor]);
         }
+
+        XLowerWindow(display, focused->window);
+
+        arrangeClients(&monitors[focused->monitor]);
     }
 
-    arrangeClients(&monitors[focused->monitor]);
     updateBorders();
-
     restackFloatingWindows();
-
     updateBars();
 }
 
