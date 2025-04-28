@@ -1,6 +1,12 @@
+<div align="center">
+
 # banana
 
-a minimal window manager
+![banana](.github/banana.png)
+
+A minimal window manager
+
+</div>
 
 ## building
 
