@@ -1577,55 +1577,29 @@ void moveWindowInStack(const char* arg) {
     SMonitor* monitor   = &monitors[focused->monitor];
     int       workspace = focused->workspace;
 
-    SClient*  prev         = NULL;
-    SClient*  client       = clients;
     SClient*  targetClient = NULL;
 
-    while (client && client != focused) {
-        if (client->monitor == focused->monitor && client->workspace == workspace)
-            prev = client;
-        client = client->next;
-    }
-
     if (strcmp(arg, "up") == 0) {
-        if (prev) {
-            targetClient = prev;
+        SClient* prev   = NULL;
+        SClient* client = clients;
 
-            SClient* prevPrev = NULL;
-            client            = clients;
-            while (client && client != prev) {
-                if (client->monitor == focused->monitor && client->workspace == workspace)
-                    prevPrev = client;
-                client = client->next;
-            }
-
-            if (prevPrev)
-                prevPrev->next = focused;
-            else
-                clients = focused;
-
-            SClient* focusedNext = focused->next;
-            focused->next        = prev;
-            prev->next           = focusedNext;
+        while (client && client != focused) {
+            if (client->monitor == focused->monitor && client->workspace == workspace)
+                prev = client;
+            client = client->next;
         }
+
+        if (prev)
+            targetClient = prev;
     } else if (strcmp(arg, "down") == 0) {
         targetClient = focused->next;
         while (targetClient && (targetClient->monitor != focused->monitor || targetClient->workspace != workspace)) {
             targetClient = targetClient->next;
         }
-
-        if (targetClient) {
-            focused->next      = targetClient->next;
-            targetClient->next = focused;
-
-            if (prev)
-                prev->next = targetClient;
-            else
-                clients = targetClient;
-        }
     }
 
     if (targetClient) {
+        swapClients(focused, targetClient);
         arrangeClients(monitor);
         restackFloatingWindows();
 
