@@ -87,6 +87,7 @@ static void (*eventHandlers[LASTEvent])(XEvent*) = {
     [KeyPress] = handleKeyPress,           [ButtonPress] = handleButtonPress, [ButtonRelease] = handleButtonRelease,       [MotionNotify] = handleMotionNotify,
     [EnterNotify] = handleEnterNotify,     [MapRequest] = handleMapRequest,   [ConfigureRequest] = handleConfigureRequest, [UnmapNotify] = handleUnmapNotify,
     [DestroyNotify] = handleDestroyNotify, [Expose] = handleExpose,           [PropertyNotify] = handlePropertyNotify,     [ClientMessage] = handleClientMessage,
+    [MapNotify] = handleMapNotify,
 };
 
 void scanExistingWindows() {
@@ -2282,6 +2283,23 @@ void toggleBar(const char* arg) {
 
     for (int i = 0; i < numMonitors; i++) {
         arrangeClients(&monitors[i]);
+    }
+}
+
+void handleMapNotify(XEvent* event) {
+    XMapEvent* ev = &event->xmap;
+
+    if (ev->override_redirect)
+        return;
+
+    SClient* client = findClient(ev->window);
+    if (client) {
+        SMonitor* monitor = &monitors[client->monitor];
+
+        if (client->workspace == monitor->currentWorkspace) {
+            fprintf(stderr, "Window mapped, focusing: 0x%lx\n", ev->window);
+            focusClient(client);
+        }
     }
 }
 
