@@ -35,6 +35,7 @@ Cursor          resizeNWCursor;
 SWindowMovement windowMovement   = {0, 0, NULL, 0};
 SWindowResize   windowResize     = {0, 0, NULL, 0, 0};
 int             currentWorkspace = 0;
+Window          lastMappedWindow = 0;
 
 Atom            WM_PROTOCOLS;
 Atom            WM_DELETE_WINDOW;
@@ -295,6 +296,8 @@ void handleKeyPress(XEvent* event) {
     XKeyEvent* ev     = &event->xkey;
     KeySym     keysym = XLookupKeysym(ev, 0);
 
+    lastMappedWindow = 0;
+
     for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
         if (keys[i].keysym == keysym && keys[i].mod == ev->state) {
             keys[i].func(keys[i].arg);
@@ -306,6 +309,8 @@ void handleKeyPress(XEvent* event) {
 void handleButtonPress(XEvent* event) {
     XButtonPressedEvent* ev            = &event->xbutton;
     Window               clickedWindow = ev->window;
+
+    lastMappedWindow = 0;
 
     for (int i = 0; i < numMonitors; i++) {
         if (barWindows && barWindows[i] == clickedWindow) {
@@ -680,6 +685,9 @@ void handleEnterNotify(XEvent* event) {
         return;
 
     if (ev->mode != NotifyNormal || ev->detail == NotifyInferior)
+        return;
+
+    if (lastMappedWindow && focused && focused->window == lastMappedWindow)
         return;
 
     SClient* client = findClient(ev->window);
@@ -2315,6 +2323,7 @@ void handleMapNotify(XEvent* event) {
         if (client->workspace == monitor->currentWorkspace) {
             fprintf(stderr, "Window mapped, focusing: 0x%lx\n", ev->window);
             focusClient(client);
+            lastMappedWindow = ev->window;
         }
     }
 }
