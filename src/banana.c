@@ -470,6 +470,9 @@ void moveWindow(SClient* client, int x, int y) {
     monitor           = monitorAtPoint(centerX, centerY);
     client->monitor   = monitor->num;
 
+    if (prevMonitor != client->monitor)
+        client->workspace = monitor->currentWorkspace;
+
     XMoveWindow(display, client->window, client->x, client->y);
 
     configureClient(client);
