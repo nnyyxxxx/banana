@@ -2072,13 +2072,21 @@ void focusMonitor(const char* arg) {
 
     SClient* clientToFocus = findVisibleClientInWorkspace(targetMonitor, monitor->currentWorkspace);
 
-    if (clientToFocus)
+    if (clientToFocus) {
         focusClient(clientToFocus);
-    else {
-        XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
-        focused = NULL;
-        updateBorders();
+    } else {
+        if (focused) {
+            if (focused->monitor != targetMonitor) {
+                XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
+                XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&root, 1);
+                focused = NULL;
+                updateBorders();
+            }
+        } else
+            XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
     }
+
+    currentWorkspace = monitor->currentWorkspace;
 
     updateBars();
 }
