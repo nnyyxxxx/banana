@@ -389,10 +389,17 @@ void handleMotionNotify(XEvent* event) {
         lastMonitor = currentMonitor->num;
         updateBars();
 
-        int barY = currentMonitor->y + BAR_STRUTS_TOP;
-        if (ev->y_root >= barY && ev->y_root <= barY + BAR_HEIGHT) {
+        currentWorkspace = currentMonitor->currentWorkspace;
+
+        if (focused && focused->monitor != currentMonitor->num) {
             SClient* clientInWorkspace = findVisibleClientInWorkspace(currentMonitor->num, currentMonitor->currentWorkspace);
-            if (clientInWorkspace && (focused == NULL || focused->monitor != currentMonitor->num))
+
+            if (!clientInWorkspace) {
+                XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
+                XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&root, 1);
+                focused = NULL;
+                updateBorders();
+            } else if (ev->y_root >= currentMonitor->y + BAR_STRUTS_TOP && ev->y_root <= currentMonitor->y + BAR_STRUTS_TOP + BAR_HEIGHT)
                 focusClient(clientInWorkspace);
         }
     }
