@@ -926,6 +926,16 @@ void manageClient(Window window) {
 
     updateSizeHints(client);
 
+    applyRules(client);
+
+    if (client->sizeHints.valid && client->sizeHints.maxWidth && client->sizeHints.maxHeight && client->sizeHints.minWidth && client->sizeHints.minHeight &&
+        client->sizeHints.maxWidth == client->sizeHints.minWidth && client->sizeHints.maxHeight == client->sizeHints.minHeight) {
+        client->isFloating = 1;
+        fprintf(stderr, "Auto-floating fixed size window: %dx%d\n", client->sizeHints.minWidth, client->sizeHints.minHeight);
+    }
+
+    monitor = &monitors[client->monitor];
+
     if (wa.width > monitor->width - 2 * BORDER_WIDTH)
         client->width = monitor->width - 2 * BORDER_WIDTH;
     else
@@ -948,8 +958,6 @@ void manageClient(Window window) {
 
     if (client->y < monitor->y + BAR_HEIGHT && !client->isFloating)
         client->y = monitor->y + BAR_HEIGHT;
-
-    applyRules(client);
 
     client->next = NULL;
     if (!clients)
@@ -2094,12 +2102,6 @@ void updateSizeHints(SClient* client) {
     }
 
     client->sizeHints.valid = 1;
-
-    if (client->sizeHints.maxWidth && client->sizeHints.maxHeight && client->sizeHints.minWidth && client->sizeHints.minHeight &&
-        client->sizeHints.maxWidth == client->sizeHints.minWidth && client->sizeHints.maxHeight == client->sizeHints.minHeight) {
-        client->isFloating = 1;
-        fprintf(stderr, "Auto-floating fixed size window: %dx%d\n", client->sizeHints.minWidth, client->sizeHints.minHeight);
-    }
 
     fprintf(stderr, "Size hints for 0x%lx: min=%dx%d, max=%dx%d, base=%dx%d\n", client->window, client->sizeHints.minWidth, client->sizeHints.minHeight, client->sizeHints.maxWidth,
             client->sizeHints.maxHeight, client->sizeHints.baseWidth, client->sizeHints.baseHeight);
