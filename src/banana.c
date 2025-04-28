@@ -1381,6 +1381,8 @@ void toggleFloating(const char* arg) {
             XSetInputFocus(display, focused->window, RevertToPointerRoot, CurrentTime);
             XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&focused->window, 1);
         }
+
+        arrangeClients(&monitors[focused->monitor]);
     } else if (wasFloating) {
         XUngrabButton(display, Button3, MODKEY, focused->window);
 
