@@ -36,6 +36,7 @@ SWindowMovement windowMovement   = {0, 0, NULL, 0};
 SWindowResize   windowResize     = {0, 0, NULL, 0, 0};
 int             currentWorkspace = 0;
 Window          lastMappedWindow = 0;
+int             ignoreNextEnterNotify = 0;
 
 Atom            WM_PROTOCOLS;
 Atom            WM_DELETE_WINDOW;
@@ -89,7 +90,6 @@ static void (*eventHandlers[LASTEvent])(XEvent*) = {
     [KeyPress] = handleKeyPress,           [ButtonPress] = handleButtonPress, [ButtonRelease] = handleButtonRelease,       [MotionNotify] = handleMotionNotify,
     [EnterNotify] = handleEnterNotify,     [MapRequest] = handleMapRequest,   [ConfigureRequest] = handleConfigureRequest, [UnmapNotify] = handleUnmapNotify,
     [DestroyNotify] = handleDestroyNotify, [Expose] = handleExpose,           [PropertyNotify] = handlePropertyNotify,     [ClientMessage] = handleClientMessage,
-    [MapNotify] = handleMapNotify,
 };
 
 void scanExistingWindows() {
@@ -452,16 +452,17 @@ void handleMotionNotify(XEvent* event) {
 
         currentWorkspace = currentMonitor->currentWorkspace;
 
-        if (focused && focused->monitor != currentMonitor->num) {
+        if (!focused || focused->monitor != currentMonitor->num) {
             SClient* clientInWorkspace = findVisibleClientInWorkspace(currentMonitor->num, currentMonitor->currentWorkspace);
 
-            if (!clientInWorkspace) {
+            if (clientInWorkspace)
+                focusClient(clientInWorkspace);
+            else {
                 XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
                 XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&root, 1);
                 focused = NULL;
                 updateBorders();
-            } else if (ev->y_root >= currentMonitor->y + BAR_STRUTS_TOP && ev->y_root <= currentMonitor->y + BAR_STRUTS_TOP + BAR_HEIGHT)
-                focusClient(clientInWorkspace);
+            }
         }
     }
 
@@ -686,6 +687,11 @@ void handleEnterNotify(XEvent* event) {
 
     if (ev->mode != NotifyNormal || ev->detail == NotifyInferior)
         return;
+
+    if (ignoreNextEnterNotify) {
+        ignoreNextEnterNotify = 0;
+        return;
+    }
 
     if (lastMappedWindow && focused && focused->window == lastMappedWindow)
         return;
@@ -1531,6 +1537,8 @@ void toggleFloating(const char* arg) {
     int isFixedSize = (focused->sizeHints.valid && focused->sizeHints.maxWidth && focused->sizeHints.maxHeight && focused->sizeHints.minWidth && focused->sizeHints.minHeight &&
                        focused->sizeHints.maxWidth == focused->sizeHints.minWidth && focused->sizeHints.maxHeight == focused->sizeHints.minHeight);
 
+    ignoreNextEnterNotify = 1;
+
     focused->isFloating = !focused->isFloating || isFixedSize;
 
     if (focused->isFloating) {
@@ -2307,24 +2315,6 @@ void toggleBar(const char* arg) {
 
     for (int i = 0; i < numMonitors; i++) {
         arrangeClients(&monitors[i]);
-    }
-}
-
-void handleMapNotify(XEvent* event) {
-    XMapEvent* ev = &event->xmap;
-
-    if (ev->override_redirect)
-        return;
-
-    SClient* client = findClient(ev->window);
-    if (client) {
-        SMonitor* monitor = &monitors[client->monitor];
-
-        if (client->workspace == monitor->currentWorkspace) {
-            fprintf(stderr, "Window mapped, focusing: 0x%lx\n", ev->window);
-            focusClient(client);
-            lastMappedWindow = ev->window;
-        }
     }
 }
 

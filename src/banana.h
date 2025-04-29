@@ -101,7 +101,6 @@ void                   handleButtonRelease(XEvent* event);
 void                   handleMotionNotify(XEvent* event);
 void                   handleEnterNotify(XEvent* event);
 void                   handleMapRequest(XEvent* event);
-void                   handleMapNotify(XEvent* event);
 void                   handleConfigureRequest(XEvent* event);
 void                   handleUnmapNotify(XEvent* event);
 void                   handleDestroyNotify(XEvent* event);
