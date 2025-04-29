@@ -33,10 +33,10 @@ Cursor          resizeSECursor;
 Cursor          resizeSWCursor;
 Cursor          resizeNECursor;
 Cursor          resizeNWCursor;
-SWindowMovement windowMovement   = {0, 0, NULL, 0, 0};
-SWindowResize   windowResize     = {0, 0, NULL, 0, 0};
-int             currentWorkspace = 0;
-Window          lastMappedWindow = 0;
+SWindowMovement windowMovement        = {0, 0, NULL, 0, 0};
+SWindowResize   windowResize          = {0, 0, NULL, 0, 0};
+int             currentWorkspace      = 0;
+Window          lastMappedWindow      = 0;
 int             ignoreNextEnterNotify = 0;
 
 Atom            WM_PROTOCOLS;
@@ -112,19 +112,19 @@ void scanExistingWindows() {
 }
 
 void setupEWMH() {
-    NET_SUPPORTED             = XInternAtom(display, "_NET_SUPPORTED", False);
-    NET_WM_NAME               = XInternAtom(display, "_NET_WM_NAME", False);
-    NET_SUPPORTING_WM_CHECK   = XInternAtom(display, "_NET_SUPPORTING_WM_CHECK", False);
-    NET_CLIENT_LIST           = XInternAtom(display, "_NET_CLIENT_LIST", False);
-    NET_NUMBER_OF_DESKTOPS    = XInternAtom(display, "_NET_NUMBER_OF_DESKTOPS", False);
-    NET_CURRENT_DESKTOP       = XInternAtom(display, "_NET_CURRENT_DESKTOP", False);
-    NET_ACTIVE_WINDOW         = XInternAtom(display, "_NET_ACTIVE_WINDOW", False);
-    NET_WM_STATE              = XInternAtom(display, "_NET_WM_STATE", False);
-    NET_WM_STATE_FULLSCREEN   = XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", False);
-    NET_WM_WINDOW_TYPE        = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
-    NET_WM_WINDOW_TYPE_DIALOG = XInternAtom(display, "_NET_WM_WINDOW_TYPE_DIALOG", False);
+    NET_SUPPORTED              = XInternAtom(display, "_NET_SUPPORTED", False);
+    NET_WM_NAME                = XInternAtom(display, "_NET_WM_NAME", False);
+    NET_SUPPORTING_WM_CHECK    = XInternAtom(display, "_NET_SUPPORTING_WM_CHECK", False);
+    NET_CLIENT_LIST            = XInternAtom(display, "_NET_CLIENT_LIST", False);
+    NET_NUMBER_OF_DESKTOPS     = XInternAtom(display, "_NET_NUMBER_OF_DESKTOPS", False);
+    NET_CURRENT_DESKTOP        = XInternAtom(display, "_NET_CURRENT_DESKTOP", False);
+    NET_ACTIVE_WINDOW          = XInternAtom(display, "_NET_ACTIVE_WINDOW", False);
+    NET_WM_STATE               = XInternAtom(display, "_NET_WM_STATE", False);
+    NET_WM_STATE_FULLSCREEN    = XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", False);
+    NET_WM_WINDOW_TYPE         = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
+    NET_WM_WINDOW_TYPE_DIALOG  = XInternAtom(display, "_NET_WM_WINDOW_TYPE_DIALOG", False);
     NET_WM_WINDOW_TYPE_UTILITY = XInternAtom(display, "_NET_WM_WINDOW_TYPE_UTILITY", False);
-    UTF8_STRING               = XInternAtom(display, "UTF8_STRING", False);
+    UTF8_STRING                = XInternAtom(display, "UTF8_STRING", False);
 
     wmcheckwin = XCreateSimpleWindow(display, root, 0, 0, 1, 1, 0, 0, 0);
     XChangeProperty(display, root, NET_SUPPORTING_WM_CHECK, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&wmcheckwin, 1);
@@ -132,7 +132,7 @@ void setupEWMH() {
     XChangeProperty(display, wmcheckwin, NET_WM_NAME, UTF8_STRING, 8, PropModeReplace, (unsigned char*)"banana", 6);
     XChangeProperty(display, root, NET_WM_NAME, UTF8_STRING, 8, PropModeReplace, (unsigned char*)"banana", 6);
 
-    Atom supported[] = {NET_SUPPORTED,     NET_WM_NAME,  NET_SUPPORTING_WM_CHECK, NET_CLIENT_LIST,    NET_NUMBER_OF_DESKTOPS,   NET_CURRENT_DESKTOP,
+    Atom supported[] = {NET_SUPPORTED,     NET_WM_NAME,  NET_SUPPORTING_WM_CHECK, NET_CLIENT_LIST,    NET_NUMBER_OF_DESKTOPS,    NET_CURRENT_DESKTOP,
                         NET_ACTIVE_WINDOW, NET_WM_STATE, NET_WM_STATE_FULLSCREEN, NET_WM_WINDOW_TYPE, NET_WM_WINDOW_TYPE_DIALOG, NET_WM_WINDOW_TYPE_UTILITY};
 
     XChangeProperty(display, root, NET_SUPPORTED, XA_ATOM, 32, PropModeReplace, (unsigned char*)supported, sizeof(supported) / sizeof(Atom));
@@ -201,7 +201,7 @@ void setup() {
     XSync(display, False);
 }
 
-void checkCursorPosition(struct timeval *lastCheck, int *lastCursorX, int *lastCursorY, Window *lastWindow) {
+void checkCursorPosition(struct timeval* lastCheck, int* lastCursorX, int* lastCursorY, Window* lastWindow) {
     struct timeval now;
     gettimeofday(&now, NULL);
 
@@ -210,12 +210,11 @@ void checkCursorPosition(struct timeval *lastCheck, int *lastCursorX, int *lastC
 
     memcpy(lastCheck, &now, sizeof(struct timeval));
 
-    Window root_return, child_return;
-    int root_x, root_y, win_x, win_y;
+    Window       root_return, child_return;
+    int          root_x, root_y, win_x, win_y;
     unsigned int mask;
 
-    if (!XQueryPointer(display, root, &root_return, &child_return,
-                    &root_x, &root_y, &win_x, &win_y, &mask))
+    if (!XQueryPointer(display, root, &root_return, &child_return, &root_x, &root_y, &win_x, &win_y, &mask))
         return;
 
     if (root_x == *lastCursorX && root_y == *lastCursorY && child_return == *lastWindow)
@@ -223,7 +222,7 @@ void checkCursorPosition(struct timeval *lastCheck, int *lastCursorX, int *lastC
 
     *lastCursorX = root_x;
     *lastCursorY = root_y;
-    *lastWindow = child_return;
+    *lastWindow  = child_return;
 
     if (child_return == None || child_return == root)
         return;
@@ -236,16 +235,15 @@ void checkCursorPosition(struct timeval *lastCheck, int *lastCursorX, int *lastC
     if (windowUnderCursor->workspace != monitor->currentWorkspace)
         return;
 
-    fprintf(stderr, "Cursor over window 0x%lx (currently focused: 0x%lx)\n",
-            windowUnderCursor->window, focused ? focused->window : 0);
+    fprintf(stderr, "Cursor over window 0x%lx (currently focused: 0x%lx)\n", windowUnderCursor->window, focused ? focused->window : 0);
     focusClient(windowUnderCursor);
 }
 
 void run() {
-    XEvent event;
+    XEvent         event;
     struct timeval lastCheck;
-    int lastCursorX = 0, lastCursorY = 0;
-    Window lastWindow = None;
+    int            lastCursorX = 0, lastCursorY = 0;
+    Window         lastWindow = None;
     gettimeofday(&lastCheck, NULL);
 
     XSync(display, False);
@@ -329,7 +327,7 @@ void handleButtonPress(XEvent* event) {
 
     if (ev->button == Button1) {
         if (!client->isFloating) {
-            client->isFloating = 1;
+            client->isFloating      = 1;
             windowMovement.wasTiled = 1;
 
             SMonitor* monitor = &monitors[client->monitor];
@@ -372,10 +370,10 @@ void handleButtonPress(XEvent* event) {
 
             arrangeClients(monitor);
         } else {
-            windowMovement.client = client;
-            windowMovement.x      = ev->x_root;
-            windowMovement.y      = ev->y_root;
-            windowMovement.active = 1;
+            windowMovement.client   = client;
+            windowMovement.x        = ev->x_root;
+            windowMovement.y        = ev->y_root;
+            windowMovement.active   = 1;
             windowMovement.wasTiled = 0;
             XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, moveCursor, CurrentTime);
         }
@@ -417,12 +415,8 @@ void swapWindowUnderCursor(SClient* client, int cursorX, int cursorY) {
     SClient* targetClient = NULL;
 
     for (SClient* c = clients; c; c = c->next) {
-        if (c != client &&
-            c->monitor == client->monitor &&
-            c->workspace == client->workspace &&
-            !c->isFloating && !c->isFullscreen &&
-            cursorX >= c->x && cursorX < c->x + c->width &&
-            cursorY >= c->y && cursorY < c->y + c->height) {
+        if (c != client && c->monitor == client->monitor && c->workspace == client->workspace && !c->isFloating && !c->isFullscreen && cursorX >= c->x &&
+            cursorX < c->x + c->width && cursorY >= c->y && cursorY < c->y + c->height) {
             targetClient = c;
             break;
         }
@@ -432,19 +426,15 @@ void swapWindowUnderCursor(SClient* client, int cursorX, int cursorY) {
         int closestDistance = INT_MAX;
 
         for (SClient* c = clients; c; c = c->next) {
-            if (c != client &&
-                c->monitor == client->monitor &&
-                c->workspace == client->workspace &&
-                !c->isFloating && !c->isFullscreen) {
+            if (c != client && c->monitor == client->monitor && c->workspace == client->workspace && !c->isFloating && !c->isFullscreen) {
 
-                int centerX = c->x + c->width / 2;
-                int centerY = c->y + c->height / 2;
-                int distance = (cursorX - centerX) * (cursorX - centerX) +
-                               (cursorY - centerY) * (cursorY - centerY);
+                int centerX  = c->x + c->width / 2;
+                int centerY  = c->y + c->height / 2;
+                int distance = (cursorX - centerX) * (cursorX - centerX) + (cursorY - centerY) * (cursorY - centerY);
 
                 if (distance < closestDistance) {
                     closestDistance = distance;
-                    targetClient = c;
+                    targetClient    = c;
                 }
             }
         }
@@ -474,8 +464,8 @@ void handleButtonRelease(XEvent* event) {
         } else if (movingClient)
             moveWindow(movingClient, movingClient->x, movingClient->y);
 
-        windowMovement.active = 0;
-        windowMovement.client = NULL;
+        windowMovement.active   = 0;
+        windowMovement.client   = NULL;
         windowMovement.wasTiled = 0;
         XUngrabPointer(display, CurrentTime);
 
@@ -556,7 +546,7 @@ void handleMotionNotify(XEvent* event) {
             return;
         }
 
-        int isFixedSize = (client->sizeHints.valid && client->sizeHints.maxWidth && client->sizeHints.maxHeight && client->sizeHints.minWidth && client->sizeHints.minHeight &&
+        int  isFixedSize = (client->sizeHints.valid && client->sizeHints.maxWidth && client->sizeHints.maxHeight && client->sizeHints.minWidth && client->sizeHints.minHeight &&
                            client->sizeHints.maxWidth == client->sizeHints.minWidth && client->sizeHints.maxHeight == client->sizeHints.minHeight);
 
         Atom windowType = getAtomProperty(client, NET_WM_WINDOW_TYPE);
@@ -1049,8 +1039,8 @@ void manageClient(Window window) {
     if (XGetTransientForHint(display, window, &transientFor)) {
         SClient* parent = findClient(transientFor);
         if (parent) {
-            client->monitor = parent->monitor;
-            client->workspace = parent->workspace;
+            client->monitor    = parent->monitor;
+            client->workspace  = parent->workspace;
             client->isFloating = 1;
 
             client->x = parent->x + 50;
@@ -1730,8 +1720,7 @@ void tileClients(SMonitor* monitor) {
     SClient* visibleClients[MAX_CLIENTS];
 
     for (SClient* client = clients; client; client = client->next) {
-        if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace &&
-            !client->isFloating && !client->isFullscreen) {
+        if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace && !client->isFloating && !client->isFullscreen) {
             visibleClients[visibleCount++] = client;
             if (visibleCount >= MAX_CLIENTS)
                 break;
@@ -1757,8 +1746,8 @@ void tileClients(SMonitor* monitor) {
 
     if (visibleCount == 1) {
         SClient* client = visibleClients[0];
-        int width  = availableWidth - 2 * BORDER_WIDTH;
-        int height = availableHeight - 2 * BORDER_WIDTH;
+        int      width  = availableWidth - 2 * BORDER_WIDTH;
+        int      height = availableHeight - 2 * BORDER_WIDTH;
 
         client->x      = x;
         client->y      = y;
@@ -1785,17 +1774,17 @@ void tileClients(SMonitor* monitor) {
     int masterRemainder = availableHeight % masterCount;
     int stackRemainder  = availableHeight % stackCount;
 
-    int masterY       = y;
-    int stackY        = y;
+    int masterY = y;
+    int stackY  = y;
 
     int masterWidth = masterArea - INNER_GAP / 2 - 2 * BORDER_WIDTH;
     int stackWidth  = stackArea - INNER_GAP / 2 - 2 * BORDER_WIDTH;
     int stackX      = x + masterArea + INNER_GAP / 2;
 
     for (int i = 0; i < masterCount; i++) {
-        SClient* client = visibleClients[i];
-        int heightAdjustment = (i < masterRemainder) ? 1 : 0;
-        int currentHeight = masterHeight + heightAdjustment;
+        SClient* client           = visibleClients[i];
+        int      heightAdjustment = (i < masterRemainder) ? 1 : 0;
+        int      currentHeight    = masterHeight + heightAdjustment;
 
         if (i > 0) {
             masterY += INNER_GAP;
@@ -1818,9 +1807,9 @@ void tileClients(SMonitor* monitor) {
     }
 
     for (int i = 0; i < stackCount; i++) {
-        SClient* client = visibleClients[i + masterCount];
-        int heightAdjustment = (i < stackRemainder) ? 1 : 0;
-        int currentHeight = stackHeight + heightAdjustment;
+        SClient* client           = visibleClients[i + masterCount];
+        int      heightAdjustment = (i < stackRemainder) ? 1 : 0;
+        int      currentHeight    = stackHeight + heightAdjustment;
 
         if (i > 0) {
             stackY += INNER_GAP;
@@ -1962,17 +1951,17 @@ void swapClients(SClient* a, SClient* b) {
 
     SClient* prevA = NULL;
     SClient* prevB = NULL;
-    SClient* temp = clients;
+    SClient* temp  = clients;
 
     while (temp && temp != a) {
         prevA = temp;
-        temp = temp->next;
+        temp  = temp->next;
     }
 
     temp = clients;
     while (temp && temp != b) {
         prevB = temp;
-        temp = temp->next;
+        temp  = temp->next;
     }
 
     if (a->next == b) {
@@ -1983,8 +1972,7 @@ void swapClients(SClient* a, SClient* b) {
 
         b->next = a;
         a->next = bNext;
-    }
-    else if (b->next == a) {
+    } else if (b->next == a) {
         if (prevB)
             prevB->next = a;
         else
@@ -1992,8 +1980,7 @@ void swapClients(SClient* a, SClient* b) {
 
         a->next = b;
         b->next = aNext;
-    }
-    else {
+    } else {
         if (prevA)
             prevA->next = b;
         else
@@ -2132,8 +2119,7 @@ void updateWindowType(SClient* client) {
     Atom state = getAtomProperty(client, NET_WM_STATE);
     Atom wtype = getAtomProperty(client, NET_WM_WINDOW_TYPE);
 
-    fprintf(stderr, "Checking window type for 0x%lx, state=%ld, wtype=%ld\n",
-            client->window, state, wtype);
+    fprintf(stderr, "Checking window type for 0x%lx, state=%ld, wtype=%ld\n", client->window, state, wtype);
 
     if (state == NET_WM_STATE_FULLSCREEN) {
         fprintf(stderr, "Fullscreen window detected, forcing proper position\n");
