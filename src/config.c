@@ -508,15 +508,19 @@ void create_default_config(void) {
     fprintf(fp, "bind > alt > w > quit\n");
     fprintf(fp, "bind > alt > space > toggle_floating\n");
     fprintf(fp, "bind > alt > f > toggle_fullscreen\n");
-    fprintf(fp, "bind > alt > b > toggle_bar\n");
+    fprintf(fp, "bind > alt > b > toggle_bar\n\n");
+
     fprintf(fp, "bind > alt > h > adjust_master > decrease\n");
-    fprintf(fp, "bind > alt > l > adjust_master > increase\n");
+    fprintf(fp, "bind > alt > l > adjust_master > increase\n\n");
+
     fprintf(fp, "bind > alt+shift > j > move_window > down\n");
-    fprintf(fp, "bind > alt+shift > k > move_window > up\n");
+    fprintf(fp, "bind > alt+shift > k > move_window > up\n\n");
+
     fprintf(fp, "bind > alt > j > focus_window > down\n");
-    fprintf(fp, "bind > alt > k > focus_window > up\n");
+    fprintf(fp, "bind > alt > k > focus_window > up\n\n");
+
     fprintf(fp, "bind > alt > comma > focus_monitor > left\n");
-    fprintf(fp, "bind > alt > period > focus_monitor > right\n");
+    fprintf(fp, "bind > alt > period > focus_monitor > right\n\n");
 
     fprintf(fp, "bind > alt > 1 > switch_workspace > 0\n");
     fprintf(fp, "bind > alt > 2 > switch_workspace > 1\n");
@@ -526,7 +530,7 @@ void create_default_config(void) {
     fprintf(fp, "bind > alt > 6 > switch_workspace > 5\n");
     fprintf(fp, "bind > alt > 7 > switch_workspace > 6\n");
     fprintf(fp, "bind > alt > 8 > switch_workspace > 7\n");
-    fprintf(fp, "bind > alt > 9 > switch_workspace > 8\n");
+    fprintf(fp, "bind > alt > 9 > switch_workspace > 8\n\n");
 
     fprintf(fp, "bind > alt+shift > 1 > move_to_workspace > 0\n");
     fprintf(fp, "bind > alt+shift > 2 > move_to_workspace > 1\n");
