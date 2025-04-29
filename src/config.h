@@ -3,7 +3,7 @@
 
 #include <X11/X.h>
 #include <X11/keysym.h>
-#include <stddef.h> /* For NULL */
+#include <stddef.h>
 
 void spawnProgram(const char* arg);
 void killClient(const char* arg);
@@ -23,7 +23,7 @@ typedef struct {
     KeySym       keysym;
     void (*func)(const char*);
     const char* arg;
-} KeyBinding;
+} SKeyBinding;
 
 typedef struct {
     const char* className;
@@ -34,56 +34,63 @@ typedef struct {
     int         monitor;
     int         width;
     int         height;
-} WindowRule;
+} SWindowRule;
 
 typedef struct {
     const char* name;
     void (*func)(const char*);
-} FunctionMap;
+} SFunctionMap;
 
 typedef struct {
     const char*  name;
     unsigned int mask;
-} ModifierMap;
+} SModifierMap;
 
-extern int   workspace_count;
-extern float default_master_factor;
-extern int   default_master_count;
-extern int   inner_gap;
-extern int   outer_gap;
+extern int   workspaceCount;
+extern float defaultMasterFactor;
+extern int   defaultMasterCount;
+extern int   innerGap;
+extern int   outerGap;
 #define modkey Mod1Mask
-extern int         bar_height;
-extern char*       bar_font;
-extern int         max_title_length;
-extern int         show_bar;
-extern int         bar_border_width;
-extern int         bar_struts_top;
-extern int         bar_struts_left;
-extern int         bar_struts_right;
-extern char*       active_border_color;
-extern char*       inactive_border_color;
-extern char*       bar_border_color;
-extern char*       bar_background_color;
-extern char*       bar_foreground_color;
-extern char*       bar_active_ws_color;
-extern char*       bar_urgent_ws_color;
-extern char*       bar_active_text_color;
-extern char*       bar_urgent_text_color;
-extern char*       bar_inactive_text_color;
-extern char*       bar_status_text_color;
-extern int         border_width;
-extern char*       terminal;
-extern char*       launcher;
-extern char*       wall;
-extern char*       screenshot;
+extern int          barHeight;
+extern char*        barFont;
+extern int          maxTitleLength;
+extern int          showBar;
+extern int          barBorderWidth;
+extern int          barStrutsTop;
+extern int          barStrutsLeft;
+extern int          barStrutsRight;
+extern char*        activeBorderColor;
+extern char*        inactiveBorderColor;
+extern char*        barBorderColor;
+extern char*        barBackgroundColor;
+extern char*        barForegroundColor;
+extern char*        barActiveWsColor;
+extern char*        barUrgentWsColor;
+extern char*        barActiveTextColor;
+extern char*        barUrgentTextColor;
+extern char*        barInactiveTextColor;
+extern char*        barStatusTextColor;
+extern int          borderWidth;
+extern char*        terminal;
+extern char*        launcher;
+extern char*        wall;
+extern char*        screenshot;
 
-extern KeyBinding* keys;
-extern size_t      keys_count;
-extern WindowRule* rules;
-extern size_t      rules_count;
+extern int          showErrorNotifications;
+extern char*        errorBorderColor;
+extern int          errorBorderWidth;
+extern char*        errorBackgroundColor;
+extern char*        errorTextColor;
+extern char*        errorFont;
 
-int                load_config(void);
-void               create_default_config(void);
-void               free_config(void);
+extern SKeyBinding* keys;
+extern size_t       keysCount;
+extern SWindowRule* rules;
+extern size_t       rulesCount;
+
+int                 loadConfig(void);
+void                createDefaultConfig(void);
+void                freeConfig(void);
 
 #endif /* CONFIG_H */

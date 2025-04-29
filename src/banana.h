@@ -6,6 +6,7 @@
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
 #include <X11/extensions/Xinerama.h>
+#include <sys/time.h>
 
 #include "config.h"
 #include "bar.h"
@@ -121,7 +122,7 @@ void                   focusWindowInStack(const char* arg);
 void                   adjustMasterFactor(const char* arg);
 void                   focusMonitor(const char* arg);
 void                   moveClientToEnd(SClient* client);
-void                   checkCursorPosition();
+void                   checkCursorPosition(struct timeval* lastCheck, int* lastCursorX, int* lastCursorY, Window* lastWindow);
 void                   swapWindowUnderCursor(SClient* client, int cursorX, int cursorY);
 
 void                   grabKeys();

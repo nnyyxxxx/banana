@@ -2,20 +2,22 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <signal.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
-#include <X11/extensions/Xinerama.h>
-#include <X11/cursorfont.h>
 #include <X11/Xproto.h>
+#include <X11/cursorfont.h>
 #include <X11/Xcursor/Xcursor.h>
-#include <signal.h>
+#include <X11/XKBlib.h>
+#include <X11/extensions/Xinerama.h>
 #include <sys/wait.h>
 #include <sys/time.h>
-#include <err.h>
+#include <time.h>
 #include <limits.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <X11/Xft/Xft.h>
 
 #include "config.h"
 #include "bar.h"
@@ -148,7 +150,7 @@ void setupEWMH() {
 
     XChangeProperty(display, root, NET_SUPPORTED, XA_ATOM, 32, PropModeReplace, (unsigned char*)supported, sizeof(supported) / sizeof(Atom));
 
-    long numDesktops = workspace_count;
+    long numDesktops = workspaceCount;
     XChangeProperty(display, root, NET_NUMBER_OF_DESKTOPS, XA_CARDINAL, 32, PropModeReplace, (unsigned char*)&numDesktops, 1);
 
     long currentDesktop = currentWorkspace;
@@ -176,7 +178,7 @@ void setup() {
 
     setupEWMH();
 
-    if (!load_config()) {
+    if (!loadConfig()) {
         fprintf(stderr, "banana: failed to load configuration\n");
         exit(1);
     }
@@ -221,7 +223,9 @@ void checkCursorPosition(struct timeval* lastCheck, int* lastCursorX, int* lastC
     struct timeval now;
     gettimeofday(&now, NULL);
 
-    if ((now.tv_sec - lastCheck->tv_sec) * 1000000 + (now.tv_usec - lastCheck->tv_usec) <= 50000)
+    int elapsed_ms = ((now.tv_sec - lastCheck->tv_sec) * 1000) + ((now.tv_usec - lastCheck->tv_usec) / 1000);
+
+    if (elapsed_ms <= 50)
         return;
 
     memcpy(lastCheck, &now, sizeof(struct timeval));
@@ -312,7 +316,7 @@ void cleanup() {
     XFreeCursor(display, resizeNECursor);
     XFreeCursor(display, resizeNWCursor);
 
-    free_config();
+    freeConfig();
 
     XCloseDisplay(display);
 }
@@ -323,7 +327,7 @@ void handleKeyPress(XEvent* event) {
 
     lastMappedWindow = 0;
 
-    for (size_t i = 0; i < keys_count; i++) {
+    for (size_t i = 0; i < keysCount; i++) {
         if (keys[i].keysym == keysym && keys[i].mod == ev->state) {
             keys[i].func(keys[i].arg);
             break;
@@ -849,7 +853,7 @@ void handleConfigureRequest(XEvent* event) {
     wc.y            = ev->y;
     wc.width        = ev->width;
     wc.height       = ev->height;
-    wc.border_width = border_width;
+    wc.border_width = borderWidth;
     wc.sibling      = ev->above;
     wc.stack_mode   = ev->detail;
 
@@ -869,7 +873,7 @@ void handleConfigureRequest(XEvent* event) {
             wc.y            = client->y;
             wc.width        = client->width;
             wc.height       = client->height;
-            wc.border_width = border_width;
+            wc.border_width = borderWidth;
         }
     }
 
@@ -964,7 +968,7 @@ void quit(const char* arg) {
 
 void grabKeys() {
     XUngrabKey(display, AnyKey, AnyModifier, root);
-    for (size_t i = 0; i < keys_count; i++) {
+    for (size_t i = 0; i < keysCount; i++) {
         XGrabKey(display, XKeysymToKeycode(display, keys[i].keysym), keys[i].mod, root, True, GrabModeAsync, GrabModeAsync);
     }
 
@@ -1112,13 +1116,13 @@ void manageClient(Window window) {
     monitor = &monitors[client->monitor];
 
     if (client->width == 0 || client->height == 0) {
-        if (wa.width > monitor->width - 2 * border_width)
-            client->width = monitor->width - 2 * border_width;
+        if (wa.width > monitor->width - 2 * borderWidth)
+            client->width = monitor->width - 2 * borderWidth;
         else
             client->width = wa.width;
 
-        if (wa.height > monitor->height - 2 * border_width)
-            client->height = monitor->height - 2 * border_width;
+        if (wa.height > monitor->height - 2 * borderWidth)
+            client->height = monitor->height - 2 * borderWidth;
         else
             client->height = wa.height;
 
@@ -1133,8 +1137,8 @@ void manageClient(Window window) {
         client->y = monitor->y + (monitor->height - client->height) / 2;
     }
 
-    if (client->y < monitor->y + bar_height && !client->isFloating)
-        client->y = monitor->y + bar_height;
+    if (client->y < monitor->y + barHeight && !client->isFloating)
+        client->y = monitor->y + barHeight;
 
     if (client->isFloating) {
         if (client->x == 0 && client->y == 0) {
@@ -1151,8 +1155,8 @@ void manageClient(Window window) {
         if (client->y > monitor->y + monitor->height)
             client->y = monitor->y + monitor->height - client->height;
 
-        if (client->y < monitor->y + bar_height)
-            client->y = monitor->y + bar_height;
+        if (client->y < monitor->y + barHeight)
+            client->y = monitor->y + barHeight;
     }
 
     client->next = NULL;
@@ -1167,7 +1171,7 @@ void manageClient(Window window) {
 
     XMoveResizeWindow(display, window, client->x, client->y, client->width, client->height);
 
-    XSetWindowBorderWidth(display, window, border_width);
+    XSetWindowBorderWidth(display, window, borderWidth);
 
     XErrorHandler oldHandler = XSetErrorHandler(xerrorHandler);
 
@@ -1279,7 +1283,7 @@ void configureClient(SClient* client) {
     wc.y            = client->y;
     wc.width        = client->width;
     wc.height       = client->height;
-    wc.border_width = client->isFullscreen ? 0 : border_width;
+    wc.border_width = client->isFullscreen ? 0 : borderWidth;
     wc.sibling      = None;
     wc.stack_mode   = Above;
 
@@ -1294,12 +1298,12 @@ void configureClient(SClient* client) {
     event.xconfigure.y                 = client->y;
     event.xconfigure.width             = client->width;
     event.xconfigure.height            = client->height;
-    event.xconfigure.border_width      = client->isFullscreen ? 0 : border_width;
+    event.xconfigure.border_width      = client->isFullscreen ? 0 : borderWidth;
     event.xconfigure.above             = None;
     event.xconfigure.override_redirect = False;
     XSendEvent(display, client->window, False, StructureNotifyMask, &event);
 
-    XSetWindowBorderWidth(display, client->window, client->isFullscreen ? 0 : border_width);
+    XSetWindowBorderWidth(display, client->window, client->isFullscreen ? 0 : borderWidth);
 
     updateBorders();
     XSync(display, False);
@@ -1313,12 +1317,12 @@ void updateBorders() {
         XColor   color;
         Colormap cmap = DefaultColormap(display, DefaultScreen(display));
 
-        if (XAllocNamedColor(display, cmap, active_border_color, &color, &color))
+        if (XAllocNamedColor(display, cmap, activeBorderColor, &color, &color))
             activeBorder = color.pixel;
         else
             activeBorder = BlackPixel(display, DefaultScreen(display));
 
-        if (XAllocNamedColor(display, cmap, inactive_border_color, &color, &color))
+        if (XAllocNamedColor(display, cmap, inactiveBorderColor, &color, &color))
             inactiveBorder = color.pixel;
         else
             inactiveBorder = BlackPixel(display, DefaultScreen(display));
@@ -1381,10 +1385,10 @@ void updateMonitors() {
         monitors[0].num              = 0;
         monitors[0].currentWorkspace = 0;
         monitors[0].currentLayout    = LAYOUT_TILED;
-        monitors[0].masterCount      = default_master_count;
-        monitors[0].masterFactors    = malloc(workspace_count * sizeof(float));
-        for (int ws = 0; ws < workspace_count; ws++) {
-            monitors[0].masterFactors[ws] = default_master_factor;
+        monitors[0].masterCount      = defaultMasterCount;
+        monitors[0].masterFactors    = malloc(workspaceCount * sizeof(float));
+        for (int ws = 0; ws < workspaceCount; ws++) {
+            monitors[0].masterFactors[ws] = defaultMasterFactor;
         }
     } else {
         monitors = malloc(numMonitors * sizeof(SMonitor));
@@ -1396,10 +1400,10 @@ void updateMonitors() {
             monitors[i].num              = i;
             monitors[i].currentWorkspace = 0;
             monitors[i].currentLayout    = LAYOUT_TILED;
-            monitors[i].masterCount      = default_master_count;
-            monitors[i].masterFactors    = malloc(workspace_count * sizeof(float));
-            for (int ws = 0; ws < workspace_count; ws++) {
-                monitors[i].masterFactors[ws] = default_master_factor;
+            monitors[i].masterCount      = defaultMasterCount;
+            monitors[i].masterFactors    = malloc(workspaceCount * sizeof(float));
+            for (int ws = 0; ws < workspaceCount; ws++) {
+                monitors[i].masterFactors[ws] = defaultMasterFactor;
             }
         }
         XFree(info);
@@ -1415,8 +1419,8 @@ void updateMonitors() {
                 client->monitor = mon->num;
                 client->x       = mon->x + (mon->width - client->width) / 2;
                 client->y       = mon->y + (mon->height - client->height) / 2;
-                if (client->y < mon->y + bar_height)
-                    client->y = mon->y + bar_height;
+                if (client->y < mon->y + barHeight)
+                    client->y = mon->y + barHeight;
             }
             client = client->next;
         }
@@ -1499,7 +1503,7 @@ void switchToWorkspace(const char* arg) {
         return;
 
     int workspace = atoi(arg);
-    if (workspace < 0 || workspace >= workspace_count)
+    if (workspace < 0 || workspace >= workspaceCount)
         return;
 
     SMonitor* monitor = getCurrentMonitor();
@@ -1534,7 +1538,7 @@ void moveClientToWorkspace(const char* arg) {
         return;
 
     int workspace = atoi(arg);
-    if (workspace < 0 || workspace >= workspace_count)
+    if (workspace < 0 || workspace >= workspaceCount)
         return;
 
     SMonitor* currentMon  = &monitors[focused->monitor];
@@ -1575,7 +1579,7 @@ void updateClientVisibility() {
 
     int      hasFullscreen[MAX_MONITORS][100] = {0};
     for (SClient* c = clients; c; c = c->next) {
-        if (c->isFullscreen && c->monitor < MAX_MONITORS && c->workspace < workspace_count)
+        if (c->isFullscreen && c->monitor < MAX_MONITORS && c->workspace < workspaceCount)
             hasFullscreen[c->monitor][c->workspace] = 1;
     }
 
@@ -1774,15 +1778,15 @@ void tileClients(SMonitor* monitor) {
     }
 
     if (visibleCount <= 1)
-        monitor->masterFactors[currentWorkspace] = default_master_factor;
+        monitor->masterFactors[currentWorkspace] = defaultMasterFactor;
 
     float masterFactor = monitor->masterFactors[currentWorkspace];
 
-    int   x               = monitor->x + outer_gap;
-    int   barBottom       = barVisible ? (monitor->y + bar_struts_top + bar_height + bar_border_width * 2) : monitor->y;
-    int   y               = barBottom + outer_gap;
-    int   availableWidth  = monitor->width - (2 * outer_gap);
-    int   availableHeight = monitor->height - (barVisible ? (bar_struts_top + bar_height + bar_border_width * 2) : 0) - (2 * outer_gap);
+    int   x               = monitor->x + outerGap;
+    int   barBottom       = barVisible ? (monitor->y + barStrutsTop + barHeight + barBorderWidth * 2) : monitor->y;
+    int   y               = barBottom + outerGap;
+    int   availableWidth  = monitor->width - (2 * outerGap);
+    int   availableHeight = monitor->height - (barVisible ? (barStrutsTop + barHeight + barBorderWidth * 2) : 0) - (2 * outerGap);
 
     int   masterArea = availableWidth * masterFactor;
     int   stackArea  = availableWidth - masterArea;
@@ -1792,8 +1796,8 @@ void tileClients(SMonitor* monitor) {
 
     if (visibleCount == 1) {
         SClient* client = visibleClients[0];
-        int      width  = availableWidth - 2 * border_width;
-        int      height = availableHeight - 2 * border_width;
+        int      width  = availableWidth - 2 * borderWidth;
+        int      height = availableHeight - 2 * borderWidth;
 
         client->x      = x;
         client->y      = y;
@@ -1823,9 +1827,9 @@ void tileClients(SMonitor* monitor) {
     int masterY = y;
     int stackY  = y;
 
-    int masterWidth = masterArea - inner_gap / 2 - 2 * border_width;
-    int stackWidth  = stackArea - inner_gap / 2 - 2 * border_width;
-    int stackX      = x + masterArea + inner_gap / 2;
+    int masterWidth = masterArea - innerGap / 2 - 2 * borderWidth;
+    int stackWidth  = stackArea - innerGap / 2 - 2 * borderWidth;
+    int stackX      = x + masterArea + innerGap / 2;
 
     for (int i = 0; i < masterCount; i++) {
         SClient* client           = visibleClients[i];
@@ -1833,12 +1837,12 @@ void tileClients(SMonitor* monitor) {
         int      currentHeight    = masterHeight + heightAdjustment;
 
         if (i > 0) {
-            masterY += inner_gap;
-            currentHeight -= inner_gap;
+            masterY += innerGap;
+            currentHeight -= innerGap;
         }
 
         int width  = masterWidth;
-        int height = currentHeight - 2 * border_width;
+        int height = currentHeight - 2 * borderWidth;
 
         client->x      = x;
         client->y      = masterY;
@@ -1857,12 +1861,12 @@ void tileClients(SMonitor* monitor) {
         int      currentHeight    = stackHeight + heightAdjustment;
 
         if (i > 0) {
-            stackY += inner_gap;
-            currentHeight -= inner_gap;
+            stackY += innerGap;
+            currentHeight -= innerGap;
         }
 
         int width  = stackWidth;
-        int height = currentHeight - 2 * border_width;
+        int height = currentHeight - 2 * borderWidth;
 
         client->x      = stackX;
         client->y      = stackY;
@@ -2204,7 +2208,7 @@ void setFullscreen(SClient* client, int fullscreen) {
             XGrabButton(display, Button3, modkey, client->window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None,
                         resizeSECursor);
 
-        XSetWindowBorderWidth(display, client->window, border_width);
+        XSetWindowBorderWidth(display, client->window, borderWidth);
         XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
         configureClient(client);
 
@@ -2381,8 +2385,8 @@ int applyRules(SClient* client) {
         windowTitle = (char*)textprop.value;
     }
 
-    for (size_t i = 0; i < rules_count; i++) {
-        const WindowRule* rule = &rules[i];
+    for (size_t i = 0; i < rulesCount; i++) {
+        const SWindowRule* rule = &rules[i];
 
         if (rule->className && strcmp(rule->className, "*") != 0 && (!className[0] || strcasecmp(rule->className, className) != 0))
             continue;
@@ -2419,8 +2423,8 @@ int applyRules(SClient* client) {
             client->x = mon->x + (mon->width - client->width) / 2;
             client->y = mon->y + (mon->height - client->height) / 2;
 
-            if (client->y < mon->y + bar_height)
-                client->y = mon->y + bar_height;
+            if (client->y < mon->y + barHeight)
+                client->y = mon->y + barHeight;
         }
 
         fprintf(stderr, "Applied rule for window class=%s instance=%s title=%s\n", className, instanceName, windowTitle ? windowTitle : "(null)");

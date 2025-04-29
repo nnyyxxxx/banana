@@ -17,83 +17,83 @@
 #define MAX_KEYS         100
 #define MAX_RULES        50
 
-int                 workspace_count         = 9;
-float               default_master_factor   = 0.55;
-int                 default_master_count    = 1;
-int                 inner_gap               = 15;
-int                 outer_gap               = 20;
-int                 bar_height              = 20;
-char*               bar_font                = NULL;
-int                 max_title_length        = 40;
-int                 show_bar                = 1;
-int                 bar_border_width        = 0;
-int                 bar_struts_top          = 0;
-int                 bar_struts_left         = 0;
-int                 bar_struts_right        = 0;
-char*               active_border_color     = NULL;
-char*               inactive_border_color   = NULL;
-char*               bar_border_color        = NULL;
-char*               bar_background_color    = NULL;
-char*               bar_foreground_color    = NULL;
-char*               bar_active_ws_color     = NULL;
-char*               bar_urgent_ws_color     = NULL;
-char*               bar_active_text_color   = NULL;
-char*               bar_urgent_text_color   = NULL;
-char*               bar_inactive_text_color = NULL;
-char*               bar_status_text_color   = NULL;
-int                 border_width            = 2;
+int                 workspaceCount       = 9;
+float               defaultMasterFactor  = 0.55;
+int                 defaultMasterCount   = 1;
+int                 innerGap             = 15;
+int                 outerGap             = 20;
+int                 barHeight            = 20;
+char*               barFont              = NULL;
+int                 maxTitleLength       = 40;
+int                 showBar              = 1;
+int                 barBorderWidth       = 0;
+int                 barStrutsTop         = 0;
+int                 barStrutsLeft        = 0;
+int                 barStrutsRight       = 0;
+char*               activeBorderColor    = NULL;
+char*               inactiveBorderColor  = NULL;
+char*               barBorderColor       = NULL;
+char*               barBackgroundColor   = NULL;
+char*               barForegroundColor   = NULL;
+char*               barActiveWsColor     = NULL;
+char*               barUrgentWsColor     = NULL;
+char*               barActiveTextColor   = NULL;
+char*               barUrgentTextColor   = NULL;
+char*               barInactiveTextColor = NULL;
+char*               barStatusTextColor   = NULL;
+int                 borderWidth          = 2;
 
-KeyBinding*         keys        = NULL;
-size_t              keys_count  = 0;
-WindowRule*         rules       = NULL;
-size_t              rules_count = 0;
+SKeyBinding*        keys       = NULL;
+size_t              keysCount  = 0;
+SWindowRule*        rules      = NULL;
+size_t              rulesCount = 0;
 
-static FunctionMap  function_map[] = {{"spawn", spawnProgram},
-                                      {"kill", killClient},
-                                      {"quit", quit},
-                                      {"switch_workspace", switchToWorkspace},
-                                      {"move_to_workspace", moveClientToWorkspace},
-                                      {"toggle_floating", toggleFloating},
-                                      {"toggle_fullscreen", toggleFullscreen},
-                                      {"move_window", moveWindowInStack},
-                                      {"focus_window", focusWindowInStack},
-                                      {"adjust_master", adjustMasterFactor},
-                                      {"focus_monitor", focusMonitor},
-                                      {"toggle_bar", toggleBar},
-                                      {NULL, NULL}};
+static SFunctionMap functionMap[] = {{"spawn", spawnProgram},
+                                     {"kill", killClient},
+                                     {"quit", quit},
+                                     {"switch_workspace", switchToWorkspace},
+                                     {"move_to_workspace", moveClientToWorkspace},
+                                     {"toggle_floating", toggleFloating},
+                                     {"toggle_fullscreen", toggleFullscreen},
+                                     {"move_window", moveWindowInStack},
+                                     {"focus_window", focusWindowInStack},
+                                     {"adjust_master", adjustMasterFactor},
+                                     {"focus_monitor", focusMonitor},
+                                     {"toggle_bar", toggleBar},
+                                     {NULL, NULL}};
 
-static ModifierMap  modifier_map[] = {{"alt", Mod1Mask}, {"shift", ShiftMask}, {"control", ControlMask}, {"super", Mod4Mask}, {NULL, 0}};
+static SModifierMap modifierMap[] = {{"alt", Mod1Mask}, {"shift", ShiftMask}, {"control", ControlMask}, {"super", Mod4Mask}, {NULL, 0}};
 
-static void         init_defaults(void);
-static void*        safe_malloc(size_t size);
-static char*        safe_strdup(const char* s);
-static char*        get_config_path(void);
+static void         initDefaults(void);
+static void*        safeMalloc(size_t size);
+static char*        safeStrdup(const char* s);
+static char*        getConfigPath(void);
 static void         trim(char* str);
 static char**       tokenize(char* line, const char* delimiter, int* count);
-static KeySym       get_keysym(const char* key);
-static unsigned int get_modifier(const char* mod);
-static void (*get_function(const char* name))(const char*);
-static int  parse_bind_line(char** tokens, int token_count);
-static int  parse_rule_line(char** tokens, int token_count);
-static int  parse_set_line(char** tokens, int token_count);
-static void free_tokens(char** tokens, int count);
+static KeySym       getKeysym(const char* key);
+static unsigned int getModifier(const char* mod);
+static void (*getFunction(const char* name))(const char*);
+static int  parseBindLine(char** tokens, int tokenCount);
+static int  parseRuleLine(char** tokens, int tokenCount);
+static int  parseSetLine(char** tokens, int tokenCount);
+static void freeTokens(char** tokens, int count);
 
-static void init_defaults(void) {
-    bar_font                = safe_strdup("monospace-12");
-    active_border_color     = safe_strdup("#6275d3");
-    inactive_border_color   = safe_strdup("#6275d3");
-    bar_border_color        = safe_strdup("#000000");
-    bar_background_color    = safe_strdup("#000000");
-    bar_foreground_color    = safe_strdup("#ced4f0");
-    bar_active_ws_color     = safe_strdup("#6275d3");
-    bar_urgent_ws_color     = safe_strdup("#6275d3");
-    bar_active_text_color   = safe_strdup("#000000");
-    bar_urgent_text_color   = safe_strdup("#000000");
-    bar_inactive_text_color = safe_strdup("#ced4f0");
-    bar_status_text_color   = safe_strdup("#ced4f0");
+static void initDefaults(void) {
+    barFont              = safeStrdup("monospace-12");
+    activeBorderColor    = safeStrdup("#6275d3");
+    inactiveBorderColor  = safeStrdup("#6275d3");
+    barBorderColor       = safeStrdup("#000000");
+    barBackgroundColor   = safeStrdup("#000000");
+    barForegroundColor   = safeStrdup("#ced4f0");
+    barActiveWsColor     = safeStrdup("#6275d3");
+    barUrgentWsColor     = safeStrdup("#6275d3");
+    barActiveTextColor   = safeStrdup("#000000");
+    barUrgentTextColor   = safeStrdup("#000000");
+    barInactiveTextColor = safeStrdup("#ced4f0");
+    barStatusTextColor   = safeStrdup("#ced4f0");
 }
 
-static void* safe_malloc(size_t size) {
+static void* safeMalloc(size_t size) {
     void* ptr = malloc(size);
     if (!ptr) {
         fprintf(stderr, "banana: failed to allocate memory\n");
@@ -102,7 +102,7 @@ static void* safe_malloc(size_t size) {
     return ptr;
 }
 
-static char* safe_strdup(const char* s) {
+static char* safeStrdup(const char* s) {
     if (!s)
         return NULL;
     char* result = strdup(s);
@@ -113,14 +113,14 @@ static char* safe_strdup(const char* s) {
     return result;
 }
 
-static char* get_config_path(void) {
+static char* getConfigPath(void) {
     const char* home = getenv("HOME");
     if (!home) {
         fprintf(stderr, "banana: HOME environment variable not set\n");
         return NULL;
     }
 
-    char* path = safe_malloc(strlen(home) + strlen(CONFIG_PATH) + 1);
+    char* path = safeMalloc(strlen(home) + strlen(CONFIG_PATH) + 1);
     sprintf(path, "%s%s", home, CONFIG_PATH);
     return path;
 }
@@ -147,14 +147,14 @@ static char** tokenize(char* line, const char* delimiter, int* count) {
     if (!line || !delimiter || !count)
         return NULL;
 
-    char** tokens = safe_malloc(MAX_TOKEN_LENGTH * sizeof(char*));
+    char** tokens = safeMalloc(MAX_TOKEN_LENGTH * sizeof(char*));
     *count        = 0;
 
     char* saveptr;
     char* token = strtok_r(line, delimiter, &saveptr);
 
     while (token && *count < MAX_TOKEN_LENGTH) {
-        char* trimmed = safe_strdup(token);
+        char* trimmed = safeStrdup(token);
         trim(trimmed);
 
         if (trimmed && *trimmed)
@@ -168,7 +168,7 @@ static char** tokenize(char* line, const char* delimiter, int* count) {
     return tokens;
 }
 
-static KeySym get_keysym(const char* key) {
+static KeySym getKeysym(const char* key) {
     if (!key)
         return NoSymbol;
 
@@ -229,197 +229,195 @@ static KeySym get_keysym(const char* key) {
     return XStringToKeysym(key);
 }
 
-static unsigned int get_modifier(const char* mod) {
+static unsigned int getModifier(const char* mod) {
     if (!mod)
         return 0;
 
     if (strchr(mod, '+')) {
-        char*        mod_copy = safe_strdup(mod);
-        char*        token    = strtok(mod_copy, "+");
-        unsigned int result   = 0;
+        char*        modCopy = safeStrdup(mod);
+        char*        token   = strtok(modCopy, "+");
+        unsigned int result  = 0;
 
         while (token) {
-            for (int i = 0; modifier_map[i].name; i++) {
-                if (strcasecmp(token, modifier_map[i].name) == 0) {
-                    result |= modifier_map[i].mask;
+            for (int i = 0; modifierMap[i].name; i++) {
+                if (strcasecmp(token, modifierMap[i].name) == 0) {
+                    result |= modifierMap[i].mask;
                     break;
                 }
             }
             token = strtok(NULL, "+");
         }
 
-        free(mod_copy);
+        free(modCopy);
         return result;
     }
 
-    for (int i = 0; modifier_map[i].name; i++) {
-        if (strcasecmp(mod, modifier_map[i].name) == 0)
-            return modifier_map[i].mask;
+    for (int i = 0; modifierMap[i].name; i++) {
+        if (strcasecmp(mod, modifierMap[i].name) == 0)
+            return modifierMap[i].mask;
     }
 
     return 0;
 }
 
-static void (*get_function(const char* name))(const char*) {
+static void (*getFunction(const char* name))(const char*) {
     if (!name)
         return NULL;
 
-    for (int i = 0; function_map[i].name; i++) {
-        if (strcasecmp(name, function_map[i].name) == 0)
-            return function_map[i].func;
+    for (int i = 0; functionMap[i].name; i++) {
+        if (strcasecmp(name, functionMap[i].name) == 0)
+            return functionMap[i].func;
     }
 
     return NULL;
 }
 
-static int parse_bind_line(char** tokens, int token_count) {
-    if (token_count < 4) {
+static int parseBindLine(char** tokens, int tokenCount) {
+    if (tokenCount < 4) {
         fprintf(stderr, "banana: invalid bind line, need at least 4 tokens\n");
         return 0;
     }
 
-    const char* mod_str  = tokens[1];
-    const char* key_str  = tokens[2];
-    const char* func_str = tokens[3];
-    const char* arg_str  = (token_count > 4) ? tokens[4] : NULL;
+    const char* modStr  = tokens[1];
+    const char* keyStr  = tokens[2];
+    const char* funcStr = tokens[3];
+    const char* argStr  = (tokenCount > 4) ? tokens[4] : NULL;
 
-    KeySym      keysym = get_keysym(key_str);
+    KeySym      keysym = getKeysym(keyStr);
     if (keysym == NoSymbol) {
-        fprintf(stderr, "banana: invalid key: %s\n", key_str);
+        fprintf(stderr, "banana: invalid key: %s\n", keyStr);
         return 0;
     }
 
-    unsigned int mod = get_modifier(mod_str);
+    unsigned int mod = getModifier(modStr);
     if (!mod) {
-        fprintf(stderr, "banana: unknown modifier: %s\n", mod_str);
+        fprintf(stderr, "banana: unknown modifier: %s\n", modStr);
         return 0;
     }
 
-    void (*func)(const char*) = get_function(func_str);
+    void (*func)(const char*) = getFunction(funcStr);
     if (!func) {
-        fprintf(stderr, "banana: unknown function: %s\n", func_str);
+        fprintf(stderr, "banana: unknown function: %s\n", funcStr);
         return 0;
     }
 
-    if (keys_count >= MAX_KEYS) {
+    if (keysCount >= MAX_KEYS) {
         fprintf(stderr, "banana: too many key bindings (max: %d)\n", MAX_KEYS);
         return 0;
     }
 
     if (!keys)
-        keys = safe_malloc(MAX_KEYS * sizeof(KeyBinding));
+        keys = safeMalloc(MAX_KEYS * sizeof(SKeyBinding));
 
-    keys[keys_count].mod    = mod;
-    keys[keys_count].keysym = keysym;
-    keys[keys_count].func   = func;
-    keys[keys_count].arg    = arg_str ? safe_strdup(arg_str) : NULL;
+    keys[keysCount].mod    = mod;
+    keys[keysCount].keysym = keysym;
+    keys[keysCount].func   = func;
+    keys[keysCount].arg    = argStr ? safeStrdup(argStr) : NULL;
 
-    keys_count++;
+    keysCount++;
     return 1;
 }
 
-static int parse_rule_line(char** tokens, int token_count) {
-    if (token_count < 3) {
+static int parseRuleLine(char** tokens, int tokenCount) {
+    if (tokenCount < 3) {
         fprintf(stderr, "banana: invalid rule line, need at least 3 tokens\n");
         return 0;
     }
 
-    if (rules_count >= MAX_RULES) {
+    if (rulesCount >= MAX_RULES) {
         fprintf(stderr, "banana: too many window rules (max: %d)\n", MAX_RULES);
         return 0;
     }
 
     if (!rules)
-        rules = safe_malloc(MAX_RULES * sizeof(WindowRule));
+        rules = safeMalloc(MAX_RULES * sizeof(SWindowRule));
 
-    rules[rules_count].className    = safe_strdup(tokens[1]);
-    rules[rules_count].instanceName = (token_count > 2 && strcmp(tokens[2], "*") != 0) ? safe_strdup(tokens[2]) : NULL;
-    rules[rules_count].title        = (token_count > 3 && strcmp(tokens[3], "*") != 0) ? safe_strdup(tokens[3]) : NULL;
-    rules[rules_count].isFloating   = (token_count > 4) ? atoi(tokens[4]) : -1;
-    rules[rules_count].workspace    = (token_count > 5) ? atoi(tokens[5]) : -1;
-    rules[rules_count].monitor      = (token_count > 6) ? atoi(tokens[6]) : -1;
-    rules[rules_count].width        = (token_count > 7) ? atoi(tokens[7]) : -1;
-    rules[rules_count].height       = (token_count > 8) ? atoi(tokens[8]) : -1;
+    rules[rulesCount].className    = safeStrdup(tokens[1]);
+    rules[rulesCount].instanceName = (tokenCount > 2 && strcmp(tokens[2], "*") != 0) ? safeStrdup(tokens[2]) : NULL;
+    rules[rulesCount].title        = (tokenCount > 3 && strcmp(tokens[3], "*") != 0) ? safeStrdup(tokens[3]) : NULL;
+    rules[rulesCount].isFloating   = (tokenCount > 4) ? atoi(tokens[4]) : -1;
+    rules[rulesCount].workspace    = (tokenCount > 5) ? atoi(tokens[5]) : -1;
+    rules[rulesCount].monitor      = (tokenCount > 6) ? atoi(tokens[6]) : -1;
+    rules[rulesCount].width        = (tokenCount > 7) ? atoi(tokens[7]) : -1;
+    rules[rulesCount].height       = (tokenCount > 8) ? atoi(tokens[8]) : -1;
 
-    rules_count++;
+    rulesCount++;
     return 1;
 }
 
-static int parse_set_line(char** tokens, int token_count) {
-    if (token_count < 3) {
-        fprintf(stderr, "banana: invalid set line, need 3 tokens but got %d\n", token_count);
+static int parseSetLine(char** tokens, int tokenCount) {
+    if (tokenCount < 3) {
+        fprintf(stderr, "banana: invalid set line, need 3 tokens but got %d\n", tokenCount);
         return 0;
     }
 
     const char* var = tokens[1];
     const char* val = tokens[2];
 
-    fprintf(stderr, "Setting %s to %s (token_count=%d)\n", var, val, token_count);
+    fprintf(stderr, "Setting %s to %s (tokenCount=%d)\n", var, val, tokenCount);
 
     if (strcmp(var, "workspace_count") == 0)
-        workspace_count = atoi(val);
+        workspaceCount = atoi(val);
     else if (strcmp(var, "default_master_count") == 0)
-        default_master_count = atoi(val);
-    else if (strcmp(var, "inner_gap") == 0)
-        inner_gap = atoi(val);
+        defaultMasterCount = atoi(val);
+    else if (strcmp(var, "innerGap") == 0)
+        innerGap = atoi(val);
     else if (strcmp(var, "outer_gap") == 0)
-        outer_gap = atoi(val);
+        outerGap = atoi(val);
     else if (strcmp(var, "bar_height") == 0)
-        bar_height = atoi(val);
+        barHeight = atoi(val);
     else if (strcmp(var, "max_title_length") == 0)
-        max_title_length = atoi(val);
+        maxTitleLength = atoi(val);
     else if (strcmp(var, "show_bar") == 0)
-        show_bar = atoi(val);
+        showBar = atoi(val);
     else if (strcmp(var, "bar_border_width") == 0)
-        bar_border_width = atoi(val);
+        barBorderWidth = atoi(val);
     else if (strcmp(var, "bar_struts_top") == 0)
-        bar_struts_top = atoi(val);
+        barStrutsTop = atoi(val);
     else if (strcmp(var, "bar_struts_left") == 0)
-        bar_struts_left = atoi(val);
+        barStrutsLeft = atoi(val);
     else if (strcmp(var, "bar_struts_right") == 0)
-        bar_struts_right = atoi(val);
+        barStrutsRight = atoi(val);
     else if (strcmp(var, "border_width") == 0)
-        border_width = atoi(val);
-
+        borderWidth = atoi(val);
     else if (strcmp(var, "default_master_factor") == 0)
-        default_master_factor = atof(val);
-
+        defaultMasterFactor = atof(val);
     else if (strcmp(var, "bar_font") == 0) {
-        free(bar_font);
-        bar_font = safe_strdup(val);
+        free(barFont);
+        barFont = safeStrdup(val);
     } else if (strcmp(var, "active_border_color") == 0) {
-        free(active_border_color);
-        active_border_color = safe_strdup(val);
-    } else if (strcmp(var, "inactive_border_color") == 0) {
-        free(inactive_border_color);
-        inactive_border_color = safe_strdup(val);
+        free(activeBorderColor);
+        activeBorderColor = safeStrdup(val);
+    } else if (strcmp(var, "inactiveBorderColor") == 0) {
+        free(inactiveBorderColor);
+        inactiveBorderColor = safeStrdup(val);
     } else if (strcmp(var, "bar_border_color") == 0) {
-        free(bar_border_color);
-        bar_border_color = safe_strdup(val);
+        free(barBorderColor);
+        barBorderColor = safeStrdup(val);
     } else if (strcmp(var, "bar_background_color") == 0) {
-        free(bar_background_color);
-        bar_background_color = safe_strdup(val);
+        free(barBackgroundColor);
+        barBackgroundColor = safeStrdup(val);
     } else if (strcmp(var, "bar_foreground_color") == 0) {
-        free(bar_foreground_color);
-        bar_foreground_color = safe_strdup(val);
+        free(barForegroundColor);
+        barForegroundColor = safeStrdup(val);
     } else if (strcmp(var, "bar_active_ws_color") == 0) {
-        free(bar_active_ws_color);
-        bar_active_ws_color = safe_strdup(val);
+        free(barActiveWsColor);
+        barActiveWsColor = safeStrdup(val);
     } else if (strcmp(var, "bar_urgent_ws_color") == 0) {
-        free(bar_urgent_ws_color);
-        bar_urgent_ws_color = safe_strdup(val);
+        free(barUrgentWsColor);
+        barUrgentWsColor = safeStrdup(val);
     } else if (strcmp(var, "bar_active_text_color") == 0) {
-        free(bar_active_text_color);
-        bar_active_text_color = safe_strdup(val);
+        free(barActiveTextColor);
+        barActiveTextColor = safeStrdup(val);
     } else if (strcmp(var, "bar_urgent_text_color") == 0) {
-        free(bar_urgent_text_color);
-        bar_urgent_text_color = safe_strdup(val);
+        free(barUrgentTextColor);
+        barUrgentTextColor = safeStrdup(val);
     } else if (strcmp(var, "bar_inactive_text_color") == 0) {
-        free(bar_inactive_text_color);
-        bar_inactive_text_color = safe_strdup(val);
+        free(barInactiveTextColor);
+        barInactiveTextColor = safeStrdup(val);
     } else if (strcmp(var, "bar_status_text_color") == 0) {
-        free(bar_status_text_color);
-        bar_status_text_color = safe_strdup(val);
+        free(barStatusTextColor);
+        barStatusTextColor = safeStrdup(val);
     } else {
         fprintf(stderr, "banana: unknown variable: %s\n", var);
         return 0;
@@ -428,7 +426,7 @@ static int parse_set_line(char** tokens, int token_count) {
     return 1;
 }
 
-static void free_tokens(char** tokens, int count) {
+static void freeTokens(char** tokens, int count) {
     if (!tokens)
         return;
 
@@ -439,32 +437,32 @@ static void free_tokens(char** tokens, int count) {
     free(tokens);
 }
 
-void create_default_config(void) {
-    char* config_path = get_config_path();
-    if (!config_path)
+void createDefaultConfig(void) {
+    char* configPath = getConfigPath();
+    if (!configPath)
         return;
 
-    char* dir_path   = safe_strdup(config_path);
-    char* last_slash = strrchr(dir_path, '/');
-    if (last_slash) {
-        *last_slash = '\0';
+    char* dirPath   = safeStrdup(configPath);
+    char* lastSlash = strrchr(dirPath, '/');
+    if (lastSlash) {
+        *lastSlash = '\0';
 
         struct stat st;
-        if (stat(dir_path, &st) == -1) {
-            if (mkdir(dir_path, 0755) == -1) {
+        if (stat(dirPath, &st) == -1) {
+            if (mkdir(dirPath, 0755) == -1) {
                 fprintf(stderr, "banana: failed to create config directory: %s\n", strerror(errno));
-                free(dir_path);
-                free(config_path);
+                free(dirPath);
+                free(configPath);
                 return;
             }
         }
     }
-    free(dir_path);
+    free(dirPath);
 
-    FILE* fp = fopen(config_path, "w");
+    FILE* fp = fopen(configPath, "w");
     if (!fp) {
         fprintf(stderr, "banana: failed to create config file: %s\n", strerror(errno));
-        free(config_path);
+        free(configPath);
         return;
     }
 
@@ -472,7 +470,7 @@ void create_default_config(void) {
     fprintf(fp, "set > workspace_count > 9\n");
     fprintf(fp, "set > default_master_factor > 0.55\n");
     fprintf(fp, "set > default_master_count > 1\n");
-    fprintf(fp, "set > inner_gap > 15\n");
+    fprintf(fp, "set > innerGap > 15\n");
     fprintf(fp, "set > outer_gap > 20\n");
     fprintf(fp, "set > border_width > 2\n\n");
 
@@ -488,7 +486,7 @@ void create_default_config(void) {
 
     fprintf(fp, "# Colors\n");
     fprintf(fp, "set > active_border_color > #6275d3\n");
-    fprintf(fp, "set > inactive_border_color > #6275d3\n");
+    fprintf(fp, "set > inactiveBorderColor > #6275d3\n");
     fprintf(fp, "set > bar_border_color > #000000\n");
     fprintf(fp, "set > bar_background_color > #000000\n");
     fprintf(fp, "set > bar_foreground_color > #ced4f0\n");
@@ -547,69 +545,69 @@ void create_default_config(void) {
     fprintf(fp, "rule > vesktop > * > * > -1 > 0 > 1 > -1 > -1\n");
 
     fclose(fp);
-    fprintf(stderr, "banana: created default config file at %s\n", config_path);
-    free(config_path);
+    fprintf(stderr, "banana: created default config file at %s\n", configPath);
+    free(configPath);
 }
 
-int load_config(void) {
-    init_defaults();
+int loadConfig(void) {
+    initDefaults();
 
     free(keys);
-    keys       = NULL;
-    keys_count = 0;
+    keys      = NULL;
+    keysCount = 0;
 
-    for (size_t i = 0; i < rules_count; i++) {
+    for (size_t i = 0; i < rulesCount; i++) {
         free((char*)rules[i].className);
         free((char*)rules[i].instanceName);
         free((char*)rules[i].title);
     }
     free(rules);
-    rules       = NULL;
-    rules_count = 0;
+    rules      = NULL;
+    rulesCount = 0;
 
-    char* config_path = get_config_path();
-    if (!config_path)
+    char* configPath = getConfigPath();
+    if (!configPath)
         return 0;
 
-    FILE* fp = fopen(config_path, "r");
+    FILE* fp = fopen(configPath, "r");
     if (!fp) {
-        fprintf(stderr, "banana: config file not found at %s, creating default\n", config_path);
-        free(config_path);
-        create_default_config();
+        fprintf(stderr, "banana: config file not found at %s, creating default\n", configPath);
+        free(configPath);
+        createDefaultConfig();
 
-        config_path = get_config_path();
-        if (!config_path)
+        configPath = getConfigPath();
+        if (!configPath)
             return 0;
 
-        fp = fopen(config_path, "r");
+        fp = fopen(configPath, "r");
         if (!fp) {
             fprintf(stderr, "banana: failed to open config file: %s\n", strerror(errno));
-            free(config_path);
+            free(configPath);
             return 0;
         }
     }
 
-    free(config_path);
+    free(configPath);
 
     char line[MAX_LINE_LENGTH];
-    char original_line[MAX_LINE_LENGTH];
-    int  line_num = 0;
+    char originalLine[MAX_LINE_LENGTH];
+    int  lineNum = 0;
 
     while (fgets(line, sizeof(line), fp)) {
-        line_num++;
+        lineNum++;
 
-        strcpy(original_line, line);
+        strcpy(originalLine, line);
 
         if (line[0] == '#' || line[0] == '\n' || line[0] == '\r')
             continue;
 
-        char* comment       = NULL;
-        int   in_color_code = 0;
+        char* comment     = NULL;
+        int   inColorCode = 0;
 
         for (char* p = line; *p; p++) {
             if (*p == '#' && isxdigit((unsigned char)*(p + 1)))
                 continue;
-            if (*p == '#' && !in_color_code) {
+            if (*p == '#' && !inColorCode) {
                 comment = p;
                 break;
             }
@@ -622,60 +620,60 @@ int load_config(void) {
         if (line[0] == '\0')
             continue;
 
-        fprintf(stderr, "Line %d: '%s' (original: '%s')\n", line_num, line, original_line);
+        fprintf(stderr, "Line %d: '%s' (original: '%s')\n", lineNum, line, originalLine);
 
-        int    token_count = 0;
-        char** tokens      = tokenize(line, ">", &token_count);
+        int    tokenCount = 0;
+        char** tokens     = tokenize(line, ">", &tokenCount);
 
-        fprintf(stderr, "  Tokenized into %d tokens: ", token_count);
-        for (int i = 0; i < token_count; i++) {
-            fprintf(stderr, "'%s'%s", tokens[i], (i < token_count - 1) ? ", " : "\n");
+        fprintf(stderr, "  Tokenized into %d tokens: ", tokenCount);
+        for (int i = 0; i < tokenCount; i++) {
+            fprintf(stderr, "'%s'%s", tokens[i], (i < tokenCount - 1) ? ", " : "\n");
         }
 
-        if (token_count < 2) {
-            fprintf(stderr, "banana: line %d: invalid format\n", line_num);
-            free_tokens(tokens, token_count);
+        if (tokenCount < 2) {
+            fprintf(stderr, "banana: line %d: invalid format\n", lineNum);
+            freeTokens(tokens, tokenCount);
             continue;
         }
 
         if (strcasecmp(tokens[0], "bind") == 0)
-            parse_bind_line(tokens, token_count);
+            parseBindLine(tokens, tokenCount);
         else if (strcasecmp(tokens[0], "rule") == 0)
-            parse_rule_line(tokens, token_count);
+            parseRuleLine(tokens, tokenCount);
         else if (strcasecmp(tokens[0], "set") == 0)
-            parse_set_line(tokens, token_count);
+            parseSetLine(tokens, tokenCount);
         else
-            fprintf(stderr, "banana: line %d: unknown directive: %s\n", line_num, tokens[0]);
+            fprintf(stderr, "banana: line %d: unknown directive: %s\n", lineNum, tokens[0]);
 
-        free_tokens(tokens, token_count);
+        freeTokens(tokens, tokenCount);
     }
 
     fclose(fp);
 
-    fprintf(stderr, "banana: loaded %zu key bindings and %zu window rules\n", keys_count, rules_count);
+    fprintf(stderr, "banana: loaded %zu key bindings and %zu window rules\n", keysCount, rulesCount);
     return 1;
 }
 
-void free_config(void) {
-    free(bar_font);
-    free(active_border_color);
-    free(inactive_border_color);
-    free(bar_border_color);
-    free(bar_background_color);
-    free(bar_foreground_color);
-    free(bar_active_ws_color);
-    free(bar_urgent_ws_color);
-    free(bar_active_text_color);
-    free(bar_urgent_text_color);
-    free(bar_inactive_text_color);
-    free(bar_status_text_color);
+void freeConfig(void) {
+    free(barFont);
+    free(activeBorderColor);
+    free(inactiveBorderColor);
+    free(barBorderColor);
+    free(barBackgroundColor);
+    free(barForegroundColor);
+    free(barActiveWsColor);
+    free(barUrgentWsColor);
+    free(barActiveTextColor);
+    free(barUrgentTextColor);
+    free(barInactiveTextColor);
+    free(barStatusTextColor);
 
-    for (size_t i = 0; i < keys_count; i++) {
+    for (size_t i = 0; i < keysCount; i++) {
         free((char*)keys[i].arg);
     }
     free(keys);
 
-    for (size_t i = 0; i < rules_count; i++) {
+    for (size_t i = 0; i < rulesCount; i++) {
         free((char*)rules[i].className);
         free((char*)rules[i].instanceName);
         free((char*)rules[i].title);
