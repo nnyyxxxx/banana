@@ -11,94 +11,86 @@
 
 #include "config.h"
 
-#define CONFIG_PATH "/.config/banana/banana.conf"
-#define MAX_LINE_LENGTH 1024
+#define CONFIG_PATH      "/.config/banana/banana.conf"
+#define MAX_LINE_LENGTH  1024
 #define MAX_TOKEN_LENGTH 128
-#define MAX_KEYS 100
-#define MAX_RULES 50
+#define MAX_KEYS         100
+#define MAX_RULES        50
 
-int          workspace_count = 9;
-float        default_master_factor = 0.55;
-int          default_master_count = 1;
-int          inner_gap = 15;
-int          outer_gap = 20;
-int          bar_height = 20;
-char*        bar_font = NULL;
-int          max_title_length = 40;
-int          show_bar = 1;
-int          bar_border_width = 0;
-int          bar_struts_top = 0;
-int          bar_struts_left = 0;
-int          bar_struts_right = 0;
-char*        active_border_color = NULL;
-char*        inactive_border_color = NULL;
-char*        bar_border_color = NULL;
-char*        bar_background_color = NULL;
-char*        bar_foreground_color = NULL;
-char*        bar_active_ws_color = NULL;
-char*        bar_urgent_ws_color = NULL;
-char*        bar_active_text_color = NULL;
-char*        bar_urgent_text_color = NULL;
-char*        bar_inactive_text_color = NULL;
-char*        bar_status_text_color = NULL;
-int          border_width = 2;
+int                 workspace_count         = 9;
+float               default_master_factor   = 0.55;
+int                 default_master_count    = 1;
+int                 inner_gap               = 15;
+int                 outer_gap               = 20;
+int                 bar_height              = 20;
+char*               bar_font                = NULL;
+int                 max_title_length        = 40;
+int                 show_bar                = 1;
+int                 bar_border_width        = 0;
+int                 bar_struts_top          = 0;
+int                 bar_struts_left         = 0;
+int                 bar_struts_right        = 0;
+char*               active_border_color     = NULL;
+char*               inactive_border_color   = NULL;
+char*               bar_border_color        = NULL;
+char*               bar_background_color    = NULL;
+char*               bar_foreground_color    = NULL;
+char*               bar_active_ws_color     = NULL;
+char*               bar_urgent_ws_color     = NULL;
+char*               bar_active_text_color   = NULL;
+char*               bar_urgent_text_color   = NULL;
+char*               bar_inactive_text_color = NULL;
+char*               bar_status_text_color   = NULL;
+int                 border_width            = 2;
 
-KeyBinding*  keys = NULL;
-size_t       keys_count = 0;
-WindowRule*  rules = NULL;
-size_t       rules_count = 0;
+KeyBinding*         keys        = NULL;
+size_t              keys_count  = 0;
+WindowRule*         rules       = NULL;
+size_t              rules_count = 0;
 
-static FunctionMap function_map[] = {
-    {"spawn", spawnProgram},
-    {"kill", killClient},
-    {"quit", quit},
-    {"switch_workspace", switchToWorkspace},
-    {"move_to_workspace", moveClientToWorkspace},
-    {"toggle_floating", toggleFloating},
-    {"toggle_fullscreen", toggleFullscreen},
-    {"move_window", moveWindowInStack},
-    {"focus_window", focusWindowInStack},
-    {"adjust_master", adjustMasterFactor},
-    {"focus_monitor", focusMonitor},
-    {"toggle_bar", toggleBar},
-    {NULL, NULL}
-};
+static FunctionMap  function_map[] = {{"spawn", spawnProgram},
+                                      {"kill", killClient},
+                                      {"quit", quit},
+                                      {"switch_workspace", switchToWorkspace},
+                                      {"move_to_workspace", moveClientToWorkspace},
+                                      {"toggle_floating", toggleFloating},
+                                      {"toggle_fullscreen", toggleFullscreen},
+                                      {"move_window", moveWindowInStack},
+                                      {"focus_window", focusWindowInStack},
+                                      {"adjust_master", adjustMasterFactor},
+                                      {"focus_monitor", focusMonitor},
+                                      {"toggle_bar", toggleBar},
+                                      {NULL, NULL}};
 
-static ModifierMap modifier_map[] = {
-    {"alt", Mod1Mask},
-    {"shift", ShiftMask},
-    {"control", ControlMask},
-    {"super", Mod4Mask},
-    {NULL, 0}
-};
+static ModifierMap  modifier_map[] = {{"alt", Mod1Mask}, {"shift", ShiftMask}, {"control", ControlMask}, {"super", Mod4Mask}, {NULL, 0}};
 
-static void init_defaults(void);
-static void* safe_malloc(size_t size);
-static char* safe_strdup(const char* s);
-static char* get_config_path(void);
-static void trim(char* str);
-static char** tokenize(char* line, const char* delimiter, int* count);
-static KeySym get_keysym(const char* key);
+static void         init_defaults(void);
+static void*        safe_malloc(size_t size);
+static char*        safe_strdup(const char* s);
+static char*        get_config_path(void);
+static void         trim(char* str);
+static char**       tokenize(char* line, const char* delimiter, int* count);
+static KeySym       get_keysym(const char* key);
 static unsigned int get_modifier(const char* mod);
 static void (*get_function(const char* name))(const char*);
-static int parse_bind_line(char** tokens, int token_count);
-static int parse_rule_line(char** tokens, int token_count);
-static int parse_set_line(char** tokens, int token_count);
+static int  parse_bind_line(char** tokens, int token_count);
+static int  parse_rule_line(char** tokens, int token_count);
+static int  parse_set_line(char** tokens, int token_count);
 static void free_tokens(char** tokens, int count);
 
 static void init_defaults(void) {
-    bar_font = safe_strdup("monospace-12");
-    active_border_color = safe_strdup("#6275d3");
-    inactive_border_color = safe_strdup("#6275d3");
-    bar_border_color = safe_strdup("#000000");
-    bar_background_color = safe_strdup("#000000");
-    bar_foreground_color = safe_strdup("#ced4f0");
-    bar_active_ws_color = safe_strdup("#6275d3");
-    bar_urgent_ws_color = safe_strdup("#6275d3");
-    bar_active_text_color = safe_strdup("#000000");
-    bar_urgent_text_color = safe_strdup("#000000");
+    bar_font                = safe_strdup("monospace-12");
+    active_border_color     = safe_strdup("#6275d3");
+    inactive_border_color   = safe_strdup("#6275d3");
+    bar_border_color        = safe_strdup("#000000");
+    bar_background_color    = safe_strdup("#000000");
+    bar_foreground_color    = safe_strdup("#ced4f0");
+    bar_active_ws_color     = safe_strdup("#6275d3");
+    bar_urgent_ws_color     = safe_strdup("#6275d3");
+    bar_active_text_color   = safe_strdup("#000000");
+    bar_urgent_text_color   = safe_strdup("#000000");
     bar_inactive_text_color = safe_strdup("#ced4f0");
-    bar_status_text_color = safe_strdup("#ced4f0");
+    bar_status_text_color   = safe_strdup("#ced4f0");
 }
 
 static void* safe_malloc(size_t size) {
@@ -111,7 +103,8 @@ static void* safe_malloc(size_t size) {
 }
 
 static char* safe_strdup(const char* s) {
-    if (!s) return NULL;
+    if (!s)
+        return NULL;
     char* result = strdup(s);
     if (!result) {
         fprintf(stderr, "banana: failed to allocate memory for string\n");
@@ -133,25 +126,29 @@ static char* get_config_path(void) {
 }
 
 static void trim(char* str) {
-    if (!str) return;
+    if (!str)
+        return;
 
     char* start = str;
-    while (isspace((unsigned char)*start)) start++;
+    while (isspace((unsigned char)*start))
+        start++;
 
     if (start != str)
         memmove(str, start, strlen(start) + 1);
 
     char* end = str + strlen(str) - 1;
-    while (end > str && isspace((unsigned char)*end)) end--;
+    while (end > str && isspace((unsigned char)*end))
+        end--;
 
     *(end + 1) = '\0';
 }
 
 static char** tokenize(char* line, const char* delimiter, int* count) {
-    if (!line || !delimiter || !count) return NULL;
+    if (!line || !delimiter || !count)
+        return NULL;
 
     char** tokens = safe_malloc(MAX_TOKEN_LENGTH * sizeof(char*));
-    *count = 0;
+    *count        = 0;
 
     char* saveptr;
     char* token = strtok_r(line, delimiter, &saveptr);
@@ -172,7 +169,8 @@ static char** tokenize(char* line, const char* delimiter, int* count) {
 }
 
 static KeySym get_keysym(const char* key) {
-    if (!key) return NoSymbol;
+    if (!key)
+        return NoSymbol;
 
     if (strlen(key) == 1) {
         if (key[0] >= 'a' && key[0] <= 'z')
@@ -181,41 +179,64 @@ static KeySym get_keysym(const char* key) {
         return XStringToKeysym(key);
     }
 
-    if (strcasecmp(key, "escape") == 0) return XK_Escape;
-    if (strcasecmp(key, "return") == 0) return XK_Return;
-    if (strcasecmp(key, "enter") == 0) return XK_Return;
-    if (strcasecmp(key, "tab") == 0) return XK_Tab;
-    if (strcasecmp(key, "space") == 0) return XK_space;
-    if (strcasecmp(key, "backspace") == 0) return XK_BackSpace;
+    if (strcasecmp(key, "escape") == 0)
+        return XK_Escape;
+    if (strcasecmp(key, "return") == 0)
+        return XK_Return;
+    if (strcasecmp(key, "enter") == 0)
+        return XK_Return;
+    if (strcasecmp(key, "tab") == 0)
+        return XK_Tab;
+    if (strcasecmp(key, "space") == 0)
+        return XK_space;
+    if (strcasecmp(key, "backspace") == 0)
+        return XK_BackSpace;
 
-    if (strcasecmp(key, "f1") == 0) return XK_F1;
-    if (strcasecmp(key, "f2") == 0) return XK_F2;
-    if (strcasecmp(key, "f3") == 0) return XK_F3;
-    if (strcasecmp(key, "f4") == 0) return XK_F4;
-    if (strcasecmp(key, "f5") == 0) return XK_F5;
-    if (strcasecmp(key, "f6") == 0) return XK_F6;
-    if (strcasecmp(key, "f7") == 0) return XK_F7;
-    if (strcasecmp(key, "f8") == 0) return XK_F8;
-    if (strcasecmp(key, "f9") == 0) return XK_F9;
-    if (strcasecmp(key, "f10") == 0) return XK_F10;
-    if (strcasecmp(key, "f11") == 0) return XK_F11;
-    if (strcasecmp(key, "f12") == 0) return XK_F12;
+    if (strcasecmp(key, "f1") == 0)
+        return XK_F1;
+    if (strcasecmp(key, "f2") == 0)
+        return XK_F2;
+    if (strcasecmp(key, "f3") == 0)
+        return XK_F3;
+    if (strcasecmp(key, "f4") == 0)
+        return XK_F4;
+    if (strcasecmp(key, "f5") == 0)
+        return XK_F5;
+    if (strcasecmp(key, "f6") == 0)
+        return XK_F6;
+    if (strcasecmp(key, "f7") == 0)
+        return XK_F7;
+    if (strcasecmp(key, "f8") == 0)
+        return XK_F8;
+    if (strcasecmp(key, "f9") == 0)
+        return XK_F9;
+    if (strcasecmp(key, "f10") == 0)
+        return XK_F10;
+    if (strcasecmp(key, "f11") == 0)
+        return XK_F11;
+    if (strcasecmp(key, "f12") == 0)
+        return XK_F12;
 
-    if (strcasecmp(key, "up") == 0) return XK_Up;
-    if (strcasecmp(key, "down") == 0) return XK_Down;
-    if (strcasecmp(key, "left") == 0) return XK_Left;
-    if (strcasecmp(key, "right") == 0) return XK_Right;
+    if (strcasecmp(key, "up") == 0)
+        return XK_Up;
+    if (strcasecmp(key, "down") == 0)
+        return XK_Down;
+    if (strcasecmp(key, "left") == 0)
+        return XK_Left;
+    if (strcasecmp(key, "right") == 0)
+        return XK_Right;
 
     return XStringToKeysym(key);
 }
 
 static unsigned int get_modifier(const char* mod) {
-    if (!mod) return 0;
+    if (!mod)
+        return 0;
 
     if (strchr(mod, '+')) {
-        char* mod_copy = safe_strdup(mod);
-        char* token = strtok(mod_copy, "+");
-        unsigned int result = 0;
+        char*        mod_copy = safe_strdup(mod);
+        char*        token    = strtok(mod_copy, "+");
+        unsigned int result   = 0;
 
         while (token) {
             for (int i = 0; modifier_map[i].name; i++) {
@@ -240,7 +261,8 @@ static unsigned int get_modifier(const char* mod) {
 }
 
 static void (*get_function(const char* name))(const char*) {
-    if (!name) return NULL;
+    if (!name)
+        return NULL;
 
     for (int i = 0; function_map[i].name; i++) {
         if (strcasecmp(name, function_map[i].name) == 0)
@@ -256,12 +278,12 @@ static int parse_bind_line(char** tokens, int token_count) {
         return 0;
     }
 
-    const char* mod_str = tokens[1];
-    const char* key_str = tokens[2];
+    const char* mod_str  = tokens[1];
+    const char* key_str  = tokens[2];
     const char* func_str = tokens[3];
-    const char* arg_str = (token_count > 4) ? tokens[4] : NULL;
+    const char* arg_str  = (token_count > 4) ? tokens[4] : NULL;
 
-    KeySym keysym = get_keysym(key_str);
+    KeySym      keysym = get_keysym(key_str);
     if (keysym == NoSymbol) {
         fprintf(stderr, "banana: invalid key: %s\n", key_str);
         return 0;
@@ -287,10 +309,10 @@ static int parse_bind_line(char** tokens, int token_count) {
     if (!keys)
         keys = safe_malloc(MAX_KEYS * sizeof(KeyBinding));
 
-    keys[keys_count].mod = mod;
+    keys[keys_count].mod    = mod;
     keys[keys_count].keysym = keysym;
-    keys[keys_count].func = func;
-    keys[keys_count].arg = arg_str ? safe_strdup(arg_str) : NULL;
+    keys[keys_count].func   = func;
+    keys[keys_count].arg    = arg_str ? safe_strdup(arg_str) : NULL;
 
     keys_count++;
     return 1;
@@ -310,14 +332,14 @@ static int parse_rule_line(char** tokens, int token_count) {
     if (!rules)
         rules = safe_malloc(MAX_RULES * sizeof(WindowRule));
 
-    rules[rules_count].className = safe_strdup(tokens[1]);
+    rules[rules_count].className    = safe_strdup(tokens[1]);
     rules[rules_count].instanceName = (token_count > 2 && strcmp(tokens[2], "*") != 0) ? safe_strdup(tokens[2]) : NULL;
-    rules[rules_count].title = (token_count > 3 && strcmp(tokens[3], "*") != 0) ? safe_strdup(tokens[3]) : NULL;
-    rules[rules_count].isFloating = (token_count > 4) ? atoi(tokens[4]) : -1;
-    rules[rules_count].workspace = (token_count > 5) ? atoi(tokens[5]) : -1;
-    rules[rules_count].monitor = (token_count > 6) ? atoi(tokens[6]) : -1;
-    rules[rules_count].width = (token_count > 7) ? atoi(tokens[7]) : -1;
-    rules[rules_count].height = (token_count > 8) ? atoi(tokens[8]) : -1;
+    rules[rules_count].title        = (token_count > 3 && strcmp(tokens[3], "*") != 0) ? safe_strdup(tokens[3]) : NULL;
+    rules[rules_count].isFloating   = (token_count > 4) ? atoi(tokens[4]) : -1;
+    rules[rules_count].workspace    = (token_count > 5) ? atoi(tokens[5]) : -1;
+    rules[rules_count].monitor      = (token_count > 6) ? atoi(tokens[6]) : -1;
+    rules[rules_count].width        = (token_count > 7) ? atoi(tokens[7]) : -1;
+    rules[rules_count].height       = (token_count > 8) ? atoi(tokens[8]) : -1;
 
     rules_count++;
     return 1;
@@ -334,70 +356,71 @@ static int parse_set_line(char** tokens, int token_count) {
 
     fprintf(stderr, "Setting %s to %s (token_count=%d)\n", var, val, token_count);
 
-    if (strcmp(var, "workspace_count") == 0) workspace_count = atoi(val);
-    else if (strcmp(var, "default_master_count") == 0) default_master_count = atoi(val);
-    else if (strcmp(var, "inner_gap") == 0) inner_gap = atoi(val);
-    else if (strcmp(var, "outer_gap") == 0) outer_gap = atoi(val);
-    else if (strcmp(var, "bar_height") == 0) bar_height = atoi(val);
-    else if (strcmp(var, "max_title_length") == 0) max_title_length = atoi(val);
-    else if (strcmp(var, "show_bar") == 0) show_bar = atoi(val);
-    else if (strcmp(var, "bar_border_width") == 0) bar_border_width = atoi(val);
-    else if (strcmp(var, "bar_struts_top") == 0) bar_struts_top = atoi(val);
-    else if (strcmp(var, "bar_struts_left") == 0) bar_struts_left = atoi(val);
-    else if (strcmp(var, "bar_struts_right") == 0) bar_struts_right = atoi(val);
-    else if (strcmp(var, "border_width") == 0) border_width = atoi(val);
+    if (strcmp(var, "workspace_count") == 0)
+        workspace_count = atoi(val);
+    else if (strcmp(var, "default_master_count") == 0)
+        default_master_count = atoi(val);
+    else if (strcmp(var, "inner_gap") == 0)
+        inner_gap = atoi(val);
+    else if (strcmp(var, "outer_gap") == 0)
+        outer_gap = atoi(val);
+    else if (strcmp(var, "bar_height") == 0)
+        bar_height = atoi(val);
+    else if (strcmp(var, "max_title_length") == 0)
+        max_title_length = atoi(val);
+    else if (strcmp(var, "show_bar") == 0)
+        show_bar = atoi(val);
+    else if (strcmp(var, "bar_border_width") == 0)
+        bar_border_width = atoi(val);
+    else if (strcmp(var, "bar_struts_top") == 0)
+        bar_struts_top = atoi(val);
+    else if (strcmp(var, "bar_struts_left") == 0)
+        bar_struts_left = atoi(val);
+    else if (strcmp(var, "bar_struts_right") == 0)
+        bar_struts_right = atoi(val);
+    else if (strcmp(var, "border_width") == 0)
+        border_width = atoi(val);
 
-    else if (strcmp(var, "default_master_factor") == 0) default_master_factor = atof(val);
+    else if (strcmp(var, "default_master_factor") == 0)
+        default_master_factor = atof(val);
 
     else if (strcmp(var, "bar_font") == 0) {
         free(bar_font);
         bar_font = safe_strdup(val);
-    }
-    else if (strcmp(var, "active_border_color") == 0) {
+    } else if (strcmp(var, "active_border_color") == 0) {
         free(active_border_color);
         active_border_color = safe_strdup(val);
-    }
-    else if (strcmp(var, "inactive_border_color") == 0) {
+    } else if (strcmp(var, "inactive_border_color") == 0) {
         free(inactive_border_color);
         inactive_border_color = safe_strdup(val);
-    }
-    else if (strcmp(var, "bar_border_color") == 0) {
+    } else if (strcmp(var, "bar_border_color") == 0) {
         free(bar_border_color);
         bar_border_color = safe_strdup(val);
-    }
-    else if (strcmp(var, "bar_background_color") == 0) {
+    } else if (strcmp(var, "bar_background_color") == 0) {
         free(bar_background_color);
         bar_background_color = safe_strdup(val);
-    }
-    else if (strcmp(var, "bar_foreground_color") == 0) {
+    } else if (strcmp(var, "bar_foreground_color") == 0) {
         free(bar_foreground_color);
         bar_foreground_color = safe_strdup(val);
-    }
-    else if (strcmp(var, "bar_active_ws_color") == 0) {
+    } else if (strcmp(var, "bar_active_ws_color") == 0) {
         free(bar_active_ws_color);
         bar_active_ws_color = safe_strdup(val);
-    }
-    else if (strcmp(var, "bar_urgent_ws_color") == 0) {
+    } else if (strcmp(var, "bar_urgent_ws_color") == 0) {
         free(bar_urgent_ws_color);
         bar_urgent_ws_color = safe_strdup(val);
-    }
-    else if (strcmp(var, "bar_active_text_color") == 0) {
+    } else if (strcmp(var, "bar_active_text_color") == 0) {
         free(bar_active_text_color);
         bar_active_text_color = safe_strdup(val);
-    }
-    else if (strcmp(var, "bar_urgent_text_color") == 0) {
+    } else if (strcmp(var, "bar_urgent_text_color") == 0) {
         free(bar_urgent_text_color);
         bar_urgent_text_color = safe_strdup(val);
-    }
-    else if (strcmp(var, "bar_inactive_text_color") == 0) {
+    } else if (strcmp(var, "bar_inactive_text_color") == 0) {
         free(bar_inactive_text_color);
         bar_inactive_text_color = safe_strdup(val);
-    }
-    else if (strcmp(var, "bar_status_text_color") == 0) {
+    } else if (strcmp(var, "bar_status_text_color") == 0) {
         free(bar_status_text_color);
         bar_status_text_color = safe_strdup(val);
-    }
-    else {
+    } else {
         fprintf(stderr, "banana: unknown variable: %s\n", var);
         return 0;
     }
@@ -406,7 +429,8 @@ static int parse_set_line(char** tokens, int token_count) {
 }
 
 static void free_tokens(char** tokens, int count) {
-    if (!tokens) return;
+    if (!tokens)
+        return;
 
     for (int i = 0; i < count; i++) {
         free(tokens[i]);
@@ -417,9 +441,10 @@ static void free_tokens(char** tokens, int count) {
 
 void create_default_config(void) {
     char* config_path = get_config_path();
-    if (!config_path) return;
+    if (!config_path)
+        return;
 
-    char* dir_path = safe_strdup(config_path);
+    char* dir_path   = safe_strdup(config_path);
     char* last_slash = strrchr(dir_path, '/');
     if (last_slash) {
         *last_slash = '\0';
@@ -526,7 +551,7 @@ int load_config(void) {
     init_defaults();
 
     free(keys);
-    keys = NULL;
+    keys       = NULL;
     keys_count = 0;
 
     for (size_t i = 0; i < rules_count; i++) {
@@ -535,11 +560,12 @@ int load_config(void) {
         free((char*)rules[i].title);
     }
     free(rules);
-    rules = NULL;
+    rules       = NULL;
     rules_count = 0;
 
     char* config_path = get_config_path();
-    if (!config_path) return 0;
+    if (!config_path)
+        return 0;
 
     FILE* fp = fopen(config_path, "r");
     if (!fp) {
@@ -548,7 +574,8 @@ int load_config(void) {
         create_default_config();
 
         config_path = get_config_path();
-        if (!config_path) return 0;
+        if (!config_path)
+            return 0;
 
         fp = fopen(config_path, "r");
         if (!fp) {
@@ -562,7 +589,7 @@ int load_config(void) {
 
     char line[MAX_LINE_LENGTH];
     char original_line[MAX_LINE_LENGTH];
-    int line_num = 0;
+    int  line_num = 0;
 
     while (fgets(line, sizeof(line), fp)) {
         line_num++;
@@ -572,11 +599,11 @@ int load_config(void) {
         if (line[0] == '#' || line[0] == '\n' || line[0] == '\r')
             continue;
 
-        char* comment = NULL;
-        int in_color_code = 0;
+        char* comment       = NULL;
+        int   in_color_code = 0;
 
         for (char* p = line; *p; p++) {
-            if (*p == '#' && isxdigit((unsigned char)*(p+1)))
+            if (*p == '#' && isxdigit((unsigned char)*(p + 1)))
                 continue;
             if (*p == '#' && !in_color_code) {
                 comment = p;
@@ -588,16 +615,17 @@ int load_config(void) {
             *comment = '\0';
 
         trim(line);
-        if (line[0] == '\0') continue;
+        if (line[0] == '\0')
+            continue;
 
         fprintf(stderr, "Line %d: '%s' (original: '%s')\n", line_num, line, original_line);
 
-        int token_count = 0;
-        char** tokens = tokenize(line, ">", &token_count);
+        int    token_count = 0;
+        char** tokens      = tokenize(line, ">", &token_count);
 
         fprintf(stderr, "  Tokenized into %d tokens: ", token_count);
         for (int i = 0; i < token_count; i++) {
-            fprintf(stderr, "'%s'%s", tokens[i], (i < token_count-1) ? ", " : "\n");
+            fprintf(stderr, "'%s'%s", tokens[i], (i < token_count - 1) ? ", " : "\n");
         }
 
         if (token_count < 2) {

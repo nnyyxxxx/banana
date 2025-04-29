@@ -298,7 +298,7 @@ void cleanup() {
 
     while (clients) {
         SClient* tmp = clients;
-        clients = clients->next;
+        clients      = clients->next;
         free(tmp);
     }
 
@@ -1286,16 +1286,16 @@ void configureClient(SClient* client) {
     XConfigureWindow(display, client->window, CWX | CWY | CWWidth | CWHeight | CWBorderWidth, &wc);
 
     XEvent event;
-    event.type                 = ConfigureNotify;
-    event.xconfigure.display   = display;
-    event.xconfigure.event     = client->window;
-    event.xconfigure.window    = client->window;
-    event.xconfigure.x         = client->x;
-    event.xconfigure.y         = client->y;
-    event.xconfigure.width     = client->width;
-    event.xconfigure.height    = client->height;
-    event.xconfigure.border_width = client->isFullscreen ? 0 : border_width;
-    event.xconfigure.above     = None;
+    event.type                         = ConfigureNotify;
+    event.xconfigure.display           = display;
+    event.xconfigure.event             = client->window;
+    event.xconfigure.window            = client->window;
+    event.xconfigure.x                 = client->x;
+    event.xconfigure.y                 = client->y;
+    event.xconfigure.width             = client->width;
+    event.xconfigure.height            = client->height;
+    event.xconfigure.border_width      = client->isFullscreen ? 0 : border_width;
+    event.xconfigure.above             = None;
     event.xconfigure.override_redirect = False;
     XSendEvent(display, client->window, False, StructureNotifyMask, &event);
 
@@ -1364,40 +1364,40 @@ void updateMonitors() {
     }
 
     XineramaScreenInfo* info = NULL;
-    monitors = NULL;
-    int oldNumMonitors = numMonitors;
-    numMonitors = 0;
+    monitors                 = NULL;
+    int oldNumMonitors       = numMonitors;
+    numMonitors              = 0;
 
     if (XineramaIsActive(display))
         info = XineramaQueryScreens(display, &numMonitors);
 
     if (!info) {
-        numMonitors = 1;
-        monitors = malloc(sizeof(SMonitor));
-        monitors[0].x = 0;
-        monitors[0].y = 0;
-        monitors[0].width = DisplayWidth(display, DefaultScreen(display));
-        monitors[0].height = DisplayHeight(display, DefaultScreen(display));
-        monitors[0].num = 0;
+        numMonitors                  = 1;
+        monitors                     = malloc(sizeof(SMonitor));
+        monitors[0].x                = 0;
+        monitors[0].y                = 0;
+        monitors[0].width            = DisplayWidth(display, DefaultScreen(display));
+        monitors[0].height           = DisplayHeight(display, DefaultScreen(display));
+        monitors[0].num              = 0;
         monitors[0].currentWorkspace = 0;
-        monitors[0].currentLayout = LAYOUT_TILED;
-        monitors[0].masterCount = default_master_count;
-        monitors[0].masterFactors = malloc(workspace_count * sizeof(float));
+        monitors[0].currentLayout    = LAYOUT_TILED;
+        monitors[0].masterCount      = default_master_count;
+        monitors[0].masterFactors    = malloc(workspace_count * sizeof(float));
         for (int ws = 0; ws < workspace_count; ws++) {
             monitors[0].masterFactors[ws] = default_master_factor;
         }
     } else {
         monitors = malloc(numMonitors * sizeof(SMonitor));
         for (int i = 0; i < numMonitors; i++) {
-            monitors[i].x = info[i].x_org;
-            monitors[i].y = info[i].y_org;
-            monitors[i].width = info[i].width;
-            monitors[i].height = info[i].height;
-            monitors[i].num = i;
+            monitors[i].x                = info[i].x_org;
+            monitors[i].y                = info[i].y_org;
+            monitors[i].width            = info[i].width;
+            monitors[i].height           = info[i].height;
+            monitors[i].num              = i;
             monitors[i].currentWorkspace = 0;
-            monitors[i].currentLayout = LAYOUT_TILED;
-            monitors[i].masterCount = default_master_count;
-            monitors[i].masterFactors = malloc(workspace_count * sizeof(float));
+            monitors[i].currentLayout    = LAYOUT_TILED;
+            monitors[i].masterCount      = default_master_count;
+            monitors[i].masterFactors    = malloc(workspace_count * sizeof(float));
             for (int ws = 0; ws < workspace_count; ws++) {
                 monitors[i].masterFactors[ws] = default_master_factor;
             }
@@ -1409,12 +1409,12 @@ void updateMonitors() {
         SClient* client = clients;
         while (client) {
             SMonitor* mon = getCurrentMonitor();
-            int x = client->x;
-            int y = client->y;
+            int       x   = client->x;
+            int       y   = client->y;
             if (x < mon->x || x >= mon->x + mon->width || y < mon->y || y >= mon->y + mon->height) {
                 client->monitor = mon->num;
-                client->x = mon->x + (mon->width - client->width) / 2;
-                client->y = mon->y + (mon->height - client->height) / 2;
+                client->x       = mon->x + (mon->width - client->width) / 2;
+                client->y       = mon->y + (mon->height - client->height) / 2;
                 if (client->y < mon->y + bar_height)
                     client->y = mon->y + bar_height;
             }
@@ -1573,7 +1573,7 @@ void moveClientToWorkspace(const char* arg) {
 void updateClientVisibility() {
     SClient* client = clients;
 
-    int hasFullscreen[MAX_MONITORS][100] = {0};
+    int      hasFullscreen[MAX_MONITORS][100] = {0};
     for (SClient* c = clients; c; c = c->next) {
         if (c->isFullscreen && c->monitor < MAX_MONITORS && c->workspace < workspace_count)
             hasFullscreen[c->monitor][c->workspace] = 1;
@@ -1762,8 +1762,8 @@ void tileClients(SMonitor* monitor) {
         return;
 
     SClient* visibleClients[MAX_CLIENTS] = {NULL};
-    int      visibleCount = 0;
-    int      currentWorkspace = monitor->currentWorkspace;
+    int      visibleCount                = 0;
+    int      currentWorkspace            = monitor->currentWorkspace;
 
     for (SClient* client = clients; client; client = client->next) {
         if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace && !client->isFloating && !client->isFullscreen) {
@@ -2370,13 +2370,13 @@ void getWindowClass(Window window, char* className, char* instanceName, size_t b
 }
 
 int applyRules(SClient* client) {
-    char className[256]  = {0};
+    char className[256]    = {0};
     char instanceName[256] = {0};
 
     getWindowClass(client->window, className, instanceName, sizeof(className));
 
     XTextProperty textprop;
-    char* windowTitle = NULL;
+    char*         windowTitle = NULL;
     if (XGetWMName(display, client->window, &textprop) && textprop.value && textprop.nitems) {
         windowTitle = (char*)textprop.value;
     }
@@ -2402,17 +2402,17 @@ int applyRules(SClient* client) {
         if (rule->monitor != -1 && rule->monitor < numMonitors)
             client->monitor = rule->monitor;
 
-        SMonitor* mon = &monitors[client->monitor];
-        int sizeChanged = 0;
+        SMonitor* mon         = &monitors[client->monitor];
+        int       sizeChanged = 0;
 
         if (rule->width > 0) {
             client->width = rule->width;
-            sizeChanged = 1;
+            sizeChanged   = 1;
         }
 
         if (rule->height > 0) {
             client->height = rule->height;
-            sizeChanged = 1;
+            sizeChanged    = 1;
         }
 
         if (sizeChanged && client->isFloating) {
@@ -2423,8 +2423,7 @@ int applyRules(SClient* client) {
                 client->y = mon->y + bar_height;
         }
 
-        fprintf(stderr, "Applied rule for window class=%s instance=%s title=%s\n",
-                className, instanceName, windowTitle ? windowTitle : "(null)");
+        fprintf(stderr, "Applied rule for window class=%s instance=%s title=%s\n", className, instanceName, windowTitle ? windowTitle : "(null)");
 
         if (textprop.value)
             XFree(textprop.value);

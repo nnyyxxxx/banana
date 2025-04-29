@@ -169,7 +169,7 @@ void createBars(void) {
 
         initWorkspaceNames();
 
-        barVisible = show_bar;
+        barVisible  = show_bar;
         initialized = 1;
     }
 
