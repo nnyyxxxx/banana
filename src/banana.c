@@ -1889,6 +1889,7 @@ void moveWindowInStack(const char* arg) {
         arrangeClients(monitor);
         restackFloatingWindows();
 
+        ignoreNextEnterNotify = 1;
         warpPointerToClientCenter(focused);
         updateBorders();
     }
