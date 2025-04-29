@@ -50,12 +50,12 @@ Atom            NET_SUPPORTING_WM_CHECK;
 Atom            NET_CLIENT_LIST;
 Atom            NET_NUMBER_OF_DESKTOPS;
 Atom            NET_CURRENT_DESKTOP;
-Atom            NET_ACTIVE_WINDOW;
 Atom            NET_WM_STATE;
 Atom            NET_WM_STATE_FULLSCREEN;
 Atom            NET_WM_WINDOW_TYPE;
 Atom            NET_WM_WINDOW_TYPE_DIALOG;
 Atom            NET_WM_WINDOW_TYPE_UTILITY;
+Atom            NET_ACTIVE_WINDOW;
 Atom            UTF8_STRING;
 Window          wmcheckwin;
 
@@ -118,22 +118,31 @@ void setupEWMH() {
     NET_CLIENT_LIST            = XInternAtom(display, "_NET_CLIENT_LIST", False);
     NET_NUMBER_OF_DESKTOPS     = XInternAtom(display, "_NET_NUMBER_OF_DESKTOPS", False);
     NET_CURRENT_DESKTOP        = XInternAtom(display, "_NET_CURRENT_DESKTOP", False);
-    NET_ACTIVE_WINDOW          = XInternAtom(display, "_NET_ACTIVE_WINDOW", False);
     NET_WM_STATE               = XInternAtom(display, "_NET_WM_STATE", False);
     NET_WM_STATE_FULLSCREEN    = XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", False);
     NET_WM_WINDOW_TYPE         = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
     NET_WM_WINDOW_TYPE_DIALOG  = XInternAtom(display, "_NET_WM_WINDOW_TYPE_DIALOG", False);
     NET_WM_WINDOW_TYPE_UTILITY = XInternAtom(display, "_NET_WM_WINDOW_TYPE_UTILITY", False);
+    NET_ACTIVE_WINDOW          = XInternAtom(display, "_NET_ACTIVE_WINDOW", False);
     UTF8_STRING                = XInternAtom(display, "UTF8_STRING", False);
 
     wmcheckwin = XCreateSimpleWindow(display, root, 0, 0, 1, 1, 0, 0, 0);
     XChangeProperty(display, root, NET_SUPPORTING_WM_CHECK, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&wmcheckwin, 1);
     XChangeProperty(display, wmcheckwin, NET_SUPPORTING_WM_CHECK, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&wmcheckwin, 1);
     XChangeProperty(display, wmcheckwin, NET_WM_NAME, UTF8_STRING, 8, PropModeReplace, (unsigned char*)"banana", 6);
-    XChangeProperty(display, root, NET_WM_NAME, UTF8_STRING, 8, PropModeReplace, (unsigned char*)"banana", 6);
 
-    Atom supported[] = {NET_SUPPORTED,     NET_WM_NAME,  NET_SUPPORTING_WM_CHECK, NET_CLIENT_LIST,    NET_NUMBER_OF_DESKTOPS,    NET_CURRENT_DESKTOP,
-                        NET_ACTIVE_WINDOW, NET_WM_STATE, NET_WM_STATE_FULLSCREEN, NET_WM_WINDOW_TYPE, NET_WM_WINDOW_TYPE_DIALOG, NET_WM_WINDOW_TYPE_UTILITY};
+    Atom supported[] = {NET_SUPPORTED,
+                        NET_WM_NAME,
+                        NET_SUPPORTING_WM_CHECK,
+                        NET_CLIENT_LIST,
+                        NET_NUMBER_OF_DESKTOPS,
+                        NET_CURRENT_DESKTOP,
+                        NET_WM_STATE,
+                        NET_WM_STATE_FULLSCREEN,
+                        NET_WM_WINDOW_TYPE,
+                        NET_WM_WINDOW_TYPE_DIALOG,
+                        NET_WM_WINDOW_TYPE_UTILITY,
+                        NET_ACTIVE_WINDOW};
 
     XChangeProperty(display, root, NET_SUPPORTED, XA_ATOM, 32, PropModeReplace, (unsigned char*)supported, sizeof(supported) / sizeof(Atom));
 
@@ -517,7 +526,6 @@ void handleMotionNotify(XEvent* event) {
                 focusClient(clientInWorkspace);
             else {
                 XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
-                XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&root, 1);
                 focused = NULL;
                 updateBorders();
             }
@@ -932,10 +940,12 @@ void grabKeys() {
 void updateFocus() {
     if (!focused) {
         XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
+        XDeleteProperty(display, root, NET_ACTIVE_WINDOW);
         return;
     }
 
     XSetInputFocus(display, focused->window, RevertToPointerRoot, CurrentTime);
+    XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&focused->window, 1);
     updateBorders();
 }
 
@@ -968,9 +978,6 @@ void focusClient(SClient* client) {
 
     if (!client->neverfocus) {
         XSetInputFocus(display, client->window, RevertToPointerRoot, CurrentTime);
-        XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&client->window, 1);
-    } else {
-        fprintf(stderr, "  Window doesn't want focus (neverfocus=1), not setting input focus\n");
         XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&client->window, 1);
     }
 
@@ -1188,6 +1195,7 @@ void unmanageClient(Window window) {
         } else {
             fprintf(stderr, "Window closed, no other windows in workspace, focusing monitor %d\n", currentMonitor->num);
             focused = NULL;
+            XDeleteProperty(display, root, NET_ACTIVE_WINDOW);
         }
 
         updateFocus();
@@ -1654,10 +1662,8 @@ void toggleFloating(const char* arg) {
         XGrabButton(display, Button3, MODKEY, focused->window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, resizeSECursor);
 
         XRaiseWindow(display, focused->window);
-        if (!focused->neverfocus) {
+        if (!focused->neverfocus)
             XSetInputFocus(display, focused->window, RevertToPointerRoot, CurrentTime);
-            XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&focused->window, 1);
-        }
 
         arrangeClients(&monitors[focused->monitor]);
     } else if (wasFloating) {
@@ -1860,13 +1866,12 @@ void moveWindowInStack(const char* arg) {
 
     SClient*  targetClient = NULL;
 
-    SClient* workspaceClients[MAX_CLIENTS];
-    int numClients = 0;
-    int focusedIndex = -1;
+    SClient*  workspaceClients[MAX_CLIENTS];
+    int       numClients   = 0;
+    int       focusedIndex = -1;
 
     for (SClient* c = clients; c; c = c->next) {
-        if (c->monitor == focused->monitor && c->workspace == workspace &&
-            !c->isFloating && !c->isFullscreen) {
+        if (c->monitor == focused->monitor && c->workspace == workspace && !c->isFloating && !c->isFullscreen) {
 
             if (c == focused)
                 focusedIndex = numClients;
@@ -1882,15 +1887,14 @@ void moveWindowInStack(const char* arg) {
 
     if (strcmp(arg, "up") == 0) {
         int targetIndex = (focusedIndex - 1 + numClients) % numClients;
-        targetClient = workspaceClients[targetIndex];
+        targetClient    = workspaceClients[targetIndex];
     } else if (strcmp(arg, "down") == 0) {
         int targetIndex = (focusedIndex + 1) % numClients;
-        targetClient = workspaceClients[targetIndex];
+        targetClient    = workspaceClients[targetIndex];
     }
 
     if (targetClient && targetClient != focused) {
-        fprintf(stderr, "Moving window in stack: 0x%lx with 0x%lx (direction: %s)\n",
-                focused->window, targetClient->window, arg);
+        fprintf(stderr, "Moving window in stack: 0x%lx with 0x%lx (direction: %s)\n", focused->window, targetClient->window, arg);
         swapClients(focused, targetClient);
         arrangeClients(monitor);
         restackFloatingWindows();
@@ -1905,15 +1909,15 @@ void focusWindowInStack(const char* arg) {
     if (!focused || !arg)
         return;
 
-    int workspace = focused->workspace;
+    int      workspace    = focused->workspace;
     SClient* targetClient = NULL;
 
     SClient* tiledClients[MAX_CLIENTS];
     SClient* floatingClients[MAX_CLIENTS];
-    int numTiled = 0;
-    int numFloating = 0;
-    int focusedTiledIndex = -1;
-    int focusedFloatingIndex = -1;
+    int      numTiled             = 0;
+    int      numFloating          = 0;
+    int      focusedTiledIndex    = -1;
+    int      focusedFloatingIndex = -1;
 
     for (SClient* c = clients; c; c = c->next) {
         if (c->monitor == focused->monitor && c->workspace == workspace && !c->isFullscreen) {
@@ -1969,8 +1973,7 @@ void focusWindowInStack(const char* arg) {
     }
 
     if (targetClient && targetClient != focused) {
-        fprintf(stderr, "Focusing window in stack: 0x%lx (direction: %s, floating: %d)\n",
-                targetClient->window, arg, targetClient->isFloating);
+        fprintf(stderr, "Focusing window in stack: 0x%lx (direction: %s, floating: %d)\n", targetClient->window, arg, targetClient->isFloating);
         focusClient(targetClient);
         warpPointerToClientCenter(targetClient);
     }
@@ -2248,22 +2251,13 @@ void handleClientMessage(XEvent* event) {
         if (cme->data.l[1] == (long)NET_WM_STATE_FULLSCREEN || cme->data.l[2] == (long)NET_WM_STATE_FULLSCREEN)
             setFullscreen(client, (cme->data.l[0] == 1 /* _NET_WM_STATE_ADD */ || (cme->data.l[0] == 2 /* _NET_WM_STATE_TOGGLE */ && !client->isFullscreen)));
     } else if (cme->message_type == NET_ACTIVE_WINDOW) {
-        if (client != focused && !client->isUrgent) {
-            SMonitor* m             = &monitors[client->monitor];
-            SMonitor* activeMonitor = getCurrentMonitor();
-
-            if (client->workspace != m->currentWorkspace) {
+        if (client != focused) {
+            if (client->workspace != monitors[client->monitor].currentWorkspace) {
                 client->isUrgent = 1;
                 updateBorders();
                 updateBars();
-                XUnmapWindow(display, client->window);
-            } else if (m->num == activeMonitor->num)
+            } else
                 focusClient(client);
-            else {
-                client->isUrgent = 1;
-                updateBorders();
-                updateBars();
-            }
         }
     }
 }
@@ -2443,7 +2437,6 @@ void focusMonitor(const char* arg) {
         if (focused) {
             if (focused->monitor != targetMonitor) {
                 XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
-                XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&root, 1);
                 focused = NULL;
                 updateBorders();
             }

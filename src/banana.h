@@ -179,12 +179,12 @@ extern Atom            NET_SUPPORTING_WM_CHECK;
 extern Atom            NET_CLIENT_LIST;
 extern Atom            NET_NUMBER_OF_DESKTOPS;
 extern Atom            NET_CURRENT_DESKTOP;
-extern Atom            NET_ACTIVE_WINDOW;
 extern Atom            NET_WM_STATE;
 extern Atom            NET_WM_STATE_FULLSCREEN;
 extern Atom            NET_WM_WINDOW_TYPE;
 extern Atom            NET_WM_WINDOW_TYPE_DIALOG;
 extern Atom            NET_WM_WINDOW_TYPE_UTILITY;
+extern Atom            NET_ACTIVE_WINDOW;
 extern Atom            UTF8_STRING;
 
 SClient*               focusWindowUnderCursor(SMonitor* monitor);
