@@ -499,7 +499,8 @@ void handleMotionNotify(XEvent* event) {
         int isFixedSize = (client->sizeHints.valid && client->sizeHints.maxWidth && client->sizeHints.maxHeight && client->sizeHints.minWidth && client->sizeHints.minHeight &&
                            client->sizeHints.maxWidth == client->sizeHints.minWidth && client->sizeHints.maxHeight == client->sizeHints.minHeight);
 
-        if (isFixedSize) {
+        Atom windowType = getAtomProperty(client, NET_WM_WINDOW_TYPE);
+        if (isFixedSize || windowType == NET_WM_WINDOW_TYPE_UTILITY) {
             windowResize.x = ev->x_root;
             windowResize.y = ev->y_root;
             return;
