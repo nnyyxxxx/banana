@@ -182,6 +182,7 @@ extern Atom            NET_WM_STATE;
 extern Atom            NET_WM_STATE_FULLSCREEN;
 extern Atom            NET_WM_WINDOW_TYPE;
 extern Atom            NET_WM_WINDOW_TYPE_DIALOG;
+extern Atom            NET_WM_WINDOW_TYPE_UTILITY;
 extern Atom            UTF8_STRING;
 
 SClient*               focusWindowUnderCursor(SMonitor* monitor);

@@ -54,6 +54,7 @@ Atom            NET_WM_STATE;
 Atom            NET_WM_STATE_FULLSCREEN;
 Atom            NET_WM_WINDOW_TYPE;
 Atom            NET_WM_WINDOW_TYPE_DIALOG;
+Atom            NET_WM_WINDOW_TYPE_UTILITY;
 Atom            UTF8_STRING;
 Window          wmcheckwin;
 
@@ -121,6 +122,7 @@ void setupEWMH() {
     NET_WM_STATE_FULLSCREEN   = XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", False);
     NET_WM_WINDOW_TYPE        = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
     NET_WM_WINDOW_TYPE_DIALOG = XInternAtom(display, "_NET_WM_WINDOW_TYPE_DIALOG", False);
+    NET_WM_WINDOW_TYPE_UTILITY = XInternAtom(display, "_NET_WM_WINDOW_TYPE_UTILITY", False);
     UTF8_STRING               = XInternAtom(display, "UTF8_STRING", False);
 
     wmcheckwin = XCreateSimpleWindow(display, root, 0, 0, 1, 1, 0, 0, 0);
@@ -130,7 +132,7 @@ void setupEWMH() {
     XChangeProperty(display, root, NET_WM_NAME, UTF8_STRING, 8, PropModeReplace, (unsigned char*)"banana", 6);
 
     Atom supported[] = {NET_SUPPORTED,     NET_WM_NAME,  NET_SUPPORTING_WM_CHECK, NET_CLIENT_LIST,    NET_NUMBER_OF_DESKTOPS,   NET_CURRENT_DESKTOP,
-                        NET_ACTIVE_WINDOW, NET_WM_STATE, NET_WM_STATE_FULLSCREEN, NET_WM_WINDOW_TYPE, NET_WM_WINDOW_TYPE_DIALOG};
+                        NET_ACTIVE_WINDOW, NET_WM_STATE, NET_WM_STATE_FULLSCREEN, NET_WM_WINDOW_TYPE, NET_WM_WINDOW_TYPE_DIALOG, NET_WM_WINDOW_TYPE_UTILITY};
 
     XChangeProperty(display, root, NET_SUPPORTED, XA_ATOM, 32, PropModeReplace, (unsigned char*)supported, sizeof(supported) / sizeof(Atom));
 
@@ -910,6 +912,9 @@ void focusClient(SClient* client) {
     if (!client->neverfocus) {
         XSetInputFocus(display, client->window, RevertToPointerRoot, CurrentTime);
         XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&client->window, 1);
+    } else {
+        fprintf(stderr, "  Window doesn't want focus (neverfocus=1), not setting input focus\n");
+        XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&client->window, 1);
     }
 
     sendEvent(client, WM_TAKE_FOCUS);
@@ -978,6 +983,21 @@ void manageClient(Window window) {
     client->x               = 0;
     client->y               = 0;
     client->sizeHints.valid = 0;
+
+    Window transientFor = None;
+    if (XGetTransientForHint(display, window, &transientFor)) {
+        SClient* parent = findClient(transientFor);
+        if (parent) {
+            client->monitor = parent->monitor;
+            client->workspace = parent->workspace;
+            client->isFloating = 1;
+
+            client->x = parent->x + 50;
+            client->y = parent->y + 50;
+
+            fprintf(stderr, "Transient window detected, attached to parent 0x%lx\n", transientFor);
+        }
+    }
 
     SMonitor* monitor = &monitors[client->monitor];
 
@@ -2034,7 +2054,8 @@ void updateWindowType(SClient* client) {
     Atom state = getAtomProperty(client, NET_WM_STATE);
     Atom wtype = getAtomProperty(client, NET_WM_WINDOW_TYPE);
 
-    fprintf(stderr, "Checking window type for 0x%lx, state=%ld, fullscreen=%ld\n", client->window, state, NET_WM_STATE_FULLSCREEN);
+    fprintf(stderr, "Checking window type for 0x%lx, state=%ld, wtype=%ld\n",
+            client->window, state, wtype);
 
     if (state == NET_WM_STATE_FULLSCREEN) {
         fprintf(stderr, "Fullscreen window detected, forcing proper position\n");
@@ -2065,8 +2086,10 @@ void updateWindowType(SClient* client) {
             XRaiseWindow(display, client->window);
         }
     }
-    if (wtype == NET_WM_WINDOW_TYPE_DIALOG)
+    if (wtype == NET_WM_WINDOW_TYPE_DIALOG || wtype == NET_WM_WINDOW_TYPE_UTILITY) {
+        fprintf(stderr, "Dialog or utility window detected, forcing floating mode\n");
         client->isFloating = 1;
+    }
 }
 
 void updateWMHints(SClient* client) {
