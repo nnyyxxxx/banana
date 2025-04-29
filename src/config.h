@@ -50,13 +50,13 @@ void toggleBar(const char* arg);
 
 /* Bar colors */
 #define BAR_BACKGROUND_COLOR    "#000000"
-#define BAR_FOREGROUND_COLOR    "#d3c1da"
+#define BAR_FOREGROUND_COLOR    "#ced4f0"
 #define BAR_ACTIVE_WS_COLOR     "#6275d3"
 #define BAR_URGENT_WS_COLOR     "#6275d3"
 #define BAR_ACTIVE_TEXT_COLOR   "#000000"
 #define BAR_URGENT_TEXT_COLOR   "#000000"
-#define BAR_INACTIVE_TEXT_COLOR "#d3c1da"
-#define BAR_STATUS_TEXT_COLOR   "#d3c1da"
+#define BAR_INACTIVE_TEXT_COLOR "#ced4f0"
+#define BAR_STATUS_TEXT_COLOR   "#ced4f0"
 
 /* Border width in pixels */
 #define BORDER_WIDTH 2
