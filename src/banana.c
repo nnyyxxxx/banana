@@ -1136,6 +1136,25 @@ void manageClient(Window window) {
     if (client->y < monitor->y + bar_height && !client->isFloating)
         client->y = monitor->y + bar_height;
 
+    if (client->isFloating) {
+        if (client->x == 0 && client->y == 0) {
+            client->x = monitor->x + (monitor->width - client->width) / 2;
+            client->y = monitor->y + (monitor->height - client->height) / 2;
+        }
+
+        if (client->x + client->width < monitor->x)
+            client->x = monitor->x;
+        if (client->y + client->height < monitor->y)
+            client->y = monitor->y;
+        if (client->x > monitor->x + monitor->width)
+            client->x = monitor->x + monitor->width - client->width;
+        if (client->y > monitor->y + monitor->height)
+            client->y = monitor->y + monitor->height - client->height;
+
+        if (client->y < monitor->y + bar_height)
+            client->y = monitor->y + bar_height;
+    }
+
     client->next = NULL;
     if (!clients)
         clients = client;
@@ -2385,11 +2404,26 @@ int applyRules(SClient* client) {
         if (rule->monitor != -1 && rule->monitor < numMonitors)
             client->monitor = rule->monitor;
 
-        if (rule->width > 0)
-            client->width = rule->width;
+        SMonitor* mon = &monitors[client->monitor];
+        int sizeChanged = 0;
 
-        if (rule->height > 0)
+        if (rule->width > 0) {
+            client->width = rule->width;
+            sizeChanged = 1;
+        }
+
+        if (rule->height > 0) {
             client->height = rule->height;
+            sizeChanged = 1;
+        }
+
+        if (sizeChanged && client->isFloating) {
+            client->x = mon->x + (mon->width - client->width) / 2;
+            client->y = mon->y + (mon->height - client->height) / 2;
+
+            if (client->y < mon->y + bar_height)
+                client->y = mon->y + bar_height;
+        }
 
         fprintf(stderr, "Applied rule for window class=%s instance=%s title=%s\n",
                 className, instanceName, windowTitle ? windowTitle : "(null)");
