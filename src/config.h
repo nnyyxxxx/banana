@@ -5,7 +5,6 @@
 #include <X11/keysym.h>
 #include <stddef.h> /* For NULL */
 
-/* Forward declarations */
 void spawnProgram(const char* arg);
 void killClient(const char* arg);
 void quit(const char* arg);
@@ -19,64 +18,14 @@ void adjustMasterFactor(const char* arg);
 void focusMonitor(const char* arg);
 void toggleBar(const char* arg);
 
-/* Number of workspaces */
-#define WORKSPACE_COUNT 9
+typedef struct {
+    unsigned int mod;
+    KeySym       keysym;
+    void        (*func)(const char*);
+    const char*  arg;
+} KeyBinding;
 
-/* Layout configuration */
-#define DEFAULT_MASTER_FACTOR 0.55
-#define DEFAULT_MASTER_COUNT  1
-
-/* Gap configuration */
-#define INNER_GAP 15
-#define OUTER_GAP 20
-
-/* Key definitions */
-#define MODKEY Mod1Mask
-
-/* Bar configuration */
-#define BAR_HEIGHT       20
-#define BAR_FONT         "monospace-12"
-#define MAX_TITLE_LENGTH 40
-#define SHOW_BAR         1
-#define BAR_BORDER_WIDTH 0
-#define BAR_STRUTS_TOP   0
-#define BAR_STRUTS_LEFT  0
-#define BAR_STRUTS_RIGHT 0
-
-/* Colors */
-#define ACTIVE_BORDER_COLOR   "#6275d3"
-#define INACTIVE_BORDER_COLOR "#6275d3"
-#define BAR_BORDER_COLOR      "#000000"
-
-/* Bar colors */
-#define BAR_BACKGROUND_COLOR    "#000000"
-#define BAR_FOREGROUND_COLOR    "#ced4f0"
-#define BAR_ACTIVE_WS_COLOR     "#6275d3"
-#define BAR_URGENT_WS_COLOR     "#6275d3"
-#define BAR_ACTIVE_TEXT_COLOR   "#000000"
-#define BAR_URGENT_TEXT_COLOR   "#000000"
-#define BAR_INACTIVE_TEXT_COLOR "#ced4f0"
-#define BAR_STATUS_TEXT_COLOR   "#ced4f0"
-
-/* Border width in pixels */
-#define BORDER_WIDTH 2
-
-/* Applications */
-#define TERMINAL   "alacritty"
-#define LAUNCHER   "dmenu_run"
-#define WALL       "pocky"
-#define SCREENSHOT "maim -s | xclip -selection clipboard -t image/png"
-
-/* Window rules
- * Format: { class, instance, title, float, workspace, monitor, width, height }
- * class/instance: X11 window class/instance (NULL = match any)
- * title: window title substring to match (NULL = match any)
- * float: 1=force float, 0=force tile, -1=don't change
- * workspace: workspace to place window (0-8, or -1 for current)
- * monitor: monitor to place window (0+ for specific, -1 for current)
- * width/height: dimensions for floating windows (-1 = don't change)
- */
-static const struct {
+typedef struct {
     const char* className;
     const char* instanceName;
     const char* title;
@@ -85,68 +34,56 @@ static const struct {
     int         monitor;
     int         width;
     int         height;
-} rules[] = {
-    /* class  instance  title  floating  workspace  monitor  width  height */
-    {"Pocky", NULL, NULL, 1, -1, -1, 1100, 700},
-    {"vesktop", NULL, NULL, -1, 0, 1, -1, -1},
-    /* Add more rules here */
-};
+} WindowRule;
 
-/* Key bindings */
-static const struct {
-    unsigned int mod;
-    KeySym       keysym;
+typedef struct {
+    const char* name;
     void (*func)(const char*);
-    const char* arg;
-} keys[] = {
-    /* Mod    Key    Function    Argument */
-    {MODKEY, XK_q, spawnProgram, TERMINAL},
-    {MODKEY, XK_e, spawnProgram, LAUNCHER},
-    {MODKEY, XK_a, spawnProgram, WALL},
-    {MODKEY, XK_Escape, spawnProgram, SCREENSHOT},
-    {MODKEY, XK_c, killClient, NULL},
-    {MODKEY, XK_w, quit, NULL},
-    {MODKEY, XK_space, toggleFloating, NULL},
-    {MODKEY, XK_f, toggleFullscreen, NULL},
-    {MODKEY, XK_b, toggleBar, NULL},
+} FunctionMap;
 
-    /* Master factor adjustment */
-    {MODKEY, XK_h, adjustMasterFactor, "decrease"},
-    {MODKEY, XK_l, adjustMasterFactor, "increase"},
+typedef struct {
+    const char* name;
+    unsigned int mask;
+} ModifierMap;
 
-    /* Window stack movement */
-    {MODKEY | ShiftMask, XK_j, moveWindowInStack, "down"},
-    {MODKEY | ShiftMask, XK_k, moveWindowInStack, "up"},
+extern int          workspace_count;
+extern float        default_master_factor;
+extern int          default_master_count;
+extern int          inner_gap;
+extern int          outer_gap;
+#define modkey Mod1Mask
+extern int          bar_height;
+extern char*        bar_font;
+extern int          max_title_length;
+extern int          show_bar;
+extern int          bar_border_width;
+extern int          bar_struts_top;
+extern int          bar_struts_left;
+extern int          bar_struts_right;
+extern char*        active_border_color;
+extern char*        inactive_border_color;
+extern char*        bar_border_color;
+extern char*        bar_background_color;
+extern char*        bar_foreground_color;
+extern char*        bar_active_ws_color;
+extern char*        bar_urgent_ws_color;
+extern char*        bar_active_text_color;
+extern char*        bar_urgent_text_color;
+extern char*        bar_inactive_text_color;
+extern char*        bar_status_text_color;
+extern int          border_width;
+extern char*        terminal;
+extern char*        launcher;
+extern char*        wall;
+extern char*        screenshot;
 
-    /* Window stack focus */
-    {MODKEY, XK_j, focusWindowInStack, "down"},
-    {MODKEY, XK_k, focusWindowInStack, "up"},
+extern KeyBinding*  keys;
+extern size_t       keys_count;
+extern WindowRule*  rules;
+extern size_t       rules_count;
 
-    /* Monitor focus */
-    {MODKEY, XK_comma, focusMonitor, "left"},
-    {MODKEY, XK_period, focusMonitor, "right"},
-
-    /* Workspace switching */
-    {MODKEY, XK_1, switchToWorkspace, "0"},
-    {MODKEY, XK_2, switchToWorkspace, "1"},
-    {MODKEY, XK_3, switchToWorkspace, "2"},
-    {MODKEY, XK_4, switchToWorkspace, "3"},
-    {MODKEY, XK_5, switchToWorkspace, "4"},
-    {MODKEY, XK_6, switchToWorkspace, "5"},
-    {MODKEY, XK_7, switchToWorkspace, "6"},
-    {MODKEY, XK_8, switchToWorkspace, "7"},
-    {MODKEY, XK_9, switchToWorkspace, "8"},
-
-    /* Move client to workspace */
-    {MODKEY | ShiftMask, XK_1, moveClientToWorkspace, "0"},
-    {MODKEY | ShiftMask, XK_2, moveClientToWorkspace, "1"},
-    {MODKEY | ShiftMask, XK_3, moveClientToWorkspace, "2"},
-    {MODKEY | ShiftMask, XK_4, moveClientToWorkspace, "3"},
-    {MODKEY | ShiftMask, XK_5, moveClientToWorkspace, "4"},
-    {MODKEY | ShiftMask, XK_6, moveClientToWorkspace, "5"},
-    {MODKEY | ShiftMask, XK_7, moveClientToWorkspace, "6"},
-    {MODKEY | ShiftMask, XK_8, moveClientToWorkspace, "7"},
-    {MODKEY | ShiftMask, XK_9, moveClientToWorkspace, "8"},
-};
+int  load_config(void);
+void create_default_config(void);
+void free_config(void);
 
 #endif /* CONFIG_H */

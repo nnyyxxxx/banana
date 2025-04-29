@@ -55,7 +55,7 @@ typedef struct SMonitor {
     int    num;
     int    currentWorkspace;
     Layout currentLayout;
-    float  masterFactors[WORKSPACE_COUNT];
+    float* masterFactors;
     int    masterCount;
 } SMonitor;
 

@@ -11,10 +11,10 @@
 
 #define MAX_STATUS_LENGTH 256
 
-static char*         workspaceNames[WORKSPACE_COUNT];
+static char*         workspaceNames[9];
 
 Window*              barWindows = NULL;
-int                  barVisible = SHOW_BAR;
+int                  barVisible = 1;
 
 static unsigned long barBgColor;
 static unsigned long barFgColor;
@@ -36,7 +36,7 @@ static Atom          NET_WM_STRUT_PARTIAL;
 static char          statusText[MAX_STATUS_LENGTH] = "";
 
 static void          initWorkspaceNames(void) {
-    for (int i = 0; i < WORKSPACE_COUNT; i++) {
+    for (int i = 0; i < workspace_count; i++) {
         workspaceNames[i] = malloc(8);
         if (workspaceNames[i])
             snprintf(workspaceNames[i], 8, "%d", i + 1);
@@ -44,7 +44,7 @@ static void          initWorkspaceNames(void) {
 }
 
 static void freeWorkspaceNames(void) {
-    for (int i = 0; i < WORKSPACE_COUNT; i++) {
+    for (int i = 0; i < workspace_count; i++) {
         free(workspaceNames[i]);
         workspaceNames[i] = NULL;
     }
@@ -54,42 +54,42 @@ static void initColors(void) {
     XColor   color;
     Colormap cmap = DefaultColormap(display, DefaultScreen(display));
 
-    if (XAllocNamedColor(display, cmap, BAR_BACKGROUND_COLOR, &color, &color))
+    if (XAllocNamedColor(display, cmap, bar_background_color, &color, &color))
         barBgColor = color.pixel;
     else
         barBgColor = BlackPixel(display, DefaultScreen(display));
 
-    if (XAllocNamedColor(display, cmap, BAR_FOREGROUND_COLOR, &color, &color))
+    if (XAllocNamedColor(display, cmap, bar_foreground_color, &color, &color))
         barFgColor = color.pixel;
     else
         barFgColor = WhitePixel(display, DefaultScreen(display));
 
-    if (XAllocNamedColor(display, cmap, BAR_BORDER_COLOR, &color, &color))
+    if (XAllocNamedColor(display, cmap, bar_border_color, &color, &color))
         barBorderColor = color.pixel;
     else
         barBorderColor = BlackPixel(display, DefaultScreen(display));
 
-    if (XAllocNamedColor(display, cmap, BAR_ACTIVE_WS_COLOR, &color, &color))
+    if (XAllocNamedColor(display, cmap, bar_active_ws_color, &color, &color))
         barActiveWsColor = color.pixel;
     else
         barActiveWsColor = barFgColor;
 
-    if (XAllocNamedColor(display, cmap, BAR_URGENT_WS_COLOR, &color, &color))
+    if (XAllocNamedColor(display, cmap, bar_urgent_ws_color, &color, &color))
         barUrgentWsColor = color.pixel;
     else
         barUrgentWsColor = 0xFF0000;
 
-    XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), BAR_ACTIVE_TEXT_COLOR, &barActiveTextColor);
+    XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), bar_active_text_color, &barActiveTextColor);
 
-    XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), BAR_URGENT_TEXT_COLOR, &barUrgentTextColor);
+    XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), bar_urgent_text_color, &barUrgentTextColor);
 
-    XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), BAR_INACTIVE_TEXT_COLOR, &barInactiveTextColor);
+    XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), bar_inactive_text_color, &barInactiveTextColor);
 
-    XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), BAR_STATUS_TEXT_COLOR, &barStatusTextColor);
+    XftColorAllocName(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), bar_status_text_color, &barStatusTextColor);
 }
 
 static int initFont(void) {
-    barFont = XftFontOpenName(display, DefaultScreen(display), BAR_FONT);
+    barFont = XftFontOpenName(display, DefaultScreen(display), bar_font);
     if (!barFont) {
         fprintf(stderr, "Failed to load bar font\n");
         return 0;
@@ -112,7 +112,7 @@ static void drawText(int monitorIndex, const char* text, int x, int y, XftColor*
     if (isCenter)
         x = x - (txtWidth / 2);
 
-    XftDrawStringUtf8(barDraws[monitorIndex], color, barFont, x, y + (BAR_HEIGHT + barFont->ascent - barFont->descent) / 2, (XftChar8*)text, strlen(text));
+    XftDrawStringUtf8(barDraws[monitorIndex], color, barFont, x, y + (bar_height + barFont->ascent - barFont->descent) / 2, (XftChar8*)text, strlen(text));
 }
 
 void showHideBars(int show) {
@@ -169,6 +169,7 @@ void createBars(void) {
 
         initWorkspaceNames();
 
+        barVisible = show_bar;
         initialized = 1;
     }
 
@@ -179,18 +180,18 @@ void createBars(void) {
     wa.event_mask        = ExposureMask | ButtonPressMask;
 
     for (int i = 0; i < numMonitors; i++) {
-        int barX     = monitors[i].x + BAR_STRUTS_LEFT;
-        int barY     = monitors[i].y + BAR_STRUTS_TOP;
-        int barWidth = monitors[i].width - BAR_STRUTS_LEFT - BAR_STRUTS_RIGHT;
+        int barX     = monitors[i].x + bar_struts_left;
+        int barY     = monitors[i].y + bar_struts_top;
+        int barWidth = monitors[i].width - bar_struts_left - bar_struts_right;
 
-        barWindows[i] = XCreateWindow(display, root, barX, barY, barWidth, BAR_HEIGHT, BAR_BORDER_WIDTH, DefaultDepth(display, DefaultScreen(display)), CopyFromParent,
+        barWindows[i] = XCreateWindow(display, root, barX, barY, barWidth, bar_height, bar_border_width, DefaultDepth(display, DefaultScreen(display)), CopyFromParent,
                                       DefaultVisual(display, DefaultScreen(display)), CWOverrideRedirect | CWBackPixel | CWBorderPixel | CWEventMask, &wa);
 
         barDraws[i] = XftDrawCreate(display, barWindows[i], DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)));
 
         long struts[12] = {0};
 
-        struts[2] = barY + BAR_HEIGHT + BAR_BORDER_WIDTH * 2;
+        struts[2] = barY + bar_height + bar_border_width * 2;
 
         struts[4] = monitors[i].x;
         struts[5] = monitors[i].x + monitors[i].width - 1;
@@ -246,7 +247,7 @@ void updateBars(void) {
         int x = 0;
 
         int maxTextWidth = 0;
-        for (int w = 0; w < WORKSPACE_COUNT; w++) {
+        for (int w = 0; w < workspace_count; w++) {
             int textWidth = getTextWidth(workspaceNames[w]);
             if (textWidth > maxTextWidth)
                 maxTextWidth = textWidth;
@@ -254,7 +255,7 @@ void updateBars(void) {
 
         int wsWidth = maxTextWidth + 16;
 
-        for (int w = 0; w < WORKSPACE_COUNT; w++) {
+        for (int w = 0; w < workspace_count; w++) {
             XftColor* textColor = &barInactiveTextColor;
             int       wsBgColor = barBgColor;
             int       hasUrgent = workspaceHasUrgentWindow(i, w);
@@ -268,7 +269,7 @@ void updateBars(void) {
             }
 
             XSetForeground(display, DefaultGC(display, DefaultScreen(display)), wsBgColor);
-            XFillRectangle(display, barWindows[i], DefaultGC(display, DefaultScreen(display)), x, 0, wsWidth, BAR_HEIGHT);
+            XFillRectangle(display, barWindows[i], DefaultGC(display, DefaultScreen(display)), x, 0, wsWidth, bar_height);
 
             char wsLabel[32];
             snprintf(wsLabel, sizeof(wsLabel), " %s ", workspaceNames[w]);
@@ -279,7 +280,7 @@ void updateBars(void) {
             x += wsWidth;
         }
 
-        int barWidth = monitors[i].width - BAR_STRUTS_LEFT - BAR_STRUTS_RIGHT;
+        int barWidth = monitors[i].width - bar_struts_left - bar_struts_right;
 
         if (statusText[0] != '\0')
             drawText(i, statusText, barWidth - getTextWidth(statusText), 0, &barStatusTextColor, 0);
@@ -335,7 +336,7 @@ void handleBarClick(XEvent* event) {
             int x = 0;
 
             int maxTextWidth = 0;
-            for (int w = 0; w < WORKSPACE_COUNT; w++) {
+            for (int w = 0; w < workspace_count; w++) {
                 int textWidth = getTextWidth(workspaceNames[w]);
                 if (textWidth > maxTextWidth)
                     maxTextWidth = textWidth;
@@ -343,7 +344,7 @@ void handleBarClick(XEvent* event) {
 
             int wsWidth = maxTextWidth + 16;
 
-            for (int w = 0; w < WORKSPACE_COUNT; w++) {
+            for (int w = 0; w < workspace_count; w++) {
                 if (ev->x >= x && ev->x < x + wsWidth) {
                     monitors[i].currentWorkspace = w;
                     updateClientVisibility();
@@ -365,13 +366,13 @@ void updateClientPositionsForBar(void) {
         if (!client->isFloating && !client->isFullscreen) {
             SMonitor* m = &monitors[client->monitor];
             if (barVisible) {
-                int barBottom = m->y + BAR_STRUTS_TOP + BAR_HEIGHT + BAR_BORDER_WIDTH * 2;
-                if (client->y < barBottom + OUTER_GAP) {
-                    client->y = barBottom + OUTER_GAP;
+                int barBottom = m->y + bar_struts_top + bar_height + bar_border_width * 2;
+                if (client->y < barBottom + outer_gap) {
+                    client->y = barBottom + outer_gap;
                     XMoveWindow(display, client->window, client->x, client->y);
                 }
-            } else if (!barVisible && client->y == m->y + BAR_STRUTS_TOP + BAR_HEIGHT + BAR_BORDER_WIDTH * 2 + OUTER_GAP) {
-                client->y = m->y + OUTER_GAP;
+            } else if (!barVisible && client->y == m->y + bar_struts_top + bar_height + bar_border_width * 2 + outer_gap) {
+                client->y = m->y + outer_gap;
                 XMoveWindow(display, client->window, client->x, client->y);
             }
         }
