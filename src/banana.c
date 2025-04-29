@@ -1854,32 +1854,42 @@ void moveWindowInStack(const char* arg) {
 
     SClient*  targetClient = NULL;
 
-    if (strcmp(arg, "up") == 0) {
-        SClient* prev   = NULL;
-        SClient* client = clients;
+    SClient* workspaceClients[MAX_CLIENTS];
+    int numClients = 0;
+    int focusedIndex = -1;
 
-        while (client && client != focused) {
-            if (client->monitor == focused->monitor && client->workspace == workspace)
-                prev = client;
-            client = client->next;
-        }
+    for (SClient* c = clients; c; c = c->next) {
+        if (c->monitor == focused->monitor && c->workspace == workspace &&
+            !c->isFloating && !c->isFullscreen) {
 
-        if (prev)
-            targetClient = prev;
-    } else if (strcmp(arg, "down") == 0) {
-        targetClient = focused->next;
-        while (targetClient && (targetClient->monitor != focused->monitor || targetClient->workspace != workspace)) {
-            targetClient = targetClient->next;
+            if (c == focused)
+                focusedIndex = numClients;
+
+            workspaceClients[numClients++] = c;
+            if (numClients >= MAX_CLIENTS)
+                break;
         }
     }
 
-    if (targetClient) {
+    if (numClients <= 1)
+        return;
+
+    if (strcmp(arg, "up") == 0) {
+        int targetIndex = (focusedIndex - 1 + numClients) % numClients;
+        targetClient = workspaceClients[targetIndex];
+    } else if (strcmp(arg, "down") == 0) {
+        int targetIndex = (focusedIndex + 1) % numClients;
+        targetClient = workspaceClients[targetIndex];
+    }
+
+    if (targetClient && targetClient != focused) {
+        fprintf(stderr, "Moving window in stack: 0x%lx with 0x%lx (direction: %s)\n",
+                focused->window, targetClient->window, arg);
         swapClients(focused, targetClient);
         arrangeClients(monitor);
         restackFloatingWindows();
 
         warpPointerToClientCenter(focused);
-
         updateBorders();
     }
 }
@@ -1888,28 +1898,72 @@ void focusWindowInStack(const char* arg) {
     if (!focused || !arg)
         return;
 
-    int      workspace = focused->workspace;
-
-    SClient* prev         = NULL;
-    SClient* client       = clients;
+    int workspace = focused->workspace;
     SClient* targetClient = NULL;
 
-    while (client && client != focused) {
-        if (client->monitor == focused->monitor && client->workspace == workspace)
-            prev = client;
-        client = client->next;
-    }
+    SClient* tiledClients[MAX_CLIENTS];
+    SClient* floatingClients[MAX_CLIENTS];
+    int numTiled = 0;
+    int numFloating = 0;
+    int focusedTiledIndex = -1;
+    int focusedFloatingIndex = -1;
 
-    if (strcmp(arg, "up") == 0)
-        targetClient = prev;
-    else if (strcmp(arg, "down") == 0) {
-        targetClient = focused->next;
-        while (targetClient && (targetClient->monitor != focused->monitor || targetClient->workspace != workspace)) {
-            targetClient = targetClient->next;
+    for (SClient* c = clients; c; c = c->next) {
+        if (c->monitor == focused->monitor && c->workspace == workspace && !c->isFullscreen) {
+            if (c->isFloating) {
+                if (c == focused)
+                    focusedFloatingIndex = numFloating;
+                floatingClients[numFloating++] = c;
+            } else {
+                if (c == focused)
+                    focusedTiledIndex = numTiled;
+                tiledClients[numTiled++] = c;
+            }
+            if (numTiled + numFloating >= MAX_CLIENTS)
+                break;
         }
     }
 
-    if (targetClient) {
+    if (numTiled + numFloating <= 1)
+        return;
+
+    if (focused->isFloating) {
+        if (strcmp(arg, "up") == 0) {
+            if (focusedFloatingIndex > 0)
+                targetClient = floatingClients[focusedFloatingIndex - 1];
+            else if (numTiled > 0)
+                targetClient = tiledClients[numTiled - 1];
+            else
+                targetClient = floatingClients[numFloating - 1];
+        } else if (strcmp(arg, "down") == 0) {
+            if (focusedFloatingIndex < numFloating - 1)
+                targetClient = floatingClients[focusedFloatingIndex + 1];
+            else if (numTiled > 0)
+                targetClient = tiledClients[0];
+            else
+                targetClient = floatingClients[0];
+        }
+    } else {
+        if (strcmp(arg, "up") == 0) {
+            if (focusedTiledIndex > 0)
+                targetClient = tiledClients[focusedTiledIndex - 1];
+            else if (numFloating > 0)
+                targetClient = floatingClients[numFloating - 1];
+            else
+                targetClient = tiledClients[numTiled - 1];
+        } else if (strcmp(arg, "down") == 0) {
+            if (focusedTiledIndex < numTiled - 1)
+                targetClient = tiledClients[focusedTiledIndex + 1];
+            else if (numFloating > 0)
+                targetClient = floatingClients[0];
+            else
+                targetClient = tiledClients[0];
+        }
+    }
+
+    if (targetClient && targetClient != focused) {
+        fprintf(stderr, "Focusing window in stack: 0x%lx (direction: %s, floating: %d)\n",
+                targetClient->window, arg, targetClient->isFloating);
         focusClient(targetClient);
         warpPointerToClientCenter(targetClient);
     }
