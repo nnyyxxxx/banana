@@ -13,6 +13,7 @@
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <err.h>
+#include <limits.h>
 
 #include "config.h"
 #include "bar.h"
@@ -32,7 +33,7 @@ Cursor          resizeSECursor;
 Cursor          resizeSWCursor;
 Cursor          resizeNECursor;
 Cursor          resizeNWCursor;
-SWindowMovement windowMovement   = {0, 0, NULL, 0};
+SWindowMovement windowMovement   = {0, 0, NULL, 0, 0};
 SWindowResize   windowResize     = {0, 0, NULL, 0, 0};
 int             currentWorkspace = 0;
 Window          lastMappedWindow = 0;
@@ -329,6 +330,7 @@ void handleButtonPress(XEvent* event) {
     if (ev->button == Button1) {
         if (!client->isFloating) {
             client->isFloating = 1;
+            windowMovement.wasTiled = 1;
 
             SMonitor* monitor = &monitors[client->monitor];
 
@@ -374,6 +376,7 @@ void handleButtonPress(XEvent* event) {
             windowMovement.x      = ev->x_root;
             windowMovement.y      = ev->y_root;
             windowMovement.active = 1;
+            windowMovement.wasTiled = 0;
             XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, moveCursor, CurrentTime);
         }
     } else if (ev->button == Button3 && client->isFloating) {
@@ -407,22 +410,79 @@ void handleButtonPress(XEvent* event) {
     }
 }
 
+void swapWindowUnderCursor(SClient* client, int cursorX, int cursorY) {
+    if (!client || !client->isFloating || !windowMovement.wasTiled)
+        return;
+
+    SClient* targetClient = NULL;
+
+    for (SClient* c = clients; c; c = c->next) {
+        if (c != client &&
+            c->monitor == client->monitor &&
+            c->workspace == client->workspace &&
+            !c->isFloating && !c->isFullscreen &&
+            cursorX >= c->x && cursorX < c->x + c->width &&
+            cursorY >= c->y && cursorY < c->y + c->height) {
+            targetClient = c;
+            break;
+        }
+    }
+
+    if (!targetClient) {
+        int closestDistance = INT_MAX;
+
+        for (SClient* c = clients; c; c = c->next) {
+            if (c != client &&
+                c->monitor == client->monitor &&
+                c->workspace == client->workspace &&
+                !c->isFloating && !c->isFullscreen) {
+
+                int centerX = c->x + c->width / 2;
+                int centerY = c->y + c->height / 2;
+                int distance = (cursorX - centerX) * (cursorX - centerX) +
+                               (cursorY - centerY) * (cursorY - centerY);
+
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    targetClient = c;
+                }
+            }
+        }
+    }
+
+    if (targetClient) {
+        fprintf(stderr, "Swapping client 0x%lx with 0x%lx\n", client->window, targetClient->window);
+        client->isFloating = 0;
+        swapClients(client, targetClient);
+
+        arrangeClients(&monitors[client->monitor]);
+    } else {
+        client->isFloating = 0;
+        arrangeClients(&monitors[client->monitor]);
+    }
+}
+
 void handleButtonRelease(XEvent* event) {
     XButtonEvent* ev = &event->xbutton;
 
-    fprintf(stderr, "ButtonRelease: button=%d, state=0x%x\n", ev->button, ev->state);
-
     if (windowMovement.active && ev->button == Button1) {
-        fprintf(stderr, "  Ending window movement\n");
+        SClient* movingClient = windowMovement.client;
+
+        if (movingClient && windowMovement.wasTiled) {
+            fprintf(stderr, "Attempting to swap with window under cursor at %d,%d\n", ev->x_root, ev->y_root);
+            swapWindowUnderCursor(movingClient, ev->x_root, ev->y_root);
+        } else if (movingClient)
+            moveWindow(movingClient, movingClient->x, movingClient->y);
+
         windowMovement.active = 0;
         windowMovement.client = NULL;
+        windowMovement.wasTiled = 0;
         XUngrabPointer(display, CurrentTime);
 
         updateBars();
     }
 
     if (windowResize.active && ev->button == Button3) {
-        fprintf(stderr, "  Ending window resize\n");
         windowResize.active = 0;
         windowResize.client = NULL;
         XUngrabPointer(display, CurrentTime);
@@ -1667,11 +1727,15 @@ void tileClients(SMonitor* monitor) {
     int      currentWorkspace = monitor->currentWorkspace;
 
     int      visibleCount = 0;
-    SClient* client       = clients;
-    while (client) {
-        if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace && !client->isFloating && !client->isFullscreen)
-            visibleCount++;
-        client = client->next;
+    SClient* visibleClients[MAX_CLIENTS];
+
+    for (SClient* client = clients; client; client = client->next) {
+        if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace &&
+            !client->isFloating && !client->isFullscreen) {
+            visibleClients[visibleCount++] = client;
+            if (visibleCount >= MAX_CLIENTS)
+                break;
+        }
     }
 
     if (visibleCount <= 1)
@@ -1692,24 +1756,19 @@ void tileClients(SMonitor* monitor) {
         return;
 
     if (visibleCount == 1) {
-        client = clients;
-        while (client) {
-            if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace && !client->isFloating && !client->isFullscreen) {
-                int width  = availableWidth - 2 * BORDER_WIDTH;
-                int height = availableHeight - 2 * BORDER_WIDTH;
+        SClient* client = visibleClients[0];
+        int width  = availableWidth - 2 * BORDER_WIDTH;
+        int height = availableHeight - 2 * BORDER_WIDTH;
 
-                client->x      = x;
-                client->y      = y;
-                client->width  = width;
-                client->height = height;
+        client->x      = x;
+        client->y      = y;
+        client->width  = width;
+        client->height = height;
 
-                XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
-                configureClient(client);
-                fprintf(stderr, "Single window tiled: monitor=%d pos=%d,%d size=%dx%d\n", monitor->num, client->x, client->y, client->width, client->height);
-                return;
-            }
-            client = client->next;
-        }
+        XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+        configureClient(client);
+        fprintf(stderr, "Single window tiled: monitor=%d pos=%d,%d size=%dx%d\n", monitor->num, client->x, client->y, client->width, client->height);
+        return;
     }
 
     int masterCount = MIN(monitor->masterCount, visibleCount);
@@ -1726,9 +1785,6 @@ void tileClients(SMonitor* monitor) {
     int masterRemainder = availableHeight % masterCount;
     int stackRemainder  = availableHeight % stackCount;
 
-    client            = clients;
-    int currentMaster = 0;
-    int currentStack  = 0;
     int masterY       = y;
     int stackY        = y;
 
@@ -1736,54 +1792,54 @@ void tileClients(SMonitor* monitor) {
     int stackWidth  = stackArea - INNER_GAP / 2 - 2 * BORDER_WIDTH;
     int stackX      = x + masterArea + INNER_GAP / 2;
 
-    while (client) {
-        if (client->monitor == monitor->num && client->workspace == monitor->currentWorkspace && !client->isFloating && !client->isFullscreen) {
-            if (currentMaster < masterCount) {
-                int heightAdjustment = (currentMaster < masterRemainder) ? 1 : 0;
-                int currentHeight    = masterHeight + heightAdjustment;
+    for (int i = 0; i < masterCount; i++) {
+        SClient* client = visibleClients[i];
+        int heightAdjustment = (i < masterRemainder) ? 1 : 0;
+        int currentHeight = masterHeight + heightAdjustment;
 
-                if (currentMaster > 0) {
-                    masterY += INNER_GAP;
-                    currentHeight -= INNER_GAP;
-                }
-
-                int width  = masterWidth;
-                int height = currentHeight - 2 * BORDER_WIDTH;
-
-                client->x      = x;
-                client->y      = masterY;
-                client->width  = width;
-                client->height = height;
-
-                masterY += currentHeight;
-                currentMaster++;
-            } else {
-                int heightAdjustment = (currentStack < stackRemainder) ? 1 : 0;
-                int currentHeight    = stackHeight + heightAdjustment;
-
-                if (currentStack > 0) {
-                    stackY += INNER_GAP;
-                    currentHeight -= INNER_GAP;
-                }
-
-                int width  = stackWidth;
-                int height = currentHeight - 2 * BORDER_WIDTH;
-
-                client->x      = stackX;
-                client->y      = stackY;
-                client->width  = width;
-                client->height = height;
-
-                stackY += currentHeight;
-                currentStack++;
-            }
-
-            XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
-            configureClient(client);
-            fprintf(stderr, "Tiling window: monitor=%d pos=%d,%d size=%dx%d\n", monitor->num, client->x, client->y, client->width, client->height);
+        if (i > 0) {
+            masterY += INNER_GAP;
+            currentHeight -= INNER_GAP;
         }
 
-        client = client->next;
+        int width  = masterWidth;
+        int height = currentHeight - 2 * BORDER_WIDTH;
+
+        client->x      = x;
+        client->y      = masterY;
+        client->width  = width;
+        client->height = height;
+
+        masterY += currentHeight;
+
+        XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+        configureClient(client);
+        fprintf(stderr, "Tiling master window: monitor=%d pos=%d,%d size=%dx%d\n", monitor->num, client->x, client->y, client->width, client->height);
+    }
+
+    for (int i = 0; i < stackCount; i++) {
+        SClient* client = visibleClients[i + masterCount];
+        int heightAdjustment = (i < stackRemainder) ? 1 : 0;
+        int currentHeight = stackHeight + heightAdjustment;
+
+        if (i > 0) {
+            stackY += INNER_GAP;
+            currentHeight -= INNER_GAP;
+        }
+
+        int width  = stackWidth;
+        int height = currentHeight - 2 * BORDER_WIDTH;
+
+        client->x      = stackX;
+        client->y      = stackY;
+        client->width  = width;
+        client->height = height;
+
+        stackY += currentHeight;
+
+        XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+        configureClient(client);
+        fprintf(stderr, "Tiling stack window: monitor=%d pos=%d,%d size=%dx%d\n", monitor->num, client->x, client->y, client->width, client->height);
     }
 }
 
@@ -1899,37 +1955,58 @@ void swapClients(SClient* a, SClient* b) {
     if (!a || !b || a == b)
         return;
 
+    fprintf(stderr, "Swapping clients in list: 0x%lx and 0x%lx\n", a->window, b->window);
+
+    SClient* aNext = a->next;
+    SClient* bNext = b->next;
+
     SClient* prevA = NULL;
     SClient* prevB = NULL;
-    SClient* temp  = clients;
+    SClient* temp = clients;
 
     while (temp && temp != a) {
         prevA = temp;
-        temp  = temp->next;
+        temp = temp->next;
     }
 
     temp = clients;
     while (temp && temp != b) {
         prevB = temp;
-        temp  = temp->next;
+        temp = temp->next;
     }
 
-    if (!temp)
-        return;
+    if (a->next == b) {
+        if (prevA)
+            prevA->next = b;
+        else
+            clients = b;
 
-    if (prevA)
-        prevA->next = b;
-    else
-        clients = b;
+        b->next = a;
+        a->next = bNext;
+    }
+    else if (b->next == a) {
+        if (prevB)
+            prevB->next = a;
+        else
+            clients = a;
 
-    if (prevB)
-        prevB->next = a;
-    else
-        clients = a;
+        a->next = b;
+        b->next = aNext;
+    }
+    else {
+        if (prevA)
+            prevA->next = b;
+        else
+            clients = b;
 
-    temp    = a->next;
-    a->next = b->next;
-    b->next = temp;
+        if (prevB)
+            prevB->next = a;
+        else
+            clients = a;
+
+        a->next = bNext;
+        b->next = aNext;
+    }
 
     if (a->next == a)
         a->next = b;

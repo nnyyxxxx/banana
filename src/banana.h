@@ -64,6 +64,7 @@ typedef struct {
     int      y;
     SClient* client;
     int      active;
+    int      wasTiled;
 } SWindowMovement;
 
 typedef struct {
@@ -121,6 +122,7 @@ void                   adjustMasterFactor(const char* arg);
 void                   focusMonitor(const char* arg);
 void                   moveClientToEnd(SClient* client);
 void                   checkCursorPosition();
+void                   swapWindowUnderCursor(SClient* client, int cursorX, int cursorY);
 
 void                   grabKeys();
 void                   updateFocus();
