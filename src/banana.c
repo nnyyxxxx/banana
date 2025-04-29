@@ -443,11 +443,17 @@ void swapWindowUnderCursor(SClient* client, int cursorX, int cursorY) {
     if (targetClient) {
         fprintf(stderr, "Swapping client 0x%lx with 0x%lx\n", client->window, targetClient->window);
         client->isFloating = 0;
+
+        XUngrabButton(display, Button3, MODKEY, client->window);
+
         swapClients(client, targetClient);
 
         arrangeClients(&monitors[client->monitor]);
     } else {
         client->isFloating = 0;
+
+        XUngrabButton(display, Button3, MODKEY, client->window);
+
         arrangeClients(&monitors[client->monitor]);
     }
 }
