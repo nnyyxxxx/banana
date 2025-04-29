@@ -1368,9 +1368,8 @@ void updateMonitors() {
     int oldNumMonitors = numMonitors;
     numMonitors = 0;
 
-    if (XineramaIsActive(display)) {
+    if (XineramaIsActive(display))
         info = XineramaQueryScreens(display, &numMonitors);
-    }
 
     if (!info) {
         numMonitors = 1;
@@ -1416,9 +1415,8 @@ void updateMonitors() {
                 client->monitor = mon->num;
                 client->x = mon->x + (mon->width - client->width) / 2;
                 client->y = mon->y + (mon->height - client->height) / 2;
-                if (client->y < mon->y + bar_height) {
+                if (client->y < mon->y + bar_height)
                     client->y = mon->y + bar_height;
-                }
             }
             client = client->next;
         }
