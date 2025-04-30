@@ -9,8 +9,6 @@
 #include "bar.h"
 #include "config.h"
 
-#define MAX_STATUS_LENGTH 256
-
 static char*         workspaceNames[9];
 
 Window*              barWindows = NULL;

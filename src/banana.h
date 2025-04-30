@@ -15,6 +15,9 @@
 #define MAX(A, B) ((A) > (B) ? (A) : (B))
 #define MIN(A, B) ((A) < (B) ? (A) : (B))
 
+#define MAX_CLIENTS  64
+#define MAX_MONITORS 16
+
 typedef enum {
     LAYOUT_FLOATING,
     LAYOUT_TILED,

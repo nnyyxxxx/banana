@@ -11,6 +11,12 @@
 #define MAX_KEYS         100
 #define MAX_RULES        50
 
+#define SECTION_GENERAL    "general"
+#define SECTION_BAR        "bar"
+#define SECTION_DECORATION "decoration"
+#define SECTION_BINDS      "binds"
+#define SECTION_RULES      "rules"
+
 typedef struct {
     unsigned int mod;
     KeySym       keysym;
@@ -64,7 +70,6 @@ extern int      outerGap;
 #define modkey Mod1Mask
 extern int                barHeight;
 extern char*              barFont;
-extern int                maxTitleLength;
 extern int                showBar;
 extern int                barBorderWidth;
 extern int                barStrutsTop;

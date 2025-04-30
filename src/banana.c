@@ -22,10 +22,7 @@
 #include "config.h"
 #include "bar.h"
 
-extern char* safeStrdup(const char* s);
-
-#define MAX_CLIENTS  64
-#define MAX_MONITORS 16
+extern char*    safeStrdup(const char* s);
 
 Display*        display;
 Window          root;

@@ -4,6 +4,8 @@
 #include <X11/Xlib.h>
 #include "banana.h"
 
+#define MAX_STATUS_LENGTH 256
+
 void           toggleBar(const char* arg);
 
 extern Window* barWindows;
