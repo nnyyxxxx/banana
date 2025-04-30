@@ -1625,9 +1625,15 @@ int handleBindsSection(STokenHandlerContext* ctx, const char* modStr, const char
         char errMsg[MAX_LINE_LENGTH];
 
         if (strcasecmp(funcStr, "switch_workspace") == 0 || strcasecmp(funcStr, "move_to_workspace") == 0) {
-            if (!isValidWorkspaceIndex(argStr)) {
-                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid workspace index: '%s' - must be a number between 0 and %d", argStr, workspaceCount - 1);
+            if (!isValidInteger(argStr)) {
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid workspace index: '%s' - must be an integer between 0 and 8", argStr);
                 argValid = 0;
+            } else {
+                int value = atoi(argStr);
+                if (value < 0 || value > 8) {
+                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid workspace index: %d - must be between 0 and 8", value);
+                    argValid = 0;
+                }
             }
         } else if (strcasecmp(funcStr, "adjust_master") == 0) {
             if (!isValidAdjustMasterArg(argStr)) {
@@ -1748,17 +1754,23 @@ int handleRulesSection(STokenHandlerContext* ctx, int tokenCount, char** tokens,
             }
 
             int workspace = atoi(tokens[++i]);
-            if (workspace < 0 || workspace >= workspaceCount) {
-                char errMsg[MAX_LINE_LENGTH];
-                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid workspace index: %d (max: %d)", workspace, workspaceCount - 1);
 
-                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                if (workspace < 0 || workspace > 8) {
+                    char errMsg[MAX_LINE_LENGTH];
+                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid workspace index: %d - must be between 0 and 8", workspace);
                     addError(ctx->errors, errMsg, lineNum, 0);
                     ctx->hasErrors = 1;
                 } else
+                    rules[rulesCount].workspace = workspace;
+            } else {
+                if (workspace < 0 || workspace > 8) {
+                    char errMsg[MAX_LINE_LENGTH];
+                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid workspace index: %d - must be between 0 and 8", workspace);
                     fprintf(stderr, "banana: %s\n", errMsg);
-            } else
-                rules[rulesCount].workspace = workspace;
+                } else
+                    rules[rulesCount].workspace = workspace;
+            }
         } else if (strcasecmp(tokens[i], "monitor") == 0 && i + 1 < tokenCount) {
             if (!isValidInteger(tokens[i + 1])) {
                 char errMsg[MAX_LINE_LENGTH];
