@@ -519,9 +519,14 @@ int loadConfig(void) {
             const char* var = tokens[0];
             const char* val = tokens[1];
 
-            if (strcmp(var, "workspace_count") == 0)
-                workspaceCount = atoi(val);
-            else if (strcmp(var, "inner_gap") == 0)
+            if (strcmp(var, "workspace_count") == 0) {
+                int count = atoi(val);
+                if (count > 9) {
+                    fprintf(stderr, "banana: workspace count limited to maximum of 9\n");
+                    count = 9;
+                }
+                workspaceCount = count;
+            } else if (strcmp(var, "inner_gap") == 0)
                 innerGap = atoi(val);
             else if (strcmp(var, "outer_gap") == 0)
                 outerGap = atoi(val);
