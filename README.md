@@ -39,6 +39,9 @@ By default the terminal specified in the config file is set to `alacritty` the k
 launch it is `alt+q`. Make sure you have `alacritty` installed, or just change it before
 launching.
 
+When checking for config errors use `banana validate` it will validate your config file and
+print errors to stdout.
+
 ## compositing
 
 By default banana doesn't have rounded corners, opacity, animations, and all of that junk

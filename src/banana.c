@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <X11/Xft/Xft.h>
 
+#include "banana.h"
 #include "config.h"
 #include "bar.h"
 
@@ -2526,7 +2527,23 @@ void tileAllMonitors(void) {
     }
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+    if (argc > 1) {
+        if (strcmp(argv[1], "validate") == 0) {
+            SConfigErrors errors;
+            memset(&errors, 0, sizeof(SConfigErrors));
+
+            int result = validateConfig(&errors);
+            printConfigErrors(&errors);
+
+            return result ? 0 : 1;
+        } else {
+            fprintf(stderr, "banana: unknown command '%s'\n", argv[1]);
+            fprintf(stderr, "Usage: banana [validate]\n");
+            return 1;
+        }
+    }
+
     signal(SIGCHLD, SIG_IGN);
 
     setup();

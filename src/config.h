@@ -10,6 +10,7 @@
 #define MAX_TOKEN_LENGTH 128
 #define MAX_KEYS         100
 #define MAX_RULES        50
+#define MAX_ERRORS       100
 
 #define SECTION_GENERAL    "general"
 #define SECTION_BAR        "bar"
@@ -45,20 +46,56 @@ typedef struct {
     unsigned int mask;
 } SModifierMap;
 
-void            spawnProgram(const char* arg);
-void            killClient(const char* arg);
-void            quit(const char* arg);
-void            switchToWorkspace(const char* arg);
-void            moveClientToWorkspace(const char* arg);
-void            toggleFloating(const char* arg);
-void            toggleFullscreen(const char* arg);
-void            moveWindowInStack(const char* arg);
-void            focusWindowInStack(const char* arg);
-void            adjustMasterFactor(const char* arg);
-void            focusMonitor(const char* arg);
-void            toggleBar(const char* arg);
-void            reloadConfig(const char* arg);
-char*           safeStrdup(const char* s);
+typedef struct {
+    char message[MAX_LINE_LENGTH];
+    char lineContent[MAX_LINE_LENGTH];
+    int  lineNum;
+    int  isFatal;
+} SConfigError;
+
+typedef struct {
+    SConfigError errors[MAX_ERRORS];
+    int          count;
+} SConfigErrors;
+
+typedef enum {
+    TOKEN_HANDLER_LOAD,
+    TOKEN_HANDLER_VALIDATE
+} ETokenHandlerMode;
+
+typedef struct {
+    ETokenHandlerMode mode;
+    SConfigErrors*    errors;
+    int               hasErrors;
+} STokenHandlerContext;
+
+void         spawnProgram(const char* arg);
+void         killClient(const char* arg);
+void         quit(const char* arg);
+void         switchToWorkspace(const char* arg);
+void         moveClientToWorkspace(const char* arg);
+void         toggleFloating(const char* arg);
+void         toggleFullscreen(const char* arg);
+void         moveWindowInStack(const char* arg);
+void         focusWindowInStack(const char* arg);
+void         adjustMasterFactor(const char* arg);
+void         focusMonitor(const char* arg);
+void         toggleBar(const char* arg);
+void         reloadConfig(const char* arg);
+char*        safeStrdup(const char* s);
+int          loadConfig(void);
+int          validateConfig(SConfigErrors* errors);
+void         printConfigErrors(SConfigErrors* errors);
+
+void         initDefaults(void);
+void*        safeMalloc(size_t size);
+char*        getConfigPath(void);
+void         trim(char* str);
+KeySym       getKeysym(const char* key);
+unsigned int getModifier(const char* mod);
+void (*getFunction(const char* name))(const char*);
+void            freeTokens(char** tokens, int count);
+void            addError(SConfigErrors* errors, const char* message, int lineNum, int isFatal);
 
 extern Display* display;
 extern Window   root;
