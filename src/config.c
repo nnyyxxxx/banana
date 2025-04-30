@@ -353,6 +353,16 @@ void createDefaultConfig(void) {
     fprintf(fp, "}\n\n");
 
     fprintf(fp, "# Window rules\n");
+    fprintf(fp, "# Format: [CLASS] [INSTANCE] [TITLE] [OPTIONS]\n");
+    fprintf(fp, "# CLASS: Window class name or * to match any class\n");
+    fprintf(fp, "# INSTANCE: Window instance name or * to match any instance\n");
+    fprintf(fp, "# TITLE: Window title (substring match) or * to match any title\n");
+    fprintf(fp, "# OPTIONS:\n");
+    fprintf(fp, "#   floating - Make window float (not tiled)\n");
+    fprintf(fp, "#   follow - Make window follow tiling layout (opposite of floating)\n");
+    fprintf(fp, "#   workspace N - Place window on workspace N (0-based index)\n");
+    fprintf(fp, "#   monitor N - Place window on monitor N (0-based index)\n");
+    fprintf(fp, "#   size WIDTH HEIGHT - Set window dimensions (only works with floating windows)\n");
     fprintf(fp, "rules {\n");
     fprintf(fp, "    Pocky * * floating size 1100 700\n");
     fprintf(fp, "    vesktop * * workspace 0 monitor 1\n");
