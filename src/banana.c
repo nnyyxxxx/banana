@@ -1734,13 +1734,7 @@ void arrangeClients(SMonitor* monitor) {
     if (!monitor)
         return;
 
-    switch (monitor->currentLayout) {
-        case LAYOUT_TILED: tileClients(monitor); break;
-        case LAYOUT_FLOATING: break;
-        default: break;
-    }
-
-    restackFloatingWindows();
+    tileClients(monitor);
 }
 
 void restackFloatingWindows() {
@@ -2494,6 +2488,12 @@ void toggleBar(const char* arg) {
 
     showHideBars(!barVisible);
 
+    for (int i = 0; i < numMonitors; i++) {
+        arrangeClients(&monitors[i]);
+    }
+}
+
+void tileAllMonitors(void) {
     for (int i = 0; i < numMonitors; i++) {
         arrangeClients(&monitors[i]);
     }

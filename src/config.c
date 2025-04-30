@@ -11,6 +11,9 @@
 
 #include "config.h"
 
+extern Display* display;
+extern Window   root;
+
 #define CONFIG_PATH      "/.config/banana/banana.conf"
 #define MAX_LINE_LENGTH  1024
 #define MAX_TOKEN_LENGTH 128
@@ -60,6 +63,7 @@ static SFunctionMap functionMap[] = {{"spawn", spawnProgram},
                                      {"adjust_master", adjustMasterFactor},
                                      {"focus_monitor", focusMonitor},
                                      {"toggle_bar", toggleBar},
+                                     {"reload_config", reloadConfig},
                                      {NULL, NULL}};
 
 static SModifierMap modifierMap[] = {{"alt", Mod1Mask}, {"shift", ShiftMask}, {"control", ControlMask}, {"super", Mod4Mask}, {NULL, 0}};
@@ -77,6 +81,8 @@ static int  parseBindLine(char** tokens, int tokenCount);
 static int  parseRuleLine(char** tokens, int tokenCount);
 static int  parseSetLine(char** tokens, int tokenCount);
 static void freeTokens(char** tokens, int count);
+
+struct SMonitor;
 
 static void initDefaults(void) {
     barFont              = safeStrdup("monospace-12");
@@ -360,7 +366,7 @@ static int parseSetLine(char** tokens, int tokenCount) {
         workspaceCount = atoi(val);
     else if (strcmp(var, "default_master_count") == 0)
         defaultMasterCount = atoi(val);
-    else if (strcmp(var, "innerGap") == 0)
+    else if (strcmp(var, "inner_gap") == 0)
         innerGap = atoi(val);
     else if (strcmp(var, "outer_gap") == 0)
         outerGap = atoi(val);
@@ -388,7 +394,7 @@ static int parseSetLine(char** tokens, int tokenCount) {
     } else if (strcmp(var, "active_border_color") == 0) {
         free(activeBorderColor);
         activeBorderColor = safeStrdup(val);
-    } else if (strcmp(var, "inactiveBorderColor") == 0) {
+    } else if (strcmp(var, "inactive_border_color") == 0) {
         free(inactiveBorderColor);
         inactiveBorderColor = safeStrdup(val);
     } else if (strcmp(var, "bar_border_color") == 0) {
@@ -470,7 +476,7 @@ void createDefaultConfig(void) {
     fprintf(fp, "set > workspace_count > 9\n");
     fprintf(fp, "set > default_master_factor > 0.55\n");
     fprintf(fp, "set > default_master_count > 1\n");
-    fprintf(fp, "set > innerGap > 15\n");
+    fprintf(fp, "set > inner_gap > 15\n");
     fprintf(fp, "set > outer_gap > 20\n");
     fprintf(fp, "set > border_width > 2\n\n");
 
@@ -486,7 +492,7 @@ void createDefaultConfig(void) {
 
     fprintf(fp, "# Colors\n");
     fprintf(fp, "set > active_border_color > #6275d3\n");
-    fprintf(fp, "set > inactiveBorderColor > #6275d3\n");
+    fprintf(fp, "set > inactive_border_color > #6275d3\n");
     fprintf(fp, "set > bar_border_color > #000000\n");
     fprintf(fp, "set > bar_background_color > #000000\n");
     fprintf(fp, "set > bar_foreground_color > #ced4f0\n");
@@ -506,7 +512,8 @@ void createDefaultConfig(void) {
     fprintf(fp, "bind > alt > w > quit\n");
     fprintf(fp, "bind > alt > space > toggle_floating\n");
     fprintf(fp, "bind > alt > f > toggle_fullscreen\n");
-    fprintf(fp, "bind > alt > b > toggle_bar\n\n");
+    fprintf(fp, "bind > alt > b > toggle_bar\n");
+    fprintf(fp, "bind > alt > r > reload_config\n\n");
 
     fprintf(fp, "bind > alt > h > adjust_master > decrease\n");
     fprintf(fp, "bind > alt > l > adjust_master > increase\n\n");
@@ -652,6 +659,179 @@ int loadConfig(void) {
 
     fprintf(stderr, "banana: loaded %zu key bindings and %zu window rules\n", keysCount, rulesCount);
     return 1;
+}
+
+void reloadConfig(const char* arg) {
+    (void)arg;
+
+    fprintf(stderr, "banana: reloading configuration...\n");
+
+    SKeyBinding* oldKeys = keys;
+    size_t oldKeysCount = keysCount;
+    SWindowRule* oldRules = rules;
+    size_t oldRulesCount = rulesCount;
+
+    char* oldBarFont = barFont;
+    char* oldActiveBorderColor = activeBorderColor;
+    char* oldInactiveBorderColor = inactiveBorderColor;
+    char* oldBarBorderColor = barBorderColor;
+    char* oldBarBackgroundColor = barBackgroundColor;
+    char* oldBarForegroundColor = barForegroundColor;
+    char* oldBarActiveWsColor = barActiveWsColor;
+    char* oldBarUrgentWsColor = barUrgentWsColor;
+    char* oldBarActiveTextColor = barActiveTextColor;
+    char* oldBarUrgentTextColor = barUrgentTextColor;
+    char* oldBarInactiveTextColor = barInactiveTextColor;
+    char* oldBarStatusTextColor = barStatusTextColor;
+
+    int oldWorkspaceCount = workspaceCount;
+    float oldDefaultMasterFactor = defaultMasterFactor;
+    int oldDefaultMasterCount = defaultMasterCount;
+    int oldInnerGap = innerGap;
+    int oldOuterGap = outerGap;
+    int oldBorderWidth = borderWidth;
+    int oldShowBar = showBar;
+    int oldBarHeight = barHeight;
+    int oldMaxTitleLength = maxTitleLength;
+    int oldBarBorderWidth = barBorderWidth;
+    int oldBarStrutsTop = barStrutsTop;
+    int oldBarStrutsLeft = barStrutsLeft;
+    int oldBarStrutsRight = barStrutsRight;
+
+    keys = NULL;
+    keysCount = 0;
+    rules = NULL;
+    rulesCount = 0;
+    barFont = NULL;
+    activeBorderColor = NULL;
+    inactiveBorderColor = NULL;
+    barBorderColor = NULL;
+    barBackgroundColor = NULL;
+    barForegroundColor = NULL;
+    barActiveWsColor = NULL;
+    barUrgentWsColor = NULL;
+    barActiveTextColor = NULL;
+    barUrgentTextColor = NULL;
+    barInactiveTextColor = NULL;
+    barStatusTextColor = NULL;
+
+    int result = loadConfig();
+
+    if (!result) {
+        fprintf(stderr, "banana: failed to reload configuration, restoring old configuration\n");
+
+        keys = oldKeys;
+        keysCount = oldKeysCount;
+        rules = oldRules;
+        rulesCount = oldRulesCount;
+        barFont = oldBarFont;
+        activeBorderColor = oldActiveBorderColor;
+        inactiveBorderColor = oldInactiveBorderColor;
+        barBorderColor = oldBarBorderColor;
+        barBackgroundColor = oldBarBackgroundColor;
+        barForegroundColor = oldBarForegroundColor;
+        barActiveWsColor = oldBarActiveWsColor;
+        barUrgentWsColor = oldBarUrgentWsColor;
+        barActiveTextColor = oldBarActiveTextColor;
+        barUrgentTextColor = oldBarUrgentTextColor;
+        barInactiveTextColor = oldBarInactiveTextColor;
+        barStatusTextColor = oldBarStatusTextColor;
+        workspaceCount = oldWorkspaceCount;
+        defaultMasterFactor = oldDefaultMasterFactor;
+        defaultMasterCount = oldDefaultMasterCount;
+        innerGap = oldInnerGap;
+        outerGap = oldOuterGap;
+        borderWidth = oldBorderWidth;
+        showBar = oldShowBar;
+        barHeight = oldBarHeight;
+        maxTitleLength = oldMaxTitleLength;
+        barBorderWidth = oldBarBorderWidth;
+        barStrutsTop = oldBarStrutsTop;
+        barStrutsLeft = oldBarStrutsLeft;
+        barStrutsRight = oldBarStrutsRight;
+
+        return;
+    }
+
+    if (display && root) {
+        XUngrabKey(display, AnyKey, AnyModifier, root);
+        for (size_t i = 0; i < keysCount; i++) {
+            XGrabKey(display, XKeysymToKeycode(display, keys[i].keysym), keys[i].mod, root, True, GrabModeAsync, GrabModeAsync);
+        }
+        XSync(display, False);
+    }
+
+    for (size_t i = 0; i < oldKeysCount; i++) {
+        free((char*)oldKeys[i].arg);
+    }
+    free(oldKeys);
+
+    for (size_t i = 0; i < oldRulesCount; i++) {
+        free((char*)oldRules[i].className);
+        free((char*)oldRules[i].instanceName);
+        free((char*)oldRules[i].title);
+    }
+    free(oldRules);
+
+    free(oldBarFont);
+    free(oldActiveBorderColor);
+    free(oldInactiveBorderColor);
+    free(oldBarBorderColor);
+    free(oldBarBackgroundColor);
+    free(oldBarForegroundColor);
+    free(oldBarActiveWsColor);
+    free(oldBarUrgentWsColor);
+    free(oldBarActiveTextColor);
+    free(oldBarUrgentTextColor);
+    free(oldBarInactiveTextColor);
+    free(oldBarStatusTextColor);
+
+    fprintf(stderr, "banana: configuration reloaded with %zu key bindings and %zu window rules\n", keysCount, rulesCount);
+
+    if (display) {
+        extern void updateBorders(void);
+        extern void updateClientPositionsForBar(void);
+        extern void updateClientVisibility(void);
+        extern void createBars(void);
+        extern void updateBars(void);
+        extern void showHideBars(int show);
+        extern void tileAllMonitors(void);
+        extern void resetBarResources(void);
+        extern int barVisible;
+        extern int xerrorHandler(Display*, XErrorEvent*);
+
+        XErrorHandler oldHandler = XSetErrorHandler(xerrorHandler);
+
+        if (!oldHandler)
+            fprintf(stderr, "banana: warning - no error handler registered, proceeding with caution\n");
+
+        XSync(display, False);
+        updateBorders();
+        XSync(display, False);
+
+        resetBarResources();
+        XSync(display, False);
+
+        createBars();
+        XSync(display, False);
+
+        showHideBars(showBar);
+        XSync(display, False);
+
+        updateClientPositionsForBar();
+        XSync(display, False);
+
+        updateClientVisibility();
+        XSync(display, False);
+
+        tileAllMonitors();
+        XSync(display, False);
+
+        updateBars();
+        XSync(display, False);
+
+        XSetErrorHandler(oldHandler);
+    }
 }
 
 void freeConfig(void) {

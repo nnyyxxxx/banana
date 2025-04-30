@@ -18,5 +18,6 @@ void           handleBarClick(XEvent* event);
 void           cleanupBars(void);
 void           updateClientPositionsForBar(void);
 void           showHideBars(int show);
+void           resetBarResources(void);
 
 #endif /* BAR_H */

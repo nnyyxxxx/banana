@@ -17,6 +17,7 @@ void focusWindowInStack(const char* arg);
 void adjustMasterFactor(const char* arg);
 void focusMonitor(const char* arg);
 void toggleBar(const char* arg);
+void reloadConfig(const char* arg);
 
 typedef struct {
     unsigned int mod;
