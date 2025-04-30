@@ -11,79 +11,54 @@
 
 #include "config.h"
 
-extern Display* display;
-extern Window   root;
+int                workspaceCount       = 9;
+float              defaultMasterFactor  = 0.55;
+int                innerGap             = 15;
+int                outerGap             = 20;
+int                barHeight            = 20;
+char*              barFont              = NULL;
+int                maxTitleLength       = 40;
+int                showBar              = 1;
+int                barBorderWidth       = 0;
+int                barStrutsTop         = 0;
+int                barStrutsLeft        = 0;
+int                barStrutsRight       = 0;
+char*              activeBorderColor    = NULL;
+char*              inactiveBorderColor  = NULL;
+char*              barBorderColor       = NULL;
+char*              barBackgroundColor   = NULL;
+char*              barForegroundColor   = NULL;
+char*              barActiveWsColor     = NULL;
+char*              barUrgentWsColor     = NULL;
+char*              barActiveTextColor   = NULL;
+char*              barUrgentTextColor   = NULL;
+char*              barInactiveTextColor = NULL;
+char*              barStatusTextColor   = NULL;
+int                borderWidth          = 2;
 
-#define CONFIG_PATH      "/.config/banana/banana.conf"
-#define MAX_LINE_LENGTH  1024
-#define MAX_TOKEN_LENGTH 128
-#define MAX_KEYS         100
-#define MAX_RULES        50
+SKeyBinding*       keys       = NULL;
+size_t             keysCount  = 0;
+SWindowRule*       rules      = NULL;
+size_t             rulesCount = 0;
 
-int                 workspaceCount       = 9;
-float               defaultMasterFactor  = 0.55;
-int                 innerGap             = 15;
-int                 outerGap             = 20;
-int                 barHeight            = 20;
-char*               barFont              = NULL;
-int                 maxTitleLength       = 40;
-int                 showBar              = 1;
-int                 barBorderWidth       = 0;
-int                 barStrutsTop         = 0;
-int                 barStrutsLeft        = 0;
-int                 barStrutsRight       = 0;
-char*               activeBorderColor    = NULL;
-char*               inactiveBorderColor  = NULL;
-char*               barBorderColor       = NULL;
-char*               barBackgroundColor   = NULL;
-char*               barForegroundColor   = NULL;
-char*               barActiveWsColor     = NULL;
-char*               barUrgentWsColor     = NULL;
-char*               barActiveTextColor   = NULL;
-char*               barUrgentTextColor   = NULL;
-char*               barInactiveTextColor = NULL;
-char*               barStatusTextColor   = NULL;
-int                 borderWidth          = 2;
+const SFunctionMap functionMap[] = {{"spawn", spawnProgram},
+                                    {"kill", killClient},
+                                    {"quit", quit},
+                                    {"switch_workspace", switchToWorkspace},
+                                    {"move_to_workspace", moveClientToWorkspace},
+                                    {"toggle_floating", toggleFloating},
+                                    {"toggle_fullscreen", toggleFullscreen},
+                                    {"move_window", moveWindowInStack},
+                                    {"focus_window", focusWindowInStack},
+                                    {"adjust_master", adjustMasterFactor},
+                                    {"focus_monitor", focusMonitor},
+                                    {"toggle_bar", toggleBar},
+                                    {"reload_config", reloadConfig},
+                                    {NULL, NULL}};
 
-SKeyBinding*        keys       = NULL;
-size_t              keysCount  = 0;
-SWindowRule*        rules      = NULL;
-size_t              rulesCount = 0;
+const SModifierMap modifierMap[] = {{"alt", Mod1Mask}, {"shift", ShiftMask}, {"control", ControlMask}, {"super", Mod4Mask}, {NULL, 0}};
 
-static SFunctionMap functionMap[] = {{"spawn", spawnProgram},
-                                     {"kill", killClient},
-                                     {"quit", quit},
-                                     {"switch_workspace", switchToWorkspace},
-                                     {"move_to_workspace", moveClientToWorkspace},
-                                     {"toggle_floating", toggleFloating},
-                                     {"toggle_fullscreen", toggleFullscreen},
-                                     {"move_window", moveWindowInStack},
-                                     {"focus_window", focusWindowInStack},
-                                     {"adjust_master", adjustMasterFactor},
-                                     {"focus_monitor", focusMonitor},
-                                     {"toggle_bar", toggleBar},
-                                     {"reload_config", reloadConfig},
-                                     {NULL, NULL}};
-
-static SModifierMap modifierMap[] = {{"alt", Mod1Mask}, {"shift", ShiftMask}, {"control", ControlMask}, {"super", Mod4Mask}, {NULL, 0}};
-
-static void         initDefaults(void);
-static void*        safeMalloc(size_t size);
-char*               safeStrdup(const char* s);
-static char*        getConfigPath(void);
-static void         trim(char* str);
-static char**       tokenize(char* line, const char* delimiter, int* count);
-static KeySym       getKeysym(const char* key);
-static unsigned int getModifier(const char* mod);
-static void (*getFunction(const char* name))(const char*);
-static int  parseBindLine(char** tokens, int tokenCount);
-static int  parseRuleLine(char** tokens, int tokenCount);
-static int  parseSetLine(char** tokens, int tokenCount);
-static void freeTokens(char** tokens, int count);
-
-struct SMonitor;
-
-static void initDefaults(void) {
+static void        initDefaults(void) {
     barFont              = safeStrdup("monospace-12");
     activeBorderColor    = safeStrdup("#6275d3");
     inactiveBorderColor  = safeStrdup("#6275d3");
