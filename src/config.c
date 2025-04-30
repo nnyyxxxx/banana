@@ -1134,6 +1134,8 @@ void reloadConfig(const char* arg) {
         XUngrabKey(display, AnyKey, AnyModifier, root);
         for (size_t i = 0; i < keysCount; i++) {
             XGrabKey(display, XKeysymToKeycode(display, keys[i].keysym), keys[i].mod, root, True, GrabModeAsync, GrabModeAsync);
+
+            XGrabKey(display, XKeysymToKeycode(display, keys[i].keysym), keys[i].mod | LockMask, root, True, GrabModeAsync, GrabModeAsync);
         }
         XSync(display, False);
     }

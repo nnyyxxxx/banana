@@ -322,13 +322,15 @@ void cleanup() {
 }
 
 void handleKeyPress(XEvent* event) {
-    XKeyEvent* ev     = &event->xkey;
-    KeySym     keysym = XLookupKeysym(ev, 0);
+    XKeyEvent*   ev     = &event->xkey;
+    KeySym       keysym = XLookupKeysym(ev, 0);
+
+    unsigned int state = ev->state & ~LockMask;
 
     lastMappedWindow = 0;
 
     for (size_t i = 0; i < keysCount; i++) {
-        if (keys[i].keysym == keysym && keys[i].mod == ev->state) {
+        if (keys[i].keysym == keysym && keys[i].mod == state) {
             keys[i].func(keys[i].arg);
             break;
         }
@@ -968,8 +970,11 @@ void quit(const char* arg) {
 
 void grabKeys() {
     XUngrabKey(display, AnyKey, AnyModifier, root);
+
     for (size_t i = 0; i < keysCount; i++) {
         XGrabKey(display, XKeysymToKeycode(display, keys[i].keysym), keys[i].mod, root, True, GrabModeAsync, GrabModeAsync);
+
+        XGrabKey(display, XKeysymToKeycode(display, keys[i].keysym), keys[i].mod | LockMask, root, True, GrabModeAsync, GrabModeAsync);
     }
 
     fprintf(stderr, "Key grabs set up on root window\n");
