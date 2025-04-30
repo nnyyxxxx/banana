@@ -69,6 +69,12 @@ typedef struct {
     int               hasErrors;
 } STokenHandlerContext;
 
+typedef struct {
+    char sectionName[MAX_TOKEN_LENGTH];
+    int  startLine;
+    int  lastContentLine;
+} SSectionInfo;
+
 void         spawnProgram(const char* arg);
 void         killClient(const char* arg);
 void         quit(const char* arg);

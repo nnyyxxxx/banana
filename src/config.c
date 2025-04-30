@@ -166,11 +166,17 @@ static int         parseConfigFile(STokenHandlerContext* ctx) {
         return 0;
     }
 
-    char line[MAX_LINE_LENGTH];
-    char section[MAX_TOKEN_LENGTH] = "";
-    int  inSection                 = 0;
-    int  lineNum                   = 0;
-    int  braceDepth                = 0;
+    char         line[MAX_LINE_LENGTH];
+    char         section[MAX_TOKEN_LENGTH] = "";
+    int          inSection                 = 0;
+    int          lineNum                   = 0;
+    int          braceDepth                = 0;
+
+    int          potentialSectionLineNum                = 0;
+    char         potentialSectionName[MAX_TOKEN_LENGTH] = "";
+
+    SSectionInfo sectionStack[10] = {0};
+    int          sectionDepth     = 0;
 
     while (fgets(line, sizeof(line), fp)) {
         lineNum++;
@@ -210,6 +216,16 @@ static int         parseConfigFile(STokenHandlerContext* ctx) {
                 strcpy(section, sectionName);
                 inSection = 1;
                 braceDepth++;
+
+                if (sectionDepth < 10) {
+                    strcpy(sectionStack[sectionDepth].sectionName, sectionName);
+                    sectionStack[sectionDepth].startLine       = lineNum;
+                    sectionStack[sectionDepth].lastContentLine = lineNum;
+                    sectionDepth++;
+                }
+
+                potentialSectionLineNum = 0;
+                potentialSectionName[0] = '\0';
             } else
                 braceDepth++;
             continue;
@@ -217,15 +233,58 @@ static int         parseConfigFile(STokenHandlerContext* ctx) {
 
         if (strstr(line, "}")) {
             braceDepth--;
-            if (braceDepth == 0) {
+            if (braceDepth < 0) {
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    char errMsg[MAX_LINE_LENGTH];
+                    snprintf(errMsg, MAX_LINE_LENGTH, "Unexpected closing brace - no matching opening brace");
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                    braceDepth     = 0;
+                }
+            } else if (braceDepth == 0) {
                 inSection  = 0;
                 section[0] = '\0';
             }
+
+            if (sectionDepth > 0)
+                sectionDepth--;
+
             continue;
         }
 
-        if (!inSection)
+        if (inSection && sectionDepth > 0)
+            sectionStack[sectionDepth - 1].lastContentLine = lineNum;
+
+        if (!inSection) {
+            if (strchr(line, ' ') && !strstr(line, "{")) {
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    if (potentialSectionLineNum > 0) {
+                        char errMsg[MAX_LINE_LENGTH];
+                        snprintf(errMsg, MAX_LINE_LENGTH, "Missing opening brace after section name '%s'", potentialSectionName);
+                        addError(ctx->errors, errMsg, potentialSectionLineNum, 0);
+
+                        potentialSectionLineNum = 0;
+                        potentialSectionName[0] = '\0';
+                    }
+
+                    char errMsg[MAX_LINE_LENGTH];
+                    snprintf(errMsg, MAX_LINE_LENGTH, "Content outside of section - missing opening brace");
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                }
+            } else if (!strchr(line, ' ') && !strstr(line, "{")) {
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    strncpy(potentialSectionName, line, MAX_TOKEN_LENGTH - 1);
+                    potentialSectionName[MAX_TOKEN_LENGTH - 1] = '\0';
+                    trim(potentialSectionName);
+                    potentialSectionLineNum = lineNum;
+                }
+            } else if (strstr(line, "{")) {
+                potentialSectionLineNum = 0;
+                potentialSectionName[0] = '\0';
+            }
             continue;
+        }
 
         char*  lineClone  = safeStrdup(line);
         char** tokens     = safeMalloc(MAX_TOKEN_LENGTH * sizeof(char*));
@@ -603,6 +662,23 @@ static int         parseConfigFile(STokenHandlerContext* ctx) {
     }
 
     fclose(fp);
+
+    if (braceDepth > 0 && ctx->mode == TOKEN_HANDLER_VALIDATE) {
+        for (int i = sectionDepth - 1; i >= 0; i--) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Unclosed section: %s (missing closing brace)", sectionStack[i].sectionName);
+
+            addError(ctx->errors, errMsg, sectionStack[i].lastContentLine + 1, 0);
+            ctx->hasErrors = 1;
+        }
+    }
+
+    if (potentialSectionLineNum > 0 && ctx->mode == TOKEN_HANDLER_VALIDATE) {
+        char errMsg[MAX_LINE_LENGTH];
+        snprintf(errMsg, MAX_LINE_LENGTH, "Missing opening brace after section name '%s'", potentialSectionName);
+        addError(ctx->errors, errMsg, potentialSectionLineNum, 0);
+        ctx->hasErrors = 1;
+    }
 
     if (ctx->mode == TOKEN_HANDLER_LOAD) {
         fprintf(stderr, "banana: loaded %zu key bindings and %zu window rules\n", keysCount, rulesCount);
