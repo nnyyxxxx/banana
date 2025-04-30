@@ -13,11 +13,14 @@ LOGO    := .github/banana.svg
 
 all: clean release
 
+format:
+	clang-format -i src/*.c src/*.h
+
 release: CFLAGS += -O3
-release: $(BIN)
+release: format $(BIN)
 
 debug: CFLAGS += -g
-debug: $(BIN)
+debug: format $(BIN)
 
 $(BIN): $(OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
@@ -41,4 +44,4 @@ uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/$(BIN:build/%=%)
 	rm -f $(DESTDIR)$(PREFIX)/share/pixmaps/banana.svg
 
-.PHONY: all clean release debug install uninstall
+.PHONY: all clean release debug install uninstall format
