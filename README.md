@@ -4,7 +4,7 @@
 
 ![banana](.github/banana.png)
 
-A minimal window manager
+A tiling window manager.
 
 </div>
 
