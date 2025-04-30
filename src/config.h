@@ -100,17 +100,27 @@ void         trim(char* str);
 KeySym       getKeysym(const char* key);
 unsigned int getModifier(const char* mod);
 void (*getFunction(const char* name))(const char*);
-void            freeTokens(char** tokens, int count);
-void            addError(SConfigErrors* errors, const char* message, int lineNum, int isFatal);
+void   freeTokens(char** tokens, int count);
+void   addError(SConfigErrors* errors, const char* message, int lineNum, int isFatal);
 
-int             isValidInteger(const char* str);
-int             isValidFloat(const char* str);
-int             isValidWorkspaceIndex(const char* arg);
-int             isValidAdjustMasterArg(const char* arg);
-int             isValidMoveWindowArg(const char* arg);
-int             isValidFocusWindowArg(const char* arg);
-int             isValidFocusMonitorArg(const char* arg);
-int             isValidHexColor(const char* str);
+int    isValidInteger(const char* str);
+int    isValidFloat(const char* str);
+int    isValidWorkspaceIndex(const char* arg);
+int    isValidAdjustMasterArg(const char* arg);
+int    isValidMoveWindowArg(const char* arg);
+int    isValidFocusWindowArg(const char* arg);
+int    isValidFocusMonitorArg(const char* arg);
+int    isValidHexColor(const char* str);
+
+char** tokenizeLine(const char* line, int* tokenCount);
+int    initializeConfig(STokenHandlerContext* ctx, SKeyBinding** oldKeys, size_t* oldKeysCount, SWindowRule** oldRules, size_t* oldRulesCount);
+int    openConfigFile(STokenHandlerContext* ctx, const char* configPath);
+int    handleGeneralSection(STokenHandlerContext* ctx, const char* var, const char* val, int lineNum, char** tokens, int tokenCount);
+int    handleBarSection(STokenHandlerContext* ctx, const char* var, const char* val, int lineNum, char** tokens, int tokenCount);
+int    handleDecorationSection(STokenHandlerContext* ctx, const char* var, const char* val, int lineNum, char** tokens, int tokenCount);
+int    handleBindsSection(STokenHandlerContext* ctx, const char* modStr, const char* keyStr, const char* funcStr, const char* argStr, int lineNum, char** tokens, int tokenCount);
+int    handleRulesSection(STokenHandlerContext* ctx, int tokenCount, char** tokens, int lineNum);
+int    reportBraceMismatch(STokenHandlerContext* ctx, int sectionDepth, SSectionInfo* sectionStack);
 
 extern Display* display;
 extern Window   root;

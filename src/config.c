@@ -148,6 +148,44 @@ int isValidHexColor(const char* str) {
     return 1;
 }
 
+char** tokenizeLine(const char* line, int* tokenCount) {
+    char** tokens = safeMalloc(MAX_TOKEN_LENGTH * sizeof(char*));
+    *tokenCount   = 0;
+
+    char* lineClone  = safeStrdup(line);
+    char* p          = lineClone;
+    int   inString   = 0;
+    char* tokenStart = p;
+
+    while (*p) {
+        if (*p == '\"')
+            inString = !inString;
+        else if (isspace((unsigned char)*p) && !inString) {
+            *p = '\0';
+            if (p > tokenStart && *(p - 1) != '\0') {
+                if (tokenStart[0] == '\"' && *(p - 1) == '\"') {
+                    tokenStart++;
+                    *(p - 1) = '\0';
+                }
+                tokens[(*tokenCount)++] = safeStrdup(tokenStart);
+            }
+            tokenStart = p + 1;
+        }
+        p++;
+    }
+
+    if (p > tokenStart && *(p - 1) != '\0') {
+        if (tokenStart[0] == '\"' && *(p - 1) == '\"') {
+            tokenStart++;
+            *(p - 1) = '\0';
+        }
+        tokens[(*tokenCount)++] = safeStrdup(tokenStart);
+    }
+
+    free(lineClone);
+    return tokens;
+}
+
 static int parseConfigFile(STokenHandlerContext* ctx) {
     initDefaults();
 
@@ -377,40 +415,8 @@ static int parseConfigFile(STokenHandlerContext* ctx) {
             continue;
         }
 
-        char*  lineClone  = safeStrdup(line);
-        char** tokens     = safeMalloc(MAX_TOKEN_LENGTH * sizeof(char*));
-        int    tokenCount = 0;
-
-        char*  p          = lineClone;
-        int    inString   = 0;
-        char*  tokenStart = p;
-
-        while (*p) {
-            if (*p == '\"')
-                inString = !inString;
-            else if (isspace((unsigned char)*p) && !inString) {
-                *p = '\0';
-                if (p > tokenStart && *(p - 1) != '\0') {
-                    if (tokenStart[0] == '\"' && *(p - 1) == '\"') {
-                        tokenStart++;
-                        *(p - 1) = '\0';
-                    }
-                    tokens[tokenCount++] = safeStrdup(tokenStart);
-                }
-                tokenStart = p + 1;
-            }
-            p++;
-        }
-
-        if (p > tokenStart && *(p - 1) != '\0') {
-            if (tokenStart[0] == '\"' && *(p - 1) == '\"') {
-                tokenStart++;
-                *(p - 1) = '\0';
-            }
-            tokens[tokenCount++] = safeStrdup(tokenStart);
-        }
-
-        free(lineClone);
+        int    tokenCount;
+        char** tokens = tokenizeLine(line, &tokenCount);
 
         if (tokenCount < 2) {
             char errMsg[MAX_LINE_LENGTH];
@@ -430,435 +436,20 @@ static int parseConfigFile(STokenHandlerContext* ctx) {
             const char* var = tokens[0];
             const char* val = tokens[1];
 
-            if (strcmp(var, "workspace_count") == 0) {
-                if (!isValidInteger(val)) {
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid workspace count: '%s' - must be an integer", val);
-
-                    if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                        addError(ctx->errors, errMsg, lineNum, 0);
-                        ctx->hasErrors = 1;
-                    } else
-                        fprintf(stderr, "banana: %s\n", errMsg);
-                    freeTokens(tokens, tokenCount);
-                    continue;
-                }
-
-                int count = atoi(val);
-                if (count > 9) {
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Workspace count limited to maximum of 9");
-
-                    if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                        addError(ctx->errors, errMsg, lineNum, 0);
-                        ctx->hasErrors = 1;
-                    } else {
-                        fprintf(stderr, "banana: %s\n", errMsg);
-                        count = 9;
-                    }
-                }
-
-                if (ctx->mode == TOKEN_HANDLER_LOAD)
-                    workspaceCount = count;
-            } else if (strcmp(var, "inner_gap") == 0) {
-                if (!isValidInteger(val)) {
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid inner gap: '%s' - must be an integer", val);
-
-                    if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                        addError(ctx->errors, errMsg, lineNum, 0);
-                        ctx->hasErrors = 1;
-                    } else
-                        fprintf(stderr, "banana: %s\n", errMsg);
-                    freeTokens(tokens, tokenCount);
-                    continue;
-                }
-
-                if (ctx->mode == TOKEN_HANDLER_LOAD)
-                    innerGap = atoi(val);
-            } else if (strcmp(var, "outer_gap") == 0) {
-                if (!isValidInteger(val)) {
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid outer gap: '%s' - must be an integer", val);
-
-                    if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                        addError(ctx->errors, errMsg, lineNum, 0);
-                        ctx->hasErrors = 1;
-                    } else
-                        fprintf(stderr, "banana: %s\n", errMsg);
-                    freeTokens(tokens, tokenCount);
-                    continue;
-                }
-
-                if (ctx->mode == TOKEN_HANDLER_LOAD)
-                    outerGap = atoi(val);
-            } else if (strcmp(var, "border_width") == 0) {
-                if (!isValidInteger(val)) {
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid border width: '%s' - must be an integer", val);
-
-                    if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                        addError(ctx->errors, errMsg, lineNum, 0);
-                        ctx->hasErrors = 1;
-                    } else
-                        fprintf(stderr, "banana: %s\n", errMsg);
-                    freeTokens(tokens, tokenCount);
-                    continue;
-                }
-
-                if (ctx->mode == TOKEN_HANDLER_LOAD)
-                    borderWidth = atoi(val);
-            } else if (strcmp(var, "default_master_factor") == 0) {
-                if (!isValidFloat(val)) {
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid master factor: '%s' - must be a floating point number", val);
-
-                    if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                        addError(ctx->errors, errMsg, lineNum, 0);
-                        ctx->hasErrors = 1;
-                    } else
-                        fprintf(stderr, "banana: %s\n", errMsg);
-                    freeTokens(tokens, tokenCount);
-                    continue;
-                }
-
-                if (ctx->mode == TOKEN_HANDLER_LOAD)
-                    defaultMasterFactor = atof(val);
-            } else {
-                char errMsg[MAX_LINE_LENGTH];
-                snprintf(errMsg, MAX_LINE_LENGTH, "Unknown general setting: %s", var);
-
-                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                    addError(ctx->errors, errMsg, lineNum, 0);
-                    ctx->hasErrors = 1;
-                } else
-                    fprintf(stderr, "banana: %s\n", errMsg);
-            }
+            if (handleGeneralSection(ctx, var, val, lineNum, tokens, tokenCount))
+                continue;
         } else if (strcasecmp(section, SECTION_BAR) == 0) {
             const char* var = tokens[0];
             const char* val = tokens[1];
 
-            if (strcmp(var, "height") == 0) {
-                if (!isValidInteger(val)) {
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid bar height: '%s' - must be an integer", val);
-
-                    if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                        addError(ctx->errors, errMsg, lineNum, 0);
-                        ctx->hasErrors = 1;
-                    } else
-                        fprintf(stderr, "banana: %s\n", errMsg);
-                    freeTokens(tokens, tokenCount);
-                    continue;
-                }
-
-                if (ctx->mode == TOKEN_HANDLER_LOAD)
-                    barHeight = atoi(val);
-            } else if (strcmp(var, "font") == 0) {
-                if (ctx->mode == TOKEN_HANDLER_LOAD) {
-                    free(barFont);
-                    barFont = safeStrdup(val);
-                }
-            } else if (strcmp(var, "show") == 0) {
-                if (!isValidInteger(val)) {
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid bar show value: '%s' - must be 0 or 1", val);
-                    addError(ctx->errors, errMsg, lineNum, 0);
-                    ctx->hasErrors = 1;
-                    return 0;
-                }
-
-                int showValue = atoi(val);
-                if (showValue != 0 && showValue != 1) {
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid bar show value: '%s' - must be 0 or 1", val);
-                    addError(ctx->errors, errMsg, lineNum, 0);
-                    ctx->hasErrors = 1;
-                    return 0;
-                }
-
-                showBar = atoi(val);
-            } else if (strcmp(var, "show_only_active_workspaces") == 0) {
-                if (!isValidInteger(val)) {
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid show_only_active_workspaces value: '%s' - must be 0 or 1", val);
-                    addError(ctx->errors, errMsg, lineNum, 0);
-                    ctx->hasErrors = 1;
-                    return 0;
-                }
-
-                int showActiveValue = atoi(val);
-                if (showActiveValue != 0 && showActiveValue != 1) {
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid show_only_active_workspaces value: '%s' - must be 0 or 1", val);
-                    addError(ctx->errors, errMsg, lineNum, 0);
-                    ctx->hasErrors = 1;
-                    return 0;
-                }
-
-                showOnlyActiveWorkspaces = atoi(val);
-            } else if (strcmp(var, "border_width") == 0) {
-                if (!isValidInteger(val)) {
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid bar border width: '%s' - must be an integer", val);
-
-                    if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                        addError(ctx->errors, errMsg, lineNum, 0);
-                        ctx->hasErrors = 1;
-                    } else
-                        fprintf(stderr, "banana: %s\n", errMsg);
-                    freeTokens(tokens, tokenCount);
-                    continue;
-                }
-
-                if (ctx->mode == TOKEN_HANDLER_LOAD)
-                    barBorderWidth = atoi(val);
-            } else if (strcmp(var, "struts_top") == 0) {
-                if (!isValidInteger(val)) {
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid struts_top value: '%s' - must be an integer", val);
-
-                    if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                        addError(ctx->errors, errMsg, lineNum, 0);
-                        ctx->hasErrors = 1;
-                    } else
-                        fprintf(stderr, "banana: %s\n", errMsg);
-                    freeTokens(tokens, tokenCount);
-                    continue;
-                }
-
-                if (ctx->mode == TOKEN_HANDLER_LOAD)
-                    barStrutsTop = atoi(val);
-            } else if (strcmp(var, "struts_left") == 0) {
-                if (!isValidInteger(val)) {
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid struts_left value: '%s' - must be an integer", val);
-
-                    if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                        addError(ctx->errors, errMsg, lineNum, 0);
-                        ctx->hasErrors = 1;
-                    } else
-                        fprintf(stderr, "banana: %s\n", errMsg);
-                    freeTokens(tokens, tokenCount);
-                    continue;
-                }
-
-                if (ctx->mode == TOKEN_HANDLER_LOAD)
-                    barStrutsLeft = atoi(val);
-            } else if (strcmp(var, "struts_right") == 0) {
-                if (!isValidInteger(val)) {
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid struts_right value: '%s' - must be an integer", val);
-
-                    if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                        addError(ctx->errors, errMsg, lineNum, 0);
-                        ctx->hasErrors = 1;
-                    } else
-                        fprintf(stderr, "banana: %s\n", errMsg);
-                    freeTokens(tokens, tokenCount);
-                    continue;
-                }
-
-                if (ctx->mode == TOKEN_HANDLER_LOAD)
-                    barStrutsRight = atoi(val);
-            } else {
-                char errMsg[MAX_LINE_LENGTH];
-                snprintf(errMsg, MAX_LINE_LENGTH, "Unknown bar setting: %s", var);
-
-                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                    addError(ctx->errors, errMsg, lineNum, 0);
-                    ctx->hasErrors = 1;
-                } else
-                    fprintf(stderr, "banana: %s\n", errMsg);
-            }
+            if (handleBarSection(ctx, var, val, lineNum, tokens, tokenCount))
+                continue;
         } else if (strcasecmp(section, SECTION_DECORATION) == 0) {
             const char* var = tokens[0];
             const char* val = tokens[1];
 
-            if (ctx->mode == TOKEN_HANDLER_LOAD) {
-                if (strcmp(var, "active_border_color") == 0) {
-                    if (!isValidHexColor(val)) {
-                        char errMsg[MAX_LINE_LENGTH];
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
-
-                        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                            addError(ctx->errors, errMsg, lineNum, 0);
-                            ctx->hasErrors = 1;
-                        } else
-                            fprintf(stderr, "banana: %s\n", errMsg);
-                        freeTokens(tokens, tokenCount);
-                        continue;
-                    }
-                    free(activeBorderColor);
-                    activeBorderColor = safeStrdup(val);
-                } else if (strcmp(var, "inactive_border_color") == 0) {
-                    if (!isValidHexColor(val)) {
-                        char errMsg[MAX_LINE_LENGTH];
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
-
-                        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                            addError(ctx->errors, errMsg, lineNum, 0);
-                            ctx->hasErrors = 1;
-                        } else
-                            fprintf(stderr, "banana: %s\n", errMsg);
-                        freeTokens(tokens, tokenCount);
-                        continue;
-                    }
-                    free(inactiveBorderColor);
-                    inactiveBorderColor = safeStrdup(val);
-                } else if (strcmp(var, "bar_border_color") == 0) {
-                    if (!isValidHexColor(val)) {
-                        char errMsg[MAX_LINE_LENGTH];
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
-
-                        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                            addError(ctx->errors, errMsg, lineNum, 0);
-                            ctx->hasErrors = 1;
-                        } else
-                            fprintf(stderr, "banana: %s\n", errMsg);
-                        freeTokens(tokens, tokenCount);
-                        continue;
-                    }
-                    free(barBorderColor);
-                    barBorderColor = safeStrdup(val);
-                } else if (strcmp(var, "bar_background_color") == 0) {
-                    if (!isValidHexColor(val)) {
-                        char errMsg[MAX_LINE_LENGTH];
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
-
-                        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                            addError(ctx->errors, errMsg, lineNum, 0);
-                            ctx->hasErrors = 1;
-                        } else
-                            fprintf(stderr, "banana: %s\n", errMsg);
-                        freeTokens(tokens, tokenCount);
-                        continue;
-                    }
-                    free(barBackgroundColor);
-                    barBackgroundColor = safeStrdup(val);
-                } else if (strcmp(var, "bar_foreground_color") == 0) {
-                    if (!isValidHexColor(val)) {
-                        char errMsg[MAX_LINE_LENGTH];
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
-
-                        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                            addError(ctx->errors, errMsg, lineNum, 0);
-                            ctx->hasErrors = 1;
-                        } else
-                            fprintf(stderr, "banana: %s\n", errMsg);
-                        freeTokens(tokens, tokenCount);
-                        continue;
-                    }
-                    free(barForegroundColor);
-                    barForegroundColor = safeStrdup(val);
-                } else if (strcmp(var, "bar_active_ws_color") == 0) {
-                    if (!isValidHexColor(val)) {
-                        char errMsg[MAX_LINE_LENGTH];
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
-
-                        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                            addError(ctx->errors, errMsg, lineNum, 0);
-                            ctx->hasErrors = 1;
-                        } else
-                            fprintf(stderr, "banana: %s\n", errMsg);
-                        freeTokens(tokens, tokenCount);
-                        continue;
-                    }
-                    free(barActiveWsColor);
-                    barActiveWsColor = safeStrdup(val);
-                } else if (strcmp(var, "bar_urgent_ws_color") == 0) {
-                    if (!isValidHexColor(val)) {
-                        char errMsg[MAX_LINE_LENGTH];
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
-
-                        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                            addError(ctx->errors, errMsg, lineNum, 0);
-                            ctx->hasErrors = 1;
-                        } else
-                            fprintf(stderr, "banana: %s\n", errMsg);
-                        freeTokens(tokens, tokenCount);
-                        continue;
-                    }
-                    free(barUrgentWsColor);
-                    barUrgentWsColor = safeStrdup(val);
-                } else if (strcmp(var, "bar_active_text_color") == 0) {
-                    if (!isValidHexColor(val)) {
-                        char errMsg[MAX_LINE_LENGTH];
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
-
-                        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                            addError(ctx->errors, errMsg, lineNum, 0);
-                            ctx->hasErrors = 1;
-                        } else
-                            fprintf(stderr, "banana: %s\n", errMsg);
-                        freeTokens(tokens, tokenCount);
-                        continue;
-                    }
-                    free(barActiveTextColor);
-                    barActiveTextColor = safeStrdup(val);
-                } else if (strcmp(var, "bar_urgent_text_color") == 0) {
-                    if (!isValidHexColor(val)) {
-                        char errMsg[MAX_LINE_LENGTH];
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
-
-                        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                            addError(ctx->errors, errMsg, lineNum, 0);
-                            ctx->hasErrors = 1;
-                        } else
-                            fprintf(stderr, "banana: %s\n", errMsg);
-                        freeTokens(tokens, tokenCount);
-                        continue;
-                    }
-                    free(barUrgentTextColor);
-                    barUrgentTextColor = safeStrdup(val);
-                } else if (strcmp(var, "bar_inactive_text_color") == 0) {
-                    if (!isValidHexColor(val)) {
-                        char errMsg[MAX_LINE_LENGTH];
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
-
-                        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                            addError(ctx->errors, errMsg, lineNum, 0);
-                            ctx->hasErrors = 1;
-                        } else
-                            fprintf(stderr, "banana: %s\n", errMsg);
-                        freeTokens(tokens, tokenCount);
-                        continue;
-                    }
-                    free(barInactiveTextColor);
-                    barInactiveTextColor = safeStrdup(val);
-                } else if (strcmp(var, "bar_status_text_color") == 0) {
-                    if (!isValidHexColor(val)) {
-                        char errMsg[MAX_LINE_LENGTH];
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
-
-                        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                            addError(ctx->errors, errMsg, lineNum, 0);
-                            ctx->hasErrors = 1;
-                        } else
-                            fprintf(stderr, "banana: %s\n", errMsg);
-                        freeTokens(tokens, tokenCount);
-                        continue;
-                    }
-                    free(barStatusTextColor);
-                    barStatusTextColor = safeStrdup(val);
-                } else
-                    fprintf(stderr, "banana: unknown decoration setting: %s\n", var);
-            } else if (!(strcmp(var, "active_border_color") == 0 || strcmp(var, "inactive_border_color") == 0 || strcmp(var, "bar_border_color") == 0 ||
-                         strcmp(var, "bar_background_color") == 0 || strcmp(var, "bar_foreground_color") == 0 || strcmp(var, "bar_active_ws_color") == 0 ||
-                         strcmp(var, "bar_urgent_ws_color") == 0 || strcmp(var, "bar_active_text_color") == 0 || strcmp(var, "bar_urgent_text_color") == 0 ||
-                         strcmp(var, "bar_inactive_text_color") == 0 || strcmp(var, "bar_status_text_color") == 0)) {
-                char errMsg[MAX_LINE_LENGTH];
-                snprintf(errMsg, MAX_LINE_LENGTH, "Unknown decoration setting: %s", var);
-                addError(ctx->errors, errMsg, lineNum, 0);
-                ctx->hasErrors = 1;
-            } else if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                if (!isValidHexColor(val)) {
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
-                    addError(ctx->errors, errMsg, lineNum, 0);
-                    ctx->hasErrors = 1;
-                }
-            }
+            if (handleDecorationSection(ctx, var, val, lineNum, tokens, tokenCount))
+                continue;
         } else if (strcasecmp(section, SECTION_BINDS) == 0) {
             if (tokenCount < 3) {
                 char errMsg[MAX_LINE_LENGTH];
@@ -885,117 +476,9 @@ static int parseConfigFile(STokenHandlerContext* ctx) {
             if (tokenCount > 3)
                 argStr = tokens[3];
 
-            KeySym keysym = getKeysym(keyStr);
-            if (keysym == NoSymbol) {
-                char errMsg[MAX_LINE_LENGTH];
-                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid key: %s", keyStr);
-
-                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                    addError(ctx->errors, errMsg, lineNum, 0);
-                    ctx->hasErrors = 1;
-                } else
-                    fprintf(stderr, "banana: %s\n", errMsg);
-
-                freeTokens(tokens, tokenCount);
+            if (handleBindsSection(ctx, modStr, keyStr, funcStr, argStr, lineNum, tokens, tokenCount)) {
                 continue;
             }
-
-            unsigned int mod = getModifier(modStr);
-            if (!mod) {
-                char errMsg[MAX_LINE_LENGTH];
-                snprintf(errMsg, MAX_LINE_LENGTH, "Unknown modifier: %s", modStr);
-
-                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                    addError(ctx->errors, errMsg, lineNum, 0);
-                    ctx->hasErrors = 1;
-                } else
-                    fprintf(stderr, "banana: %s\n", errMsg);
-
-                freeTokens(tokens, tokenCount);
-                continue;
-            }
-
-            void (*func)(const char*) = getFunction(funcStr);
-            if (!func) {
-                char errMsg[MAX_LINE_LENGTH];
-                snprintf(errMsg, MAX_LINE_LENGTH, "Unknown function: %s", funcStr);
-
-                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                    addError(ctx->errors, errMsg, lineNum, 0);
-                    ctx->hasErrors = 1;
-                } else
-                    fprintf(stderr, "banana: %s\n", errMsg);
-
-                freeTokens(tokens, tokenCount);
-                continue;
-            }
-
-            if (argStr) {
-                int  argValid = 1;
-                char errMsg[MAX_LINE_LENGTH];
-
-                if (strcasecmp(funcStr, "switch_workspace") == 0 || strcasecmp(funcStr, "move_to_workspace") == 0) {
-                    if (!isValidWorkspaceIndex(argStr)) {
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid workspace index: '%s' - must be a number between 0 and %d", argStr, workspaceCount - 1);
-                        argValid = 0;
-                    }
-                } else if (strcasecmp(funcStr, "adjust_master") == 0) {
-                    if (!isValidAdjustMasterArg(argStr)) {
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid adjust_master argument: '%s' - must be 'increase' or 'decrease'", argStr);
-                        argValid = 0;
-                    }
-                } else if (strcasecmp(funcStr, "move_window") == 0) {
-                    if (!isValidMoveWindowArg(argStr)) {
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid move_window argument: '%s' - must be 'up' or 'down'", argStr);
-                        argValid = 0;
-                    }
-                } else if (strcasecmp(funcStr, "focus_window") == 0) {
-                    if (!isValidFocusWindowArg(argStr)) {
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid focus_window argument: '%s' - must be 'up' or 'down'", argStr);
-                        argValid = 0;
-                    }
-                } else if (strcasecmp(funcStr, "focus_monitor") == 0) {
-                    if (!isValidFocusMonitorArg(argStr)) {
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid focus_monitor argument: '%s' - must be 'left' or 'right'", argStr);
-                        argValid = 0;
-                    }
-                }
-
-                if (!argValid) {
-                    if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                        addError(ctx->errors, errMsg, lineNum, 0);
-                        ctx->hasErrors = 1;
-                    } else
-                        fprintf(stderr, "banana: %s\n", errMsg);
-
-                    freeTokens(tokens, tokenCount);
-                    continue;
-                }
-            }
-
-            if (keysCount >= MAX_KEYS) {
-                char errMsg[MAX_LINE_LENGTH];
-                snprintf(errMsg, MAX_LINE_LENGTH, "Too many key bindings (max: %d)", MAX_KEYS);
-
-                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                    addError(ctx->errors, errMsg, lineNum, 0);
-                    ctx->hasErrors = 1;
-                } else
-                    fprintf(stderr, "banana: %s\n", errMsg);
-
-                freeTokens(tokens, tokenCount);
-                continue;
-            }
-
-            if (!keys)
-                keys = safeMalloc(MAX_KEYS * sizeof(SKeyBinding));
-
-            keys[keysCount].mod    = mod;
-            keys[keysCount].keysym = keysym;
-            keys[keysCount].func   = func;
-            keys[keysCount].arg    = argStr ? safeStrdup(argStr) : NULL;
-
-            keysCount++;
         } else if (strcasecmp(section, SECTION_RULES) == 0) {
             if (tokenCount < 3) {
                 char errMsg[MAX_LINE_LENGTH];
@@ -1011,131 +494,8 @@ static int parseConfigFile(STokenHandlerContext* ctx) {
                 continue;
             }
 
-            if (rulesCount >= MAX_RULES) {
-                char errMsg[MAX_LINE_LENGTH];
-                snprintf(errMsg, MAX_LINE_LENGTH, "Too many window rules (max: %d)", MAX_RULES);
-
-                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                    addError(ctx->errors, errMsg, lineNum, 0);
-                    ctx->hasErrors = 1;
-                } else
-                    fprintf(stderr, "banana: %s\n", errMsg);
-
-                freeTokens(tokens, tokenCount);
+            if (handleRulesSection(ctx, tokenCount, tokens, lineNum))
                 continue;
-            }
-
-            if (!rules)
-                rules = safeMalloc(MAX_RULES * sizeof(SWindowRule));
-
-            const char* className    = tokens[0];
-            const char* instanceName = tokens[1];
-            const char* title        = tokens[2];
-
-            if (ctx->mode == TOKEN_HANDLER_LOAD) {
-                rules[rulesCount].className    = safeStrdup(tokens[0]);
-                rules[rulesCount].instanceName = (strcmp(tokens[1], "*") != 0) ? safeStrdup(tokens[1]) : NULL;
-                rules[rulesCount].title        = (strcmp(tokens[2], "*") != 0) ? safeStrdup(tokens[2]) : NULL;
-            } else {
-                rules[rulesCount].className    = strcmp(className, "*") == 0 ? NULL : safeStrdup(className);
-                rules[rulesCount].instanceName = strcmp(instanceName, "*") == 0 ? NULL : safeStrdup(instanceName);
-                rules[rulesCount].title        = strcmp(title, "*") == 0 ? NULL : safeStrdup(title);
-            }
-
-            rules[rulesCount].isFloating = -1;
-            rules[rulesCount].workspace  = -1;
-            rules[rulesCount].monitor    = -1;
-            rules[rulesCount].width      = -1;
-            rules[rulesCount].height     = -1;
-
-            for (int i = 3; i < tokenCount; i++) {
-                if (strcasecmp(tokens[i], "floating") == 0)
-                    rules[rulesCount].isFloating = 1;
-                else if (strcasecmp(tokens[i], "follow") == 0)
-                    rules[rulesCount].isFloating = 0;
-                else if (strcasecmp(tokens[i], "workspace") == 0 && i + 1 < tokenCount) {
-                    if (!isValidInteger(tokens[i + 1])) {
-                        char errMsg[MAX_LINE_LENGTH];
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid workspace index: '%s' - must be an integer", tokens[i + 1]);
-
-                        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                            addError(ctx->errors, errMsg, lineNum, 0);
-                            ctx->hasErrors = 1;
-                        } else
-                            fprintf(stderr, "banana: %s\n", errMsg);
-                        i++;
-                        continue;
-                    }
-
-                    int workspace = atoi(tokens[++i]);
-                    if (workspace < 0 || workspace >= workspaceCount) {
-                        char errMsg[MAX_LINE_LENGTH];
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid workspace index: %d (max: %d)", workspace, workspaceCount - 1);
-
-                        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                            addError(ctx->errors, errMsg, lineNum, 0);
-                            ctx->hasErrors = 1;
-                        } else
-                            fprintf(stderr, "banana: %s\n", errMsg);
-                    } else
-                        rules[rulesCount].workspace = workspace;
-                } else if (strcasecmp(tokens[i], "monitor") == 0 && i + 1 < tokenCount) {
-                    if (!isValidInteger(tokens[i + 1])) {
-                        char errMsg[MAX_LINE_LENGTH];
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid monitor index: '%s' - must be an integer", tokens[i + 1]);
-
-                        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                            addError(ctx->errors, errMsg, lineNum, 0);
-                            ctx->hasErrors = 1;
-                        } else
-                            fprintf(stderr, "banana: %s\n", errMsg);
-                        i++;
-                        continue;
-                    }
-
-                    rules[rulesCount].monitor = atoi(tokens[++i]);
-                } else if (strcasecmp(tokens[i], "size") == 0 && i + 2 < tokenCount) {
-                    if (!isValidInteger(tokens[i + 1])) {
-                        char errMsg[MAX_LINE_LENGTH];
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid width value: '%s' - must be an integer", tokens[i + 1]);
-
-                        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                            addError(ctx->errors, errMsg, lineNum, 0);
-                            ctx->hasErrors = 1;
-                        } else
-                            fprintf(stderr, "banana: %s\n", errMsg);
-                        i += 2;
-                        continue;
-                    }
-
-                    if (!isValidInteger(tokens[i + 2])) {
-                        char errMsg[MAX_LINE_LENGTH];
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid height value: '%s' - must be an integer", tokens[i + 2]);
-
-                        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                            addError(ctx->errors, errMsg, lineNum, 0);
-                            ctx->hasErrors = 1;
-                        } else
-                            fprintf(stderr, "banana: %s\n", errMsg);
-                        i += 2;
-                        continue;
-                    }
-
-                    rules[rulesCount].width  = atoi(tokens[++i]);
-                    rules[rulesCount].height = atoi(tokens[++i]);
-                } else {
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Unknown rule option: %s", tokens[i]);
-
-                    if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                        addError(ctx->errors, errMsg, lineNum, 0);
-                        ctx->hasErrors = 1;
-                    } else
-                        fprintf(stderr, "banana: %s\n", errMsg);
-                }
-            }
-
-            rulesCount++;
         } else {
             char errMsg[MAX_LINE_LENGTH];
             snprintf(errMsg, MAX_LINE_LENGTH, "Unknown section: %s", section);
@@ -1152,15 +512,8 @@ static int parseConfigFile(STokenHandlerContext* ctx) {
 
     fclose(fp);
 
-    if (braceDepth > 0 && ctx->mode == TOKEN_HANDLER_VALIDATE) {
-        for (int i = sectionDepth - 1; i >= 0; i--) {
-            char errMsg[MAX_LINE_LENGTH];
-            snprintf(errMsg, MAX_LINE_LENGTH, "Unclosed section: %s (missing closing brace)", sectionStack[i].sectionName);
-
-            addError(ctx->errors, errMsg, sectionStack[i].lastContentLine + 1, 0);
-            ctx->hasErrors = 1;
-        }
-    }
+    if (braceDepth > 0)
+        reportBraceMismatch(ctx, sectionDepth, sectionStack);
 
     if (potentialSectionLineNum > 0 && ctx->mode == TOKEN_HANDLER_VALIDATE) {
         char errMsg[MAX_LINE_LENGTH];
@@ -1790,4 +1143,699 @@ void addError(SConfigErrors* errors, const char* message, int lineNum, int isFat
     snprintf(error->message, MAX_LINE_LENGTH, "%s", message);
     error->lineNum = lineNum;
     error->isFatal = isFatal;
+}
+
+int handleGeneralSection(STokenHandlerContext* ctx, const char* var, const char* val, int lineNum, char** tokens, int tokenCount) {
+    if (strcmp(var, "workspace_count") == 0) {
+        if (!isValidInteger(val)) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid workspace count: '%s' - must be an integer", val);
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else
+                fprintf(stderr, "banana: %s\n", errMsg);
+            freeTokens(tokens, tokenCount);
+            return 0;
+        }
+
+        int count = atoi(val);
+        if (count > 9) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Workspace count limited to maximum of 9");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                count = 9;
+            }
+        }
+
+        if (ctx->mode == TOKEN_HANDLER_LOAD)
+            workspaceCount = count;
+    } else if (strcmp(var, "inner_gap") == 0) {
+        if (!isValidInteger(val)) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid inner gap: '%s' - must be an integer", val);
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else
+                fprintf(stderr, "banana: %s\n", errMsg);
+            freeTokens(tokens, tokenCount);
+            return 0;
+        }
+
+        if (ctx->mode == TOKEN_HANDLER_LOAD)
+            innerGap = atoi(val);
+    } else if (strcmp(var, "outer_gap") == 0) {
+        if (!isValidInteger(val)) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid outer gap: '%s' - must be an integer", val);
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else
+                fprintf(stderr, "banana: %s\n", errMsg);
+            freeTokens(tokens, tokenCount);
+            return 0;
+        }
+
+        if (ctx->mode == TOKEN_HANDLER_LOAD)
+            outerGap = atoi(val);
+    } else if (strcmp(var, "border_width") == 0) {
+        if (!isValidInteger(val)) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid border width: '%s' - must be an integer", val);
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else
+                fprintf(stderr, "banana: %s\n", errMsg);
+            freeTokens(tokens, tokenCount);
+            return 0;
+        }
+
+        if (ctx->mode == TOKEN_HANDLER_LOAD)
+            borderWidth = atoi(val);
+    } else if (strcmp(var, "default_master_factor") == 0) {
+        if (!isValidFloat(val)) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid master factor: '%s' - must be a floating point number", val);
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else
+                fprintf(stderr, "banana: %s\n", errMsg);
+            freeTokens(tokens, tokenCount);
+            return 0;
+        }
+
+        if (ctx->mode == TOKEN_HANDLER_LOAD)
+            defaultMasterFactor = atof(val);
+    } else {
+        char errMsg[MAX_LINE_LENGTH];
+        snprintf(errMsg, MAX_LINE_LENGTH, "Unknown general setting: %s", var);
+
+        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+            addError(ctx->errors, errMsg, lineNum, 0);
+            ctx->hasErrors = 1;
+        } else
+            fprintf(stderr, "banana: %s\n", errMsg);
+    }
+
+    return 1;
+}
+
+int handleBarSection(STokenHandlerContext* ctx, const char* var, const char* val, int lineNum, char** tokens, int tokenCount) {
+    if (strcmp(var, "height") == 0) {
+        if (!isValidInteger(val)) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid bar height: '%s' - must be an integer", val);
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else
+                fprintf(stderr, "banana: %s\n", errMsg);
+            freeTokens(tokens, tokenCount);
+            return 0;
+        }
+
+        if (ctx->mode == TOKEN_HANDLER_LOAD)
+            barHeight = atoi(val);
+    } else if (strcmp(var, "font") == 0) {
+        if (ctx->mode == TOKEN_HANDLER_LOAD) {
+            free(barFont);
+            barFont = safeStrdup(val);
+        }
+    } else if (strcmp(var, "show") == 0) {
+        if (!isValidInteger(val)) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid bar show value: '%s' - must be 0 or 1", val);
+            addError(ctx->errors, errMsg, lineNum, 0);
+            ctx->hasErrors = 1;
+            return 0;
+        }
+
+        int showValue = atoi(val);
+        if (showValue != 0 && showValue != 1) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid bar show value: '%s' - must be 0 or 1", val);
+            addError(ctx->errors, errMsg, lineNum, 0);
+            ctx->hasErrors = 1;
+            return 0;
+        }
+
+        showBar = atoi(val);
+    } else if (strcmp(var, "show_only_active_workspaces") == 0) {
+        if (!isValidInteger(val)) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid show_only_active_workspaces value: '%s' - must be 0 or 1", val);
+            addError(ctx->errors, errMsg, lineNum, 0);
+            ctx->hasErrors = 1;
+            return 0;
+        }
+
+        int showActiveValue = atoi(val);
+        if (showActiveValue != 0 && showActiveValue != 1) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid show_only_active_workspaces value: '%s' - must be 0 or 1", val);
+            addError(ctx->errors, errMsg, lineNum, 0);
+            ctx->hasErrors = 1;
+            return 0;
+        }
+
+        showOnlyActiveWorkspaces = atoi(val);
+    } else if (strcmp(var, "border_width") == 0) {
+        if (!isValidInteger(val)) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid bar border width: '%s' - must be an integer", val);
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else
+                fprintf(stderr, "banana: %s\n", errMsg);
+            freeTokens(tokens, tokenCount);
+            return 0;
+        }
+
+        if (ctx->mode == TOKEN_HANDLER_LOAD)
+            barBorderWidth = atoi(val);
+    } else if (strcmp(var, "struts_top") == 0) {
+        if (!isValidInteger(val)) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid struts_top value: '%s' - must be an integer", val);
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else
+                fprintf(stderr, "banana: %s\n", errMsg);
+            freeTokens(tokens, tokenCount);
+            return 0;
+        }
+
+        if (ctx->mode == TOKEN_HANDLER_LOAD)
+            barStrutsTop = atoi(val);
+    } else if (strcmp(var, "struts_left") == 0) {
+        if (!isValidInteger(val)) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid struts_left value: '%s' - must be an integer", val);
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else
+                fprintf(stderr, "banana: %s\n", errMsg);
+            freeTokens(tokens, tokenCount);
+            return 0;
+        }
+
+        if (ctx->mode == TOKEN_HANDLER_LOAD)
+            barStrutsLeft = atoi(val);
+    } else if (strcmp(var, "struts_right") == 0) {
+        if (!isValidInteger(val)) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid struts_right value: '%s' - must be an integer", val);
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else
+                fprintf(stderr, "banana: %s\n", errMsg);
+            freeTokens(tokens, tokenCount);
+            return 0;
+        }
+
+        if (ctx->mode == TOKEN_HANDLER_LOAD)
+            barStrutsRight = atoi(val);
+    } else {
+        char errMsg[MAX_LINE_LENGTH];
+        snprintf(errMsg, MAX_LINE_LENGTH, "Unknown bar setting: %s", var);
+
+        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+            addError(ctx->errors, errMsg, lineNum, 0);
+            ctx->hasErrors = 1;
+        } else
+            fprintf(stderr, "banana: %s\n", errMsg);
+    }
+
+    return 1;
+}
+
+int handleDecorationSection(STokenHandlerContext* ctx, const char* var, const char* val, int lineNum, char** tokens, int tokenCount) {
+    if (ctx->mode == TOKEN_HANDLER_LOAD) {
+        if (strcmp(var, "active_border_color") == 0) {
+            if (!isValidHexColor(val)) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
+
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                } else
+                    fprintf(stderr, "banana: %s\n", errMsg);
+                freeTokens(tokens, tokenCount);
+                return 0;
+            }
+            free(activeBorderColor);
+            activeBorderColor = safeStrdup(val);
+        } else if (strcmp(var, "inactive_border_color") == 0) {
+            if (!isValidHexColor(val)) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
+
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                } else
+                    fprintf(stderr, "banana: %s\n", errMsg);
+                freeTokens(tokens, tokenCount);
+                return 0;
+            }
+            free(inactiveBorderColor);
+            inactiveBorderColor = safeStrdup(val);
+        } else if (strcmp(var, "bar_border_color") == 0) {
+            if (!isValidHexColor(val)) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
+
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                } else
+                    fprintf(stderr, "banana: %s\n", errMsg);
+                freeTokens(tokens, tokenCount);
+                return 0;
+            }
+            free(barBorderColor);
+            barBorderColor = safeStrdup(val);
+        } else if (strcmp(var, "bar_background_color") == 0) {
+            if (!isValidHexColor(val)) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
+
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                } else
+                    fprintf(stderr, "banana: %s\n", errMsg);
+                freeTokens(tokens, tokenCount);
+                return 0;
+            }
+            free(barBackgroundColor);
+            barBackgroundColor = safeStrdup(val);
+        } else if (strcmp(var, "bar_foreground_color") == 0) {
+            if (!isValidHexColor(val)) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
+
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                } else
+                    fprintf(stderr, "banana: %s\n", errMsg);
+                freeTokens(tokens, tokenCount);
+                return 0;
+            }
+            free(barForegroundColor);
+            barForegroundColor = safeStrdup(val);
+        } else if (strcmp(var, "bar_active_ws_color") == 0) {
+            if (!isValidHexColor(val)) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
+
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                } else
+                    fprintf(stderr, "banana: %s\n", errMsg);
+                freeTokens(tokens, tokenCount);
+                return 0;
+            }
+            free(barActiveWsColor);
+            barActiveWsColor = safeStrdup(val);
+        } else if (strcmp(var, "bar_urgent_ws_color") == 0) {
+            if (!isValidHexColor(val)) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
+
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                } else
+                    fprintf(stderr, "banana: %s\n", errMsg);
+                freeTokens(tokens, tokenCount);
+                return 0;
+            }
+            free(barUrgentWsColor);
+            barUrgentWsColor = safeStrdup(val);
+        } else if (strcmp(var, "bar_active_text_color") == 0) {
+            if (!isValidHexColor(val)) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
+
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                } else
+                    fprintf(stderr, "banana: %s\n", errMsg);
+                freeTokens(tokens, tokenCount);
+                return 0;
+            }
+            free(barActiveTextColor);
+            barActiveTextColor = safeStrdup(val);
+        } else if (strcmp(var, "bar_urgent_text_color") == 0) {
+            if (!isValidHexColor(val)) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
+
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                } else
+                    fprintf(stderr, "banana: %s\n", errMsg);
+                freeTokens(tokens, tokenCount);
+                return 0;
+            }
+            free(barUrgentTextColor);
+            barUrgentTextColor = safeStrdup(val);
+        } else if (strcmp(var, "bar_inactive_text_color") == 0) {
+            if (!isValidHexColor(val)) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
+
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                } else
+                    fprintf(stderr, "banana: %s\n", errMsg);
+                freeTokens(tokens, tokenCount);
+                return 0;
+            }
+            free(barInactiveTextColor);
+            barInactiveTextColor = safeStrdup(val);
+        } else if (strcmp(var, "bar_status_text_color") == 0) {
+            if (!isValidHexColor(val)) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
+
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                } else
+                    fprintf(stderr, "banana: %s\n", errMsg);
+                freeTokens(tokens, tokenCount);
+                return 0;
+            }
+            free(barStatusTextColor);
+            barStatusTextColor = safeStrdup(val);
+        } else
+            fprintf(stderr, "banana: unknown decoration setting: %s\n", var);
+    } else if (!(strcmp(var, "active_border_color") == 0 || strcmp(var, "inactive_border_color") == 0 || strcmp(var, "bar_border_color") == 0 ||
+                 strcmp(var, "bar_background_color") == 0 || strcmp(var, "bar_foreground_color") == 0 || strcmp(var, "bar_active_ws_color") == 0 ||
+                 strcmp(var, "bar_urgent_ws_color") == 0 || strcmp(var, "bar_active_text_color") == 0 || strcmp(var, "bar_urgent_text_color") == 0 ||
+                 strcmp(var, "bar_inactive_text_color") == 0 || strcmp(var, "bar_status_text_color") == 0)) {
+        char errMsg[MAX_LINE_LENGTH];
+        snprintf(errMsg, MAX_LINE_LENGTH, "Unknown decoration setting: %s", var);
+        addError(ctx->errors, errMsg, lineNum, 0);
+        ctx->hasErrors = 1;
+    } else if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+        if (!isValidHexColor(val)) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid color code: '%s' - must be in format #RRGGBB", val);
+            addError(ctx->errors, errMsg, lineNum, 0);
+            ctx->hasErrors = 1;
+        }
+    }
+
+    return 1;
+}
+
+int handleBindsSection(STokenHandlerContext* ctx, const char* modStr, const char* keyStr, const char* funcStr, const char* argStr, int lineNum, char** tokens, int tokenCount) {
+    KeySym keysym = getKeysym(keyStr);
+    if (keysym == NoSymbol) {
+        char errMsg[MAX_LINE_LENGTH];
+        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid key: %s", keyStr);
+
+        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+            addError(ctx->errors, errMsg, lineNum, 0);
+            ctx->hasErrors = 1;
+        } else
+            fprintf(stderr, "banana: %s\n", errMsg);
+
+        freeTokens(tokens, tokenCount);
+        return 0;
+    }
+
+    unsigned int mod = getModifier(modStr);
+    if (!mod) {
+        char errMsg[MAX_LINE_LENGTH];
+        snprintf(errMsg, MAX_LINE_LENGTH, "Unknown modifier: %s", modStr);
+
+        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+            addError(ctx->errors, errMsg, lineNum, 0);
+            ctx->hasErrors = 1;
+        } else
+            fprintf(stderr, "banana: %s\n", errMsg);
+
+        freeTokens(tokens, tokenCount);
+        return 0;
+    }
+
+    void (*func)(const char*) = getFunction(funcStr);
+    if (!func) {
+        char errMsg[MAX_LINE_LENGTH];
+        snprintf(errMsg, MAX_LINE_LENGTH, "Unknown function: %s", funcStr);
+
+        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+            addError(ctx->errors, errMsg, lineNum, 0);
+            ctx->hasErrors = 1;
+        } else
+            fprintf(stderr, "banana: %s\n", errMsg);
+
+        freeTokens(tokens, tokenCount);
+        return 0;
+    }
+
+    if (argStr) {
+        int  argValid = 1;
+        char errMsg[MAX_LINE_LENGTH];
+
+        if (strcasecmp(funcStr, "switch_workspace") == 0 || strcasecmp(funcStr, "move_to_workspace") == 0) {
+            if (!isValidWorkspaceIndex(argStr)) {
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid workspace index: '%s' - must be a number between 0 and %d", argStr, workspaceCount - 1);
+                argValid = 0;
+            }
+        } else if (strcasecmp(funcStr, "adjust_master") == 0) {
+            if (!isValidAdjustMasterArg(argStr)) {
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid adjust_master argument: '%s' - must be 'increase' or 'decrease'", argStr);
+                argValid = 0;
+            }
+        } else if (strcasecmp(funcStr, "move_window") == 0) {
+            if (!isValidMoveWindowArg(argStr)) {
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid move_window argument: '%s' - must be 'up' or 'down'", argStr);
+                argValid = 0;
+            }
+        } else if (strcasecmp(funcStr, "focus_window") == 0) {
+            if (!isValidFocusWindowArg(argStr)) {
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid focus_window argument: '%s' - must be 'up' or 'down'", argStr);
+                argValid = 0;
+            }
+        } else if (strcasecmp(funcStr, "focus_monitor") == 0) {
+            if (!isValidFocusMonitorArg(argStr)) {
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid focus_monitor argument: '%s' - must be 'left' or 'right'", argStr);
+                argValid = 0;
+            }
+        }
+
+        if (!argValid) {
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else
+                fprintf(stderr, "banana: %s\n", errMsg);
+
+            freeTokens(tokens, tokenCount);
+            return 0;
+        }
+    }
+
+    if (keysCount >= MAX_KEYS) {
+        char errMsg[MAX_LINE_LENGTH];
+        snprintf(errMsg, MAX_LINE_LENGTH, "Too many key bindings (max: %d)", MAX_KEYS);
+
+        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+            addError(ctx->errors, errMsg, lineNum, 0);
+            ctx->hasErrors = 1;
+        } else
+            fprintf(stderr, "banana: %s\n", errMsg);
+
+        freeTokens(tokens, tokenCount);
+        return 0;
+    }
+
+    if (!keys)
+        keys = safeMalloc(MAX_KEYS * sizeof(SKeyBinding));
+
+    keys[keysCount].mod    = mod;
+    keys[keysCount].keysym = keysym;
+    keys[keysCount].func   = func;
+    keys[keysCount].arg    = argStr ? safeStrdup(argStr) : NULL;
+
+    keysCount++;
+
+    return 1;
+}
+
+int handleRulesSection(STokenHandlerContext* ctx, int tokenCount, char** tokens, int lineNum) {
+    if (rulesCount >= MAX_RULES) {
+        char errMsg[MAX_LINE_LENGTH];
+        snprintf(errMsg, MAX_LINE_LENGTH, "Too many window rules (max: %d)", MAX_RULES);
+
+        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+            addError(ctx->errors, errMsg, lineNum, 0);
+            ctx->hasErrors = 1;
+        } else
+            fprintf(stderr, "banana: %s\n", errMsg);
+
+        freeTokens(tokens, tokenCount);
+        return 0;
+    }
+
+    if (!rules)
+        rules = safeMalloc(MAX_RULES * sizeof(SWindowRule));
+
+    const char* className    = tokens[0];
+    const char* instanceName = tokens[1];
+    const char* title        = tokens[2];
+
+    if (ctx->mode == TOKEN_HANDLER_LOAD) {
+        rules[rulesCount].className    = safeStrdup(tokens[0]);
+        rules[rulesCount].instanceName = (strcmp(tokens[1], "*") != 0) ? safeStrdup(tokens[1]) : NULL;
+        rules[rulesCount].title        = (strcmp(tokens[2], "*") != 0) ? safeStrdup(tokens[2]) : NULL;
+    } else {
+        rules[rulesCount].className    = strcmp(className, "*") == 0 ? NULL : safeStrdup(className);
+        rules[rulesCount].instanceName = strcmp(instanceName, "*") == 0 ? NULL : safeStrdup(instanceName);
+        rules[rulesCount].title        = strcmp(title, "*") == 0 ? NULL : safeStrdup(title);
+    }
+
+    rules[rulesCount].isFloating = -1;
+    rules[rulesCount].workspace  = -1;
+    rules[rulesCount].monitor    = -1;
+    rules[rulesCount].width      = -1;
+    rules[rulesCount].height     = -1;
+
+    for (int i = 3; i < tokenCount; i++) {
+        if (strcasecmp(tokens[i], "floating") == 0)
+            rules[rulesCount].isFloating = 1;
+        else if (strcasecmp(tokens[i], "follow") == 0)
+            rules[rulesCount].isFloating = 0;
+        else if (strcasecmp(tokens[i], "workspace") == 0 && i + 1 < tokenCount) {
+            if (!isValidInteger(tokens[i + 1])) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid workspace index: '%s' - must be an integer", tokens[i + 1]);
+
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                } else
+                    fprintf(stderr, "banana: %s\n", errMsg);
+                i++;
+                continue;
+            }
+
+            int workspace = atoi(tokens[++i]);
+            if (workspace < 0 || workspace >= workspaceCount) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid workspace index: %d (max: %d)", workspace, workspaceCount - 1);
+
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                } else
+                    fprintf(stderr, "banana: %s\n", errMsg);
+            } else
+                rules[rulesCount].workspace = workspace;
+        } else if (strcasecmp(tokens[i], "monitor") == 0 && i + 1 < tokenCount) {
+            if (!isValidInteger(tokens[i + 1])) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid monitor index: '%s' - must be an integer", tokens[i + 1]);
+
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                } else
+                    fprintf(stderr, "banana: %s\n", errMsg);
+                i++;
+                continue;
+            }
+
+            rules[rulesCount].monitor = atoi(tokens[++i]);
+        } else if (strcasecmp(tokens[i], "size") == 0 && i + 2 < tokenCount) {
+            if (!isValidInteger(tokens[i + 1])) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid width value: '%s' - must be an integer", tokens[i + 1]);
+
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                } else
+                    fprintf(stderr, "banana: %s\n", errMsg);
+                i += 2;
+                continue;
+            }
+
+            if (!isValidInteger(tokens[i + 2])) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid height value: '%s' - must be an integer", tokens[i + 2]);
+
+                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                } else
+                    fprintf(stderr, "banana: %s\n", errMsg);
+                i += 2;
+                continue;
+            }
+
+            rules[rulesCount].width  = atoi(tokens[++i]);
+            rules[rulesCount].height = atoi(tokens[++i]);
+        } else {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Unknown rule option: %s", tokens[i]);
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else
+                fprintf(stderr, "banana: %s\n", errMsg);
+        }
+    }
+
+    rulesCount++;
+
+    return 1;
+}
+
+int reportBraceMismatch(STokenHandlerContext* ctx, int sectionDepth, SSectionInfo* sectionStack) {
+    if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+        for (int i = sectionDepth - 1; i >= 0; i--) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Unclosed section: %s (missing closing brace)", sectionStack[i].sectionName);
+
+            addError(ctx->errors, errMsg, sectionStack[i].lastContentLine + 1, 0);
+            ctx->hasErrors = 1;
+        }
+    }
+    return 1;
 }
