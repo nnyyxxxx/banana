@@ -114,13 +114,23 @@ int    isValidHexColor(const char* str);
 
 char** tokenizeLine(const char* line, int* tokenCount);
 int    initializeConfig(STokenHandlerContext* ctx, SKeyBinding** oldKeys, size_t* oldKeysCount, SWindowRule** oldRules, size_t* oldRulesCount);
-int    openConfigFile(STokenHandlerContext* ctx, const char* configPath);
 int    handleGeneralSection(STokenHandlerContext* ctx, const char* var, const char* val, int lineNum, char** tokens, int tokenCount);
 int    handleBarSection(STokenHandlerContext* ctx, const char* var, const char* val, int lineNum, char** tokens, int tokenCount);
 int    handleDecorationSection(STokenHandlerContext* ctx, const char* var, const char* val, int lineNum, char** tokens, int tokenCount);
 int    handleBindsSection(STokenHandlerContext* ctx, const char* modStr, const char* keyStr, const char* funcStr, const char* argStr, int lineNum, char** tokens, int tokenCount);
 int    handleRulesSection(STokenHandlerContext* ctx, int tokenCount, char** tokens, int lineNum);
 int    reportBraceMismatch(STokenHandlerContext* ctx, int sectionDepth, SSectionInfo* sectionStack);
+
+void   backupConfigState(SKeyBinding** oldKeys, size_t* oldKeysCount, SWindowRule** oldRules, size_t* oldRulesCount);
+void   restoreConfigState(SKeyBinding* oldKeys, size_t oldKeysCount, SWindowRule* oldRules, size_t oldRulesCount);
+FILE*  openConfigFile(STokenHandlerContext* ctx, char** configPath, SKeyBinding* oldKeys, size_t oldKeysCount, SWindowRule* oldRules, size_t oldRulesCount);
+int    processConfigFile(FILE* fp, STokenHandlerContext* ctx, int* braceDepth, int* sectionDepth, SSectionInfo* sectionStack, int* potentialSectionLineNum,
+                         char* potentialSectionName);
+int    processLine(const char* line, char* section, int* inSection, int* braceDepth, int* potentialSectionLineNum, char* potentialSectionName, SSectionInfo* sectionStack,
+                   int* sectionDepth, int lineNum, STokenHandlerContext* ctx);
+int    finalizeConfigParser(STokenHandlerContext* ctx, SKeyBinding* oldKeys, size_t oldKeysCount, SWindowRule* oldRules, size_t oldRulesCount, int braceDepth, int sectionDepth,
+                            SSectionInfo* sectionStack, int potentialSectionLineNum, char* potentialSectionName);
+void   cleanupConfigData(void);
 
 extern Display* display;
 extern Window   root;
@@ -170,6 +180,7 @@ extern size_t             rulesCount;
 extern const SFunctionMap functionMap[];
 extern const SModifierMap modifierMap[];
 
+int                       parseConfigFile(STokenHandlerContext* ctx);
 int                       loadConfig(void);
 void                      createDefaultConfig(void);
 void                      freeConfig(void);

@@ -186,64 +186,93 @@ char** tokenizeLine(const char* line, int* tokenCount) {
     return tokens;
 }
 
-static int parseConfigFile(STokenHandlerContext* ctx) {
+int parseConfigFile(STokenHandlerContext* ctx) {
     initDefaults();
 
-    SKeyBinding* oldKeys       = keys;
-    size_t       oldKeysCount  = keysCount;
-    SWindowRule* oldRules      = rules;
-    size_t       oldRulesCount = rulesCount;
+    SKeyBinding* oldKeys       = NULL;
+    size_t       oldKeysCount  = 0;
+    SWindowRule* oldRules      = NULL;
+    size_t       oldRulesCount = 0;
+
+    backupConfigState(&oldKeys, &oldKeysCount, &oldRules, &oldRulesCount);
+
+    char* configPath = NULL;
+    FILE* fp         = openConfigFile(ctx, &configPath, oldKeys, oldKeysCount, oldRules, oldRulesCount);
+    if (!fp) {
+        if (configPath)
+            free(configPath);
+        return (ctx->mode == TOKEN_HANDLER_VALIDATE) ? 1 : 0;
+    }
+
+    if (configPath)
+        free(configPath);
+
+    int          braceDepth                             = 0;
+    int          sectionDepth                           = 0;
+    SSectionInfo sectionStack[10]                       = {0};
+    int          potentialSectionLineNum                = 0;
+    char         potentialSectionName[MAX_TOKEN_LENGTH] = "";
+
+    processConfigFile(fp, ctx, &braceDepth, &sectionDepth, sectionStack, &potentialSectionLineNum, potentialSectionName);
+    fclose(fp);
+
+    return finalizeConfigParser(ctx, oldKeys, oldKeysCount, oldRules, oldRulesCount, braceDepth, sectionDepth, sectionStack, potentialSectionLineNum, potentialSectionName);
+}
+
+void backupConfigState(SKeyBinding** oldKeys, size_t* oldKeysCount, SWindowRule** oldRules, size_t* oldRulesCount) {
+    *oldKeys       = keys;
+    *oldKeysCount  = keysCount;
+    *oldRules      = rules;
+    *oldRulesCount = rulesCount;
 
     keys       = NULL;
     keysCount  = 0;
     rules      = NULL;
     rulesCount = 0;
+}
 
-    char* configPath = getConfigPath();
-    if (!configPath) {
+void restoreConfigState(SKeyBinding* oldKeys, size_t oldKeysCount, SWindowRule* oldRules, size_t oldRulesCount) {
+    cleanupConfigData();
+
+    keys       = oldKeys;
+    keysCount  = oldKeysCount;
+    rules      = oldRules;
+    rulesCount = oldRulesCount;
+}
+
+FILE* openConfigFile(STokenHandlerContext* ctx, char** configPath, SKeyBinding* oldKeys, size_t oldKeysCount, SWindowRule* oldRules, size_t oldRulesCount) {
+    *configPath = getConfigPath();
+    if (!*configPath) {
         if (ctx->mode == TOKEN_HANDLER_VALIDATE)
             addError(ctx->errors, "HOME environment variable not set", 0, 1);
         else
             fprintf(stderr, "banana: HOME environment variable not set\n");
 
-        keys       = oldKeys;
-        keysCount  = oldKeysCount;
-        rules      = oldRules;
-        rulesCount = oldRulesCount;
-
-        return 0;
+        restoreConfigState(oldKeys, oldKeysCount, oldRules, oldRulesCount);
+        return NULL;
     }
 
-    FILE* fp = fopen(configPath, "r");
+    FILE* fp = fopen(*configPath, "r");
     if (!fp) {
         if (errno == ENOENT) {
             if (ctx->mode == TOKEN_HANDLER_VALIDATE)
                 addError(ctx->errors, "Config file not found, would create default", 0, 0);
             else {
-                fprintf(stderr, "banana: config file not found at %s, creating default\n", configPath);
-                free(configPath);
+                fprintf(stderr, "banana: config file not found at %s, creating default\n", *configPath);
+                free(*configPath);
                 createDefaultConfig();
 
-                configPath = getConfigPath();
-                if (!configPath) {
-                    keys       = oldKeys;
-                    keysCount  = oldKeysCount;
-                    rules      = oldRules;
-                    rulesCount = oldRulesCount;
-                    return 0;
+                *configPath = getConfigPath();
+                if (!*configPath) {
+                    restoreConfigState(oldKeys, oldKeysCount, oldRules, oldRulesCount);
+                    return NULL;
                 }
 
-                fp = fopen(configPath, "r");
+                fp = fopen(*configPath, "r");
                 if (!fp) {
                     fprintf(stderr, "banana: failed to open config file: %s\n", strerror(errno));
-                    free(configPath);
-
-                    keys       = oldKeys;
-                    keysCount  = oldKeysCount;
-                    rules      = oldRules;
-                    rulesCount = oldRulesCount;
-
-                    return 0;
+                    restoreConfigState(oldKeys, oldKeysCount, oldRules, oldRulesCount);
+                    return NULL;
                 }
             }
         } else {
@@ -255,57 +284,25 @@ static int parseConfigFile(STokenHandlerContext* ctx) {
             else
                 fprintf(stderr, "banana: %s\n", errMsg);
 
-            free(configPath);
-
-            keys       = oldKeys;
-            keysCount  = oldKeysCount;
-            rules      = oldRules;
-            rulesCount = oldRulesCount;
-
-            return 0;
+            restoreConfigState(oldKeys, oldKeysCount, oldRules, oldRulesCount);
+            return NULL;
         }
 
         if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-            free(configPath);
-
-            keys       = oldKeys;
-            keysCount  = oldKeysCount;
-            rules      = oldRules;
-            rulesCount = oldRulesCount;
-
-            return 1;
+            restoreConfigState(oldKeys, oldKeysCount, oldRules, oldRulesCount);
+            return NULL;
         }
     }
 
-    free(configPath);
+    return fp;
+}
 
-    if (!fp && ctx->mode == TOKEN_HANDLER_VALIDATE) {
-        keys       = oldKeys;
-        keysCount  = oldKeysCount;
-        rules      = oldRules;
-        rulesCount = oldRulesCount;
-        return 1;
-    }
-
-    if (!fp) {
-        keys       = oldKeys;
-        keysCount  = oldKeysCount;
-        rules      = oldRules;
-        rulesCount = oldRulesCount;
-        return 0;
-    }
-
-    char         line[MAX_LINE_LENGTH];
-    char         section[MAX_TOKEN_LENGTH] = "";
-    int          inSection                 = 0;
-    int          lineNum                   = 0;
-    int          braceDepth                = 0;
-
-    int          potentialSectionLineNum                = 0;
-    char         potentialSectionName[MAX_TOKEN_LENGTH] = "";
-
-    SSectionInfo sectionStack[10] = {0};
-    int          sectionDepth     = 0;
+int processConfigFile(FILE* fp, STokenHandlerContext* ctx, int* braceDepth, int* sectionDepth, SSectionInfo* sectionStack, int* potentialSectionLineNum,
+                      char* potentialSectionName) {
+    char line[MAX_LINE_LENGTH];
+    char section[MAX_TOKEN_LENGTH] = "";
+    int  inSection                 = 0;
+    int  lineNum                   = 0;
 
     while (fgets(line, sizeof(line), fp)) {
         lineNum++;
@@ -339,88 +336,131 @@ static int parseConfigFile(STokenHandlerContext* ctx) {
         if (line[0] == '\0')
             continue;
 
-        if (strstr(line, "{")) {
-            char sectionName[MAX_TOKEN_LENGTH] = "";
-            if (sscanf(line, "%s {", sectionName) == 1) {
-                strcpy(section, sectionName);
-                inSection = 1;
-                braceDepth++;
-
-                if (sectionDepth < 10) {
-                    strcpy(sectionStack[sectionDepth].sectionName, sectionName);
-                    sectionStack[sectionDepth].startLine       = lineNum;
-                    sectionStack[sectionDepth].lastContentLine = lineNum;
-                    sectionDepth++;
-                }
-
-                potentialSectionLineNum = 0;
-                potentialSectionName[0] = '\0';
-            } else
-                braceDepth++;
+        int result = processLine(line, section, &inSection, braceDepth, potentialSectionLineNum, potentialSectionName, sectionStack, sectionDepth, lineNum, ctx);
+        if (result == 0)
             continue;
-        }
+    }
 
-        if (strstr(line, "}")) {
-            braceDepth--;
-            if (braceDepth < 0) {
-                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Unexpected closing brace - no matching opening brace");
-                    addError(ctx->errors, errMsg, lineNum, 0);
-                    ctx->hasErrors = 1;
-                    braceDepth     = 0;
-                }
-            } else if (braceDepth == 0) {
-                inSection  = 0;
-                section[0] = '\0';
+    return 0;
+}
+
+int processLine(const char* line, char* section, int* inSection, int* braceDepth, int* potentialSectionLineNum, char* potentialSectionName, SSectionInfo* sectionStack,
+                int* sectionDepth, int lineNum, STokenHandlerContext* ctx) {
+    if (strstr(line, "{")) {
+        char sectionName[MAX_TOKEN_LENGTH] = "";
+        if (sscanf(line, "%s {", sectionName) == 1) {
+            strcpy(section, sectionName);
+            *inSection = 1;
+            (*braceDepth)++;
+
+            if (*sectionDepth < 10) {
+                strcpy(sectionStack[*sectionDepth].sectionName, sectionName);
+                sectionStack[*sectionDepth].startLine       = lineNum;
+                sectionStack[*sectionDepth].lastContentLine = lineNum;
+                (*sectionDepth)++;
             }
 
-            if (sectionDepth > 0)
-                sectionDepth--;
+            *potentialSectionLineNum = 0;
+            potentialSectionName[0]  = '\0';
+        } else
+            (*braceDepth)++;
+        return 0;
+    }
 
-            continue;
-        }
-
-        if (inSection && sectionDepth > 0)
-            sectionStack[sectionDepth - 1].lastContentLine = lineNum;
-
-        if (!inSection) {
-            if (strchr(line, ' ') && !strstr(line, "{")) {
-                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                    if (potentialSectionLineNum > 0) {
-                        char errMsg[MAX_LINE_LENGTH];
-                        snprintf(errMsg, MAX_LINE_LENGTH, "Missing opening brace after section name '%s'", potentialSectionName);
-                        addError(ctx->errors, errMsg, potentialSectionLineNum, 0);
-
-                        potentialSectionLineNum = 0;
-                        potentialSectionName[0] = '\0';
-                    }
-
-                    char errMsg[MAX_LINE_LENGTH];
-                    snprintf(errMsg, MAX_LINE_LENGTH, "Content outside of section - missing opening brace");
-                    addError(ctx->errors, errMsg, lineNum, 0);
-                    ctx->hasErrors = 1;
-                }
-            } else if (!strchr(line, ' ') && !strstr(line, "{")) {
-                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                    strncpy(potentialSectionName, line, MAX_TOKEN_LENGTH - 1);
-                    potentialSectionName[MAX_TOKEN_LENGTH - 1] = '\0';
-                    trim(potentialSectionName);
-                    potentialSectionLineNum = lineNum;
-                }
-            } else if (strstr(line, "{")) {
-                potentialSectionLineNum = 0;
-                potentialSectionName[0] = '\0';
+    if (strstr(line, "}")) {
+        (*braceDepth)--;
+        if (*braceDepth < 0) {
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Unexpected closing brace - no matching opening brace");
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+                *braceDepth    = 0;
             }
-            continue;
+        } else if (*braceDepth == 0) {
+            *inSection = 0;
+            section[0] = '\0';
         }
 
-        int    tokenCount;
-        char** tokens = tokenizeLine(line, &tokenCount);
+        if (*sectionDepth > 0)
+            (*sectionDepth)--;
 
-        if (tokenCount < 2) {
+        return 0;
+    }
+
+    if (*inSection && *sectionDepth > 0)
+        sectionStack[*sectionDepth - 1].lastContentLine = lineNum;
+
+    if (!*inSection) {
+        if (strchr(line, ' ') && !strstr(line, "{")) {
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                if (*potentialSectionLineNum > 0) {
+                    char errMsg[MAX_LINE_LENGTH];
+                    snprintf(errMsg, MAX_LINE_LENGTH, "Missing opening brace after section name '%s'", potentialSectionName);
+                    addError(ctx->errors, errMsg, *potentialSectionLineNum, 0);
+
+                    *potentialSectionLineNum = 0;
+                    potentialSectionName[0]  = '\0';
+                }
+
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Content outside of section - missing opening brace");
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            }
+        } else if (!strchr(line, ' ') && !strstr(line, "{")) {
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                strncpy(potentialSectionName, line, MAX_TOKEN_LENGTH - 1);
+                potentialSectionName[MAX_TOKEN_LENGTH - 1] = '\0';
+                trim(potentialSectionName);
+                *potentialSectionLineNum = lineNum;
+            }
+        } else if (strstr(line, "{")) {
+            *potentialSectionLineNum = 0;
+            potentialSectionName[0]  = '\0';
+        }
+        return 0;
+    }
+
+    int    tokenCount;
+    char** tokens = tokenizeLine(line, &tokenCount);
+
+    if (tokenCount < 2) {
+        char errMsg[MAX_LINE_LENGTH];
+        snprintf(errMsg, MAX_LINE_LENGTH, "Invalid format (needs at least 2 tokens)");
+
+        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+            addError(ctx->errors, errMsg, lineNum, 0);
+            ctx->hasErrors = 1;
+        } else
+            fprintf(stderr, "banana: line %d: %s\n", lineNum, errMsg);
+
+        freeTokens(tokens, tokenCount);
+        return 0;
+    }
+
+    if (strcasecmp(section, SECTION_GENERAL) == 0) {
+        const char* var = tokens[0];
+        const char* val = tokens[1];
+
+        if (handleGeneralSection(ctx, var, val, lineNum, tokens, tokenCount))
+            return 0;
+    } else if (strcasecmp(section, SECTION_BAR) == 0) {
+        const char* var = tokens[0];
+        const char* val = tokens[1];
+
+        if (handleBarSection(ctx, var, val, lineNum, tokens, tokenCount))
+            return 0;
+    } else if (strcasecmp(section, SECTION_DECORATION) == 0) {
+        const char* var = tokens[0];
+        const char* val = tokens[1];
+
+        if (handleDecorationSection(ctx, var, val, lineNum, tokens, tokenCount))
+            return 0;
+    } else if (strcasecmp(section, SECTION_BINDS) == 0) {
+        if (tokenCount < 3) {
             char errMsg[MAX_LINE_LENGTH];
-            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid format (needs at least 2 tokens)");
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid binding format (needs at least 3 tokens)");
 
             if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
                 addError(ctx->errors, errMsg, lineNum, 0);
@@ -429,89 +469,56 @@ static int parseConfigFile(STokenHandlerContext* ctx) {
                 fprintf(stderr, "banana: line %d: %s\n", lineNum, errMsg);
 
             freeTokens(tokens, tokenCount);
-            continue;
+            return 0;
         }
 
-        if (strcasecmp(section, SECTION_GENERAL) == 0) {
-            const char* var = tokens[0];
-            const char* val = tokens[1];
+        const char* modStr  = NULL;
+        const char* keyStr  = NULL;
+        const char* funcStr = NULL;
+        const char* argStr  = NULL;
 
-            if (handleGeneralSection(ctx, var, val, lineNum, tokens, tokenCount))
-                continue;
-        } else if (strcasecmp(section, SECTION_BAR) == 0) {
-            const char* var = tokens[0];
-            const char* val = tokens[1];
+        modStr  = tokens[0];
+        keyStr  = tokens[1];
+        funcStr = tokens[2];
+        if (tokenCount > 3)
+            argStr = tokens[3];
 
-            if (handleBarSection(ctx, var, val, lineNum, tokens, tokenCount))
-                continue;
-        } else if (strcasecmp(section, SECTION_DECORATION) == 0) {
-            const char* var = tokens[0];
-            const char* val = tokens[1];
-
-            if (handleDecorationSection(ctx, var, val, lineNum, tokens, tokenCount))
-                continue;
-        } else if (strcasecmp(section, SECTION_BINDS) == 0) {
-            if (tokenCount < 3) {
-                char errMsg[MAX_LINE_LENGTH];
-                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid binding format (needs at least 3 tokens)");
-
-                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                    addError(ctx->errors, errMsg, lineNum, 0);
-                    ctx->hasErrors = 1;
-                } else
-                    fprintf(stderr, "banana: line %d: %s\n", lineNum, errMsg);
-
-                freeTokens(tokens, tokenCount);
-                continue;
-            }
-
-            const char* modStr  = NULL;
-            const char* keyStr  = NULL;
-            const char* funcStr = NULL;
-            const char* argStr  = NULL;
-
-            modStr  = tokens[0];
-            keyStr  = tokens[1];
-            funcStr = tokens[2];
-            if (tokenCount > 3)
-                argStr = tokens[3];
-
-            if (handleBindsSection(ctx, modStr, keyStr, funcStr, argStr, lineNum, tokens, tokenCount)) {
-                continue;
-            }
-        } else if (strcasecmp(section, SECTION_RULES) == 0) {
-            if (tokenCount < 3) {
-                char errMsg[MAX_LINE_LENGTH];
-                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid rule format (needs at least 3 tokens)");
-
-                if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                    addError(ctx->errors, errMsg, lineNum, 0);
-                    ctx->hasErrors = 1;
-                } else
-                    fprintf(stderr, "banana: line %d: %s\n", lineNum, errMsg);
-
-                freeTokens(tokens, tokenCount);
-                continue;
-            }
-
-            if (handleRulesSection(ctx, tokenCount, tokens, lineNum))
-                continue;
-        } else {
+        if (handleBindsSection(ctx, modStr, keyStr, funcStr, argStr, lineNum, tokens, tokenCount))
+            return 0;
+    } else if (strcasecmp(section, SECTION_RULES) == 0) {
+        if (tokenCount < 3) {
             char errMsg[MAX_LINE_LENGTH];
-            snprintf(errMsg, MAX_LINE_LENGTH, "Unknown section: %s", section);
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid rule format (needs at least 3 tokens)");
 
             if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
                 addError(ctx->errors, errMsg, lineNum, 0);
                 ctx->hasErrors = 1;
             } else
                 fprintf(stderr, "banana: line %d: %s\n", lineNum, errMsg);
+
+            freeTokens(tokens, tokenCount);
+            return 0;
         }
 
-        freeTokens(tokens, tokenCount);
+        if (handleRulesSection(ctx, tokenCount, tokens, lineNum))
+            return 0;
+    } else {
+        char errMsg[MAX_LINE_LENGTH];
+        snprintf(errMsg, MAX_LINE_LENGTH, "Unknown section: %s", section);
+
+        if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+            addError(ctx->errors, errMsg, lineNum, 0);
+            ctx->hasErrors = 1;
+        } else
+            fprintf(stderr, "banana: line %d: %s\n", lineNum, errMsg);
     }
 
-    fclose(fp);
+    freeTokens(tokens, tokenCount);
+    return 0;
+}
 
+int finalizeConfigParser(STokenHandlerContext* ctx, SKeyBinding* oldKeys, size_t oldKeysCount, SWindowRule* oldRules, size_t oldRulesCount, int braceDepth, int sectionDepth,
+                         SSectionInfo* sectionStack, int potentialSectionLineNum, char* potentialSectionName) {
     if (braceDepth > 0)
         reportBraceMismatch(ctx, sectionDepth, sectionStack);
 
@@ -526,23 +533,9 @@ static int parseConfigFile(STokenHandlerContext* ctx) {
         fprintf(stderr, "banana: loaded %zu key bindings and %zu window rules\n", keysCount, rulesCount);
         return 1;
     } else {
-        for (size_t i = 0; i < keysCount; i++) {
-            free((char*)keys[i].arg);
-        }
-        free(keys);
+        cleanupConfigData();
 
-        for (size_t i = 0; i < rulesCount; i++) {
-            free((char*)rules[i].className);
-            free((char*)rules[i].instanceName);
-            free((char*)rules[i].title);
-        }
-        free(rules);
-
-        keys       = oldKeys;
-        keysCount  = oldKeysCount;
-        rules      = oldRules;
-        rulesCount = oldRulesCount;
-
+        restoreConfigState(oldKeys, oldKeysCount, oldRules, oldRulesCount);
         return !ctx->hasErrors;
     }
 }
@@ -1838,4 +1831,22 @@ int reportBraceMismatch(STokenHandlerContext* ctx, int sectionDepth, SSectionInf
         }
     }
     return 1;
+}
+
+void cleanupConfigData(void) {
+    for (size_t i = 0; i < keysCount; i++) {
+        free((char*)keys[i].arg);
+    }
+    free(keys);
+    keys      = NULL;
+    keysCount = 0;
+
+    for (size_t i = 0; i < rulesCount; i++) {
+        free((char*)rules[i].className);
+        free((char*)rules[i].instanceName);
+        free((char*)rules[i].title);
+    }
+    free(rules);
+    rules      = NULL;
+    rulesCount = 0;
 }
