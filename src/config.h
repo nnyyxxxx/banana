@@ -5,19 +5,19 @@
 #include <X11/keysym.h>
 #include <stddef.h>
 
-void spawnProgram(const char* arg);
-void killClient(const char* arg);
-void quit(const char* arg);
-void switchToWorkspace(const char* arg);
-void moveClientToWorkspace(const char* arg);
-void toggleFloating(const char* arg);
-void toggleFullscreen(const char* arg);
-void moveWindowInStack(const char* arg);
-void focusWindowInStack(const char* arg);
-void adjustMasterFactor(const char* arg);
-void focusMonitor(const char* arg);
-void toggleBar(const char* arg);
-void reloadConfig(const char* arg);
+void  spawnProgram(const char* arg);
+void  killClient(const char* arg);
+void  quit(const char* arg);
+void  switchToWorkspace(const char* arg);
+void  moveClientToWorkspace(const char* arg);
+void  toggleFloating(const char* arg);
+void  toggleFullscreen(const char* arg);
+void  moveWindowInStack(const char* arg);
+void  focusWindowInStack(const char* arg);
+void  adjustMasterFactor(const char* arg);
+void  focusMonitor(const char* arg);
+void  toggleBar(const char* arg);
+void  reloadConfig(const char* arg);
 char* safeStrdup(const char* s);
 
 typedef struct {

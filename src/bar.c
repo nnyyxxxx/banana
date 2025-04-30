@@ -35,7 +35,7 @@ static Atom          NET_WM_STRUT_PARTIAL;
 
 static char          statusText[MAX_STATUS_LENGTH] = "";
 
-static int initialized = 0;
+static int           initialized = 0;
 
 static void          initWorkspaceNames(void) {
     for (int i = 0; i < workspaceCount; i++) {
@@ -139,14 +139,10 @@ void resetBarResources(void) {
         barFontPtr = NULL;
     }
 
-    XftColorFree(display, DefaultVisual(display, DefaultScreen(display)),
-                 DefaultColormap(display, DefaultScreen(display)), &barActiveTextColorXft);
-    XftColorFree(display, DefaultVisual(display, DefaultScreen(display)),
-                 DefaultColormap(display, DefaultScreen(display)), &barUrgentTextColorXft);
-    XftColorFree(display, DefaultVisual(display, DefaultScreen(display)),
-                 DefaultColormap(display, DefaultScreen(display)), &barInactiveTextColorXft);
-    XftColorFree(display, DefaultVisual(display, DefaultScreen(display)),
-                 DefaultColormap(display, DefaultScreen(display)), &barStatusTextColorXft);
+    XftColorFree(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), &barActiveTextColorXft);
+    XftColorFree(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), &barUrgentTextColorXft);
+    XftColorFree(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), &barInactiveTextColorXft);
+    XftColorFree(display, DefaultVisual(display, DefaultScreen(display)), DefaultColormap(display, DefaultScreen(display)), &barStatusTextColorXft);
 
     initialized = 0;
 }

@@ -1312,17 +1312,15 @@ void configureClient(SClient* client) {
 }
 
 void updateBorders() {
-    static unsigned long activeBorder   = 0;
-    static unsigned long inactiveBorder = 0;
-    static char* lastActiveBorderColor = NULL;
-    static char* lastInactiveBorderColor = NULL;
+    static unsigned long activeBorder            = 0;
+    static unsigned long inactiveBorder          = 0;
+    static char*         lastActiveBorderColor   = NULL;
+    static char*         lastInactiveBorderColor = NULL;
 
     if ((lastActiveBorderColor == NULL && activeBorderColor != NULL) ||
-        (lastActiveBorderColor != NULL && activeBorderColor != NULL &&
-         strcmp(lastActiveBorderColor, activeBorderColor) != 0) ||
+        (lastActiveBorderColor != NULL && activeBorderColor != NULL && strcmp(lastActiveBorderColor, activeBorderColor) != 0) ||
         (lastInactiveBorderColor == NULL && inactiveBorderColor != NULL) ||
-        (lastInactiveBorderColor != NULL && inactiveBorderColor != NULL &&
-         strcmp(lastInactiveBorderColor, inactiveBorderColor) != 0)) {
+        (lastInactiveBorderColor != NULL && inactiveBorderColor != NULL && strcmp(lastInactiveBorderColor, inactiveBorderColor) != 0)) {
 
         if (lastActiveBorderColor) {
             free(lastActiveBorderColor);
@@ -1334,7 +1332,7 @@ void updateBorders() {
             lastInactiveBorderColor = NULL;
         }
 
-        activeBorder = 0;
+        activeBorder   = 0;
         inactiveBorder = 0;
     }
 
@@ -1352,7 +1350,7 @@ void updateBorders() {
         else
             inactiveBorder = BlackPixel(display, DefaultScreen(display));
 
-        lastActiveBorderColor = safeStrdup(activeBorderColor);
+        lastActiveBorderColor   = safeStrdup(activeBorderColor);
         lastInactiveBorderColor = safeStrdup(inactiveBorderColor);
 
         fprintf(stderr, "Border colors initialized\n");
@@ -1965,6 +1963,10 @@ void moveWindowInStack(const char* arg) {
 
 void focusWindowInStack(const char* arg) {
     if (!focused || !arg)
+        return;
+
+    SMonitor* monitor = getCurrentMonitor();
+    if (focused->monitor != monitor->num || focused->workspace != monitor->currentWorkspace)
         return;
 
     int      workspace    = focused->workspace;
