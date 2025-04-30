@@ -421,36 +421,16 @@ static int         parseConfigFile(STokenHandlerContext* ctx) {
                 continue;
             }
 
-            char*       modStr  = NULL;
-            char*       keyStr  = NULL;
+            const char* modStr  = NULL;
+            const char* keyStr  = NULL;
             const char* funcStr = NULL;
             const char* argStr  = NULL;
 
-            char*       modKeyStr = safeStrdup(tokens[0]);
-            char*       plus      = strchr(modKeyStr, '+');
-
-            if (plus) {
-                *plus  = '\0';
-                modStr = modKeyStr;
-
-                if (*(plus + 1) != '\0') {
-                    keyStr  = plus + 1;
-                    funcStr = tokens[1];
-                    if (tokenCount > 2)
-                        argStr = tokens[2];
-                } else {
-                    keyStr  = tokens[1];
-                    funcStr = tokens[2];
-                    if (tokenCount > 3)
-                        argStr = tokens[3];
-                }
-            } else {
-                modStr  = modKeyStr;
-                keyStr  = tokens[1];
-                funcStr = tokens[2];
-                if (tokenCount > 3)
-                    argStr = tokens[3];
-            }
+            modStr  = tokens[0];
+            keyStr  = tokens[1];
+            funcStr = tokens[2];
+            if (tokenCount > 3)
+                argStr = tokens[3];
 
             KeySym keysym = getKeysym(keyStr);
             if (keysym == NoSymbol) {
@@ -463,7 +443,6 @@ static int         parseConfigFile(STokenHandlerContext* ctx) {
                 } else
                     fprintf(stderr, "banana: %s\n", errMsg);
 
-                free(modKeyStr);
                 freeTokens(tokens, tokenCount);
                 continue;
             }
@@ -479,7 +458,6 @@ static int         parseConfigFile(STokenHandlerContext* ctx) {
                 } else
                     fprintf(stderr, "banana: %s\n", errMsg);
 
-                free(modKeyStr);
                 freeTokens(tokens, tokenCount);
                 continue;
             }
@@ -495,7 +473,6 @@ static int         parseConfigFile(STokenHandlerContext* ctx) {
                 } else
                     fprintf(stderr, "banana: %s\n", errMsg);
 
-                free(modKeyStr);
                 freeTokens(tokens, tokenCount);
                 continue;
             }
@@ -510,7 +487,6 @@ static int         parseConfigFile(STokenHandlerContext* ctx) {
                 } else
                     fprintf(stderr, "banana: %s\n", errMsg);
 
-                free(modKeyStr);
                 freeTokens(tokens, tokenCount);
                 continue;
             }
@@ -524,7 +500,6 @@ static int         parseConfigFile(STokenHandlerContext* ctx) {
             keys[keysCount].arg    = argStr ? safeStrdup(argStr) : NULL;
 
             keysCount++;
-            free(modKeyStr);
         } else if (strcasecmp(section, SECTION_RULES) == 0) {
             if (tokenCount < 3) {
                 char errMsg[MAX_LINE_LENGTH];
@@ -809,31 +784,32 @@ unsigned int getModifier(const char* mod) {
     if (!mod)
         return 0;
 
-    if (strchr(mod, '+')) {
-        char*        modCopy = safeStrdup(mod);
-        char*        token   = strtok(modCopy, "+");
-        unsigned int result  = 0;
+    unsigned int result  = 0;
+    char*        modCopy = safeStrdup(mod);
+    char*        saveptr = NULL;
+    char*        token   = strtok_r(modCopy, "+", &saveptr);
 
-        while (token) {
-            for (int i = 0; modifierMap[i].name; i++) {
-                if (strcasecmp(token, modifierMap[i].name) == 0) {
-                    result |= modifierMap[i].mask;
-                    break;
-                }
+    while (token) {
+        int found = 0;
+        for (int i = 0; modifierMap[i].name; i++) {
+            if (strcasecmp(token, modifierMap[i].name) == 0) {
+                result |= modifierMap[i].mask;
+                found = 1;
+                break;
             }
-            token = strtok(NULL, "+");
         }
 
-        free(modCopy);
-        return result;
+        if (!found) {
+            fprintf(stderr, "banana: unknown modifier: %s\n", token);
+            free(modCopy);
+            return 0;
+        }
+
+        token = strtok_r(NULL, "+", &saveptr);
     }
 
-    for (int i = 0; modifierMap[i].name; i++) {
-        if (strcasecmp(mod, modifierMap[i].name) == 0)
-            return modifierMap[i].mask;
-    }
-
-    return 0;
+    free(modCopy);
+    return result;
 }
 
 void (*getFunction(const char* name))(const char*) {
