@@ -22,6 +22,8 @@
 #include "config.h"
 #include "bar.h"
 
+extern char* safeStrdup(const char* s);
+
 #define MAX_CLIENTS  64
 #define MAX_MONITORS 16
 
@@ -1312,6 +1314,29 @@ void configureClient(SClient* client) {
 void updateBorders() {
     static unsigned long activeBorder   = 0;
     static unsigned long inactiveBorder = 0;
+    static char* lastActiveBorderColor = NULL;
+    static char* lastInactiveBorderColor = NULL;
+
+    if ((lastActiveBorderColor == NULL && activeBorderColor != NULL) ||
+        (lastActiveBorderColor != NULL && activeBorderColor != NULL &&
+         strcmp(lastActiveBorderColor, activeBorderColor) != 0) ||
+        (lastInactiveBorderColor == NULL && inactiveBorderColor != NULL) ||
+        (lastInactiveBorderColor != NULL && inactiveBorderColor != NULL &&
+         strcmp(lastInactiveBorderColor, inactiveBorderColor) != 0)) {
+
+        if (lastActiveBorderColor) {
+            free(lastActiveBorderColor);
+            lastActiveBorderColor = NULL;
+        }
+
+        if (lastInactiveBorderColor) {
+            free(lastInactiveBorderColor);
+            lastInactiveBorderColor = NULL;
+        }
+
+        activeBorder = 0;
+        inactiveBorder = 0;
+    }
 
     if (activeBorder == 0 || inactiveBorder == 0) {
         XColor   color;
@@ -1326,6 +1351,9 @@ void updateBorders() {
             inactiveBorder = color.pixel;
         else
             inactiveBorder = BlackPixel(display, DefaultScreen(display));
+
+        lastActiveBorderColor = safeStrdup(activeBorderColor);
+        lastInactiveBorderColor = safeStrdup(inactiveBorderColor);
 
         fprintf(stderr, "Border colors initialized\n");
     }
@@ -1385,7 +1413,7 @@ void updateMonitors() {
         monitors[0].num              = 0;
         monitors[0].currentWorkspace = 0;
         monitors[0].currentLayout    = LAYOUT_TILED;
-        monitors[0].masterCount      = defaultMasterCount;
+        monitors[0].masterCount      = 1;
         monitors[0].masterFactors    = malloc(workspaceCount * sizeof(float));
         for (int ws = 0; ws < workspaceCount; ws++) {
             monitors[0].masterFactors[ws] = defaultMasterFactor;
@@ -1400,7 +1428,7 @@ void updateMonitors() {
             monitors[i].num              = i;
             monitors[i].currentWorkspace = 0;
             monitors[i].currentLayout    = LAYOUT_TILED;
-            monitors[i].masterCount      = defaultMasterCount;
+            monitors[i].masterCount      = 1;
             monitors[i].masterFactors    = malloc(workspaceCount * sizeof(float));
             for (int ws = 0; ws < workspaceCount; ws++) {
                 monitors[i].masterFactors[ws] = defaultMasterFactor;

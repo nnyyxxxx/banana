@@ -18,6 +18,7 @@ void adjustMasterFactor(const char* arg);
 void focusMonitor(const char* arg);
 void toggleBar(const char* arg);
 void reloadConfig(const char* arg);
+char* safeStrdup(const char* s);
 
 typedef struct {
     unsigned int mod;
@@ -49,7 +50,6 @@ typedef struct {
 
 extern int   workspaceCount;
 extern float defaultMasterFactor;
-extern int   defaultMasterCount;
 extern int   innerGap;
 extern int   outerGap;
 #define modkey Mod1Mask

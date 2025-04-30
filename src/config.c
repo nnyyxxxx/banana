@@ -22,7 +22,6 @@ extern Window   root;
 
 int                 workspaceCount       = 9;
 float               defaultMasterFactor  = 0.55;
-int                 defaultMasterCount   = 1;
 int                 innerGap             = 15;
 int                 outerGap             = 20;
 int                 barHeight            = 20;
@@ -70,7 +69,7 @@ static SModifierMap modifierMap[] = {{"alt", Mod1Mask}, {"shift", ShiftMask}, {"
 
 static void         initDefaults(void);
 static void*        safeMalloc(size_t size);
-static char*        safeStrdup(const char* s);
+char*               safeStrdup(const char* s);
 static char*        getConfigPath(void);
 static void         trim(char* str);
 static char**       tokenize(char* line, const char* delimiter, int* count);
@@ -108,7 +107,7 @@ static void* safeMalloc(size_t size) {
     return ptr;
 }
 
-static char* safeStrdup(const char* s) {
+char* safeStrdup(const char* s) {
     if (!s)
         return NULL;
     char* result = strdup(s);
@@ -364,8 +363,6 @@ static int parseSetLine(char** tokens, int tokenCount) {
 
     if (strcmp(var, "workspace_count") == 0)
         workspaceCount = atoi(val);
-    else if (strcmp(var, "default_master_count") == 0)
-        defaultMasterCount = atoi(val);
     else if (strcmp(var, "inner_gap") == 0)
         innerGap = atoi(val);
     else if (strcmp(var, "outer_gap") == 0)
@@ -475,7 +472,6 @@ void createDefaultConfig(void) {
     fprintf(fp, "# General settings\n");
     fprintf(fp, "set > workspace_count > 9\n");
     fprintf(fp, "set > default_master_factor > 0.55\n");
-    fprintf(fp, "set > default_master_count > 1\n");
     fprintf(fp, "set > inner_gap > 15\n");
     fprintf(fp, "set > outer_gap > 20\n");
     fprintf(fp, "set > border_width > 2\n\n");
@@ -686,7 +682,6 @@ void reloadConfig(const char* arg) {
 
     int oldWorkspaceCount = workspaceCount;
     float oldDefaultMasterFactor = defaultMasterFactor;
-    int oldDefaultMasterCount = defaultMasterCount;
     int oldInnerGap = innerGap;
     int oldOuterGap = outerGap;
     int oldBorderWidth = borderWidth;
@@ -738,7 +733,6 @@ void reloadConfig(const char* arg) {
         barStatusTextColor = oldBarStatusTextColor;
         workspaceCount = oldWorkspaceCount;
         defaultMasterFactor = oldDefaultMasterFactor;
-        defaultMasterCount = oldDefaultMasterCount;
         innerGap = oldInnerGap;
         outerGap = oldOuterGap;
         borderWidth = oldBorderWidth;
@@ -797,7 +791,6 @@ void reloadConfig(const char* arg) {
         extern void showHideBars(int show);
         extern void tileAllMonitors(void);
         extern void resetBarResources(void);
-        extern int barVisible;
         extern int xerrorHandler(Display*, XErrorEvent*);
 
         XErrorHandler oldHandler = XSetErrorHandler(xerrorHandler);
