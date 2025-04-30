@@ -247,6 +247,16 @@ static int workspaceHasUrgentWindow(int monitor, int workspace) {
     return 0;
 }
 
+static int workspaceHasClients(int monitor, int workspace) {
+    SClient* client = clients;
+    while (client) {
+        if (client->monitor == monitor && client->workspace == workspace)
+            return 1;
+        client = client->next;
+    }
+    return 0;
+}
+
 void updateBars(void) {
     if (!barWindows || !barVisible)
         return;
@@ -269,6 +279,9 @@ void updateBars(void) {
         int wsWidth = maxTextWidth + 16;
 
         for (int w = 0; w < workspaceCount; w++) {
+            if (showOnlyActiveWorkspaces && monitors[i].currentWorkspace != w && !workspaceHasClients(i, w) && !workspaceHasUrgentWindow(i, w))
+                continue;
+
             XftColor* textColor = &barInactiveTextColorXft;
             int       wsBgColor = barBgColor;
             int       hasUrgent = workspaceHasUrgentWindow(i, w);
@@ -352,14 +365,30 @@ void handleBarClick(XEvent* event) {
 
             int wsWidth = maxTextWidth + 16;
 
-            for (int w = 0; w < workspaceCount; w++) {
-                if (ev->x >= x && ev->x < x + wsWidth) {
-                    monitors[i].currentWorkspace = w;
-                    updateClientVisibility();
-                    updateBars();
-                    break;
+            if (showOnlyActiveWorkspaces) {
+                int clickPos = 0;
+                for (int w = 0; w < workspaceCount; w++) {
+                    if (monitors[i].currentWorkspace != w && !workspaceHasClients(i, w) && !workspaceHasUrgentWindow(i, w))
+                        continue;
+
+                    if (ev->x >= clickPos && ev->x < clickPos + wsWidth) {
+                        monitors[i].currentWorkspace = w;
+                        updateClientVisibility();
+                        updateBars();
+                        break;
+                    }
+                    clickPos += wsWidth;
                 }
-                x += wsWidth;
+            } else {
+                for (int w = 0; w < workspaceCount; w++) {
+                    if (ev->x >= x && ev->x < x + wsWidth) {
+                        monitors[i].currentWorkspace = w;
+                        updateClientVisibility();
+                        updateBars();
+                        break;
+                    }
+                    x += wsWidth;
+                }
             }
 
             break;

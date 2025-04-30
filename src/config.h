@@ -127,6 +127,7 @@ extern int                barBorderWidth;
 extern int                barStrutsTop;
 extern int                barStrutsLeft;
 extern int                barStrutsRight;
+extern int                showOnlyActiveWorkspaces;
 extern char*              activeBorderColor;
 extern char*              inactiveBorderColor;
 extern char*              barBorderColor;

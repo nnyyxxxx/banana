@@ -11,29 +11,30 @@
 
 #include "config.h"
 
-int                workspaceCount       = 9;
-float              defaultMasterFactor  = 0.55;
-int                innerGap             = 15;
-int                outerGap             = 20;
-int                barHeight            = 20;
-char*              barFont              = NULL;
-int                showBar              = 1;
-int                barBorderWidth       = 0;
-int                barStrutsTop         = 0;
-int                barStrutsLeft        = 0;
-int                barStrutsRight       = 0;
-char*              activeBorderColor    = NULL;
-char*              inactiveBorderColor  = NULL;
-char*              barBorderColor       = NULL;
-char*              barBackgroundColor   = NULL;
-char*              barForegroundColor   = NULL;
-char*              barActiveWsColor     = NULL;
-char*              barUrgentWsColor     = NULL;
-char*              barActiveTextColor   = NULL;
-char*              barUrgentTextColor   = NULL;
-char*              barInactiveTextColor = NULL;
-char*              barStatusTextColor   = NULL;
-int                borderWidth          = 2;
+int                workspaceCount           = 9;
+float              defaultMasterFactor      = 0.55;
+int                innerGap                 = 15;
+int                outerGap                 = 20;
+int                barHeight                = 20;
+char*              barFont                  = NULL;
+int                showBar                  = 1;
+int                showOnlyActiveWorkspaces = 0;
+int                barBorderWidth           = 0;
+int                barStrutsTop             = 0;
+int                barStrutsLeft            = 0;
+int                barStrutsRight           = 0;
+char*              activeBorderColor        = NULL;
+char*              inactiveBorderColor      = NULL;
+char*              barBorderColor           = NULL;
+char*              barBackgroundColor       = NULL;
+char*              barForegroundColor       = NULL;
+char*              barActiveWsColor         = NULL;
+char*              barUrgentWsColor         = NULL;
+char*              barActiveTextColor       = NULL;
+char*              barUrgentTextColor       = NULL;
+char*              barInactiveTextColor     = NULL;
+char*              barStatusTextColor       = NULL;
+int                borderWidth              = 2;
 
 SKeyBinding*       keys       = NULL;
 size_t             keysCount  = 0;
@@ -562,19 +563,40 @@ static int parseConfigFile(STokenHandlerContext* ctx) {
                 if (!isValidInteger(val)) {
                     char errMsg[MAX_LINE_LENGTH];
                     snprintf(errMsg, MAX_LINE_LENGTH, "Invalid bar show value: '%s' - must be 0 or 1", val);
-
-                    if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-                        addError(ctx->errors, errMsg, lineNum, 0);
-                        ctx->hasErrors = 1;
-                    } else
-                        fprintf(stderr, "banana: %s\n", errMsg);
-                    freeTokens(tokens, tokenCount);
-                    continue;
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                    return 0;
                 }
 
-                if (ctx->mode == TOKEN_HANDLER_LOAD) {
-                    showBar = atoi(val);
+                int showValue = atoi(val);
+                if (showValue != 0 && showValue != 1) {
+                    char errMsg[MAX_LINE_LENGTH];
+                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid bar show value: '%s' - must be 0 or 1", val);
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                    return 0;
                 }
+
+                showBar = atoi(val);
+            } else if (strcmp(var, "show_only_active_workspaces") == 0) {
+                if (!isValidInteger(val)) {
+                    char errMsg[MAX_LINE_LENGTH];
+                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid show_only_active_workspaces value: '%s' - must be 0 or 1", val);
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                    return 0;
+                }
+
+                int showActiveValue = atoi(val);
+                if (showActiveValue != 0 && showActiveValue != 1) {
+                    char errMsg[MAX_LINE_LENGTH];
+                    snprintf(errMsg, MAX_LINE_LENGTH, "Invalid show_only_active_workspaces value: '%s' - must be 0 or 1", val);
+                    addError(ctx->errors, errMsg, lineNum, 0);
+                    ctx->hasErrors = 1;
+                    return 0;
+                }
+
+                showOnlyActiveWorkspaces = atoi(val);
             } else if (strcmp(var, "border_width") == 0) {
                 if (!isValidInteger(val)) {
                     char errMsg[MAX_LINE_LENGTH];
@@ -1421,6 +1443,7 @@ void createDefaultConfig(void) {
     fprintf(fp, "    height 20\n");
     fprintf(fp, "    font \"monospace-12\"\n");
     fprintf(fp, "    show 1\n");
+    fprintf(fp, "    show_only_active_workspaces 0\n");
     fprintf(fp, "    border_width 0\n");
     fprintf(fp, "    struts_top 0\n");
     fprintf(fp, "    struts_left 0\n");
@@ -1532,17 +1555,18 @@ void reloadConfig(const char* arg) {
     char*        oldBarInactiveTextColor = barInactiveTextColor;
     char*        oldBarStatusTextColor   = barStatusTextColor;
 
-    int          oldWorkspaceCount      = workspaceCount;
-    float        oldDefaultMasterFactor = defaultMasterFactor;
-    int          oldInnerGap            = innerGap;
-    int          oldOuterGap            = outerGap;
-    int          oldBorderWidth         = borderWidth;
-    int          oldShowBar             = showBar;
-    int          oldBarHeight           = barHeight;
-    int          oldBarBorderWidth      = barBorderWidth;
-    int          oldBarStrutsTop        = barStrutsTop;
-    int          oldBarStrutsLeft       = barStrutsLeft;
-    int          oldBarStrutsRight      = barStrutsRight;
+    int          oldWorkspaceCount           = workspaceCount;
+    float        oldDefaultMasterFactor      = defaultMasterFactor;
+    int          oldInnerGap                 = innerGap;
+    int          oldOuterGap                 = outerGap;
+    int          oldBorderWidth              = borderWidth;
+    int          oldShowBar                  = showBar;
+    int          oldShowOnlyActiveWorkspaces = showOnlyActiveWorkspaces;
+    int          oldBarHeight                = barHeight;
+    int          oldBarBorderWidth           = barBorderWidth;
+    int          oldBarStrutsTop             = barStrutsTop;
+    int          oldBarStrutsLeft            = barStrutsLeft;
+    int          oldBarStrutsRight           = barStrutsRight;
 
     keys                 = NULL;
     keysCount            = 0;
@@ -1566,33 +1590,34 @@ void reloadConfig(const char* arg) {
     if (!result) {
         fprintf(stderr, "banana: failed to reload configuration, restoring old configuration\n");
 
-        keys                 = oldKeys;
-        keysCount            = oldKeysCount;
-        rules                = oldRules;
-        rulesCount           = oldRulesCount;
-        barFont              = oldBarFont;
-        activeBorderColor    = oldActiveBorderColor;
-        inactiveBorderColor  = oldInactiveBorderColor;
-        barBorderColor       = oldBarBorderColor;
-        barBackgroundColor   = oldBarBackgroundColor;
-        barForegroundColor   = oldBarForegroundColor;
-        barActiveWsColor     = oldBarActiveWsColor;
-        barUrgentWsColor     = oldBarUrgentWsColor;
-        barActiveTextColor   = oldBarActiveTextColor;
-        barUrgentTextColor   = oldBarUrgentTextColor;
-        barInactiveTextColor = oldBarInactiveTextColor;
-        barStatusTextColor   = oldBarStatusTextColor;
-        workspaceCount       = oldWorkspaceCount;
-        defaultMasterFactor  = oldDefaultMasterFactor;
-        innerGap             = oldInnerGap;
-        outerGap             = oldOuterGap;
-        borderWidth          = oldBorderWidth;
-        showBar              = oldShowBar;
-        barHeight            = oldBarHeight;
-        barBorderWidth       = oldBarBorderWidth;
-        barStrutsTop         = oldBarStrutsTop;
-        barStrutsLeft        = oldBarStrutsLeft;
-        barStrutsRight       = oldBarStrutsRight;
+        keys                     = oldKeys;
+        keysCount                = oldKeysCount;
+        rules                    = oldRules;
+        rulesCount               = oldRulesCount;
+        barFont                  = oldBarFont;
+        activeBorderColor        = oldActiveBorderColor;
+        inactiveBorderColor      = oldInactiveBorderColor;
+        barBorderColor           = oldBarBorderColor;
+        barBackgroundColor       = oldBarBackgroundColor;
+        barForegroundColor       = oldBarForegroundColor;
+        barActiveWsColor         = oldBarActiveWsColor;
+        barUrgentWsColor         = oldBarUrgentWsColor;
+        barActiveTextColor       = oldBarActiveTextColor;
+        barUrgentTextColor       = oldBarUrgentTextColor;
+        barInactiveTextColor     = oldBarInactiveTextColor;
+        barStatusTextColor       = oldBarStatusTextColor;
+        workspaceCount           = oldWorkspaceCount;
+        defaultMasterFactor      = oldDefaultMasterFactor;
+        innerGap                 = oldInnerGap;
+        outerGap                 = oldOuterGap;
+        borderWidth              = oldBorderWidth;
+        showBar                  = oldShowBar;
+        showOnlyActiveWorkspaces = oldShowOnlyActiveWorkspaces;
+        barHeight                = oldBarHeight;
+        barBorderWidth           = oldBarBorderWidth;
+        barStrutsTop             = oldBarStrutsTop;
+        barStrutsLeft            = oldBarStrutsLeft;
+        barStrutsRight           = oldBarStrutsRight;
 
         return;
     }
