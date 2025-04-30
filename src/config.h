@@ -103,6 +103,15 @@ void (*getFunction(const char* name))(const char*);
 void            freeTokens(char** tokens, int count);
 void            addError(SConfigErrors* errors, const char* message, int lineNum, int isFatal);
 
+int             isValidInteger(const char* str);
+int             isValidFloat(const char* str);
+int             isValidWorkspaceIndex(const char* arg);
+int             isValidAdjustMasterArg(const char* arg);
+int             isValidMoveWindowArg(const char* arg);
+int             isValidFocusWindowArg(const char* arg);
+int             isValidFocusMonitorArg(const char* arg);
+int             isValidHexColor(const char* str);
+
 extern Display* display;
 extern Window   root;
 
