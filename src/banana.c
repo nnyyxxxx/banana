@@ -62,6 +62,8 @@ xcb_atom_t        NET_ACTIVE_WINDOW;
 xcb_atom_t        UTF8_STRING;
 xcb_window_t      wmcheckwin;
 
+int               workspaceSwitchActive = 0;
+
 int               xerrorHandler(xcb_connection_t* dpy, xcb_generic_error_t* ee) {
     (void)dpy;
 
@@ -1132,8 +1134,21 @@ void handleUnmapNotify(xcb_generic_event_t* event) {
 
     if (ev->event != root) {
         SClient* client = findClient(ev->window);
-        if (client)
-            unmanageClient(ev->window);
+        if (client) {
+            if (workspaceSwitchActive || (ev->response_type & 0x80))
+                return;
+
+            xcb_get_window_attributes_cookie_t cookie = xcb_get_window_attributes(connection, ev->window);
+            xcb_get_window_attributes_reply_t* reply  = xcb_get_window_attributes_reply(connection, cookie, NULL);
+
+            if (!reply) {
+                fprintf(stderr, "Window %x confirmed destroyed, unmanaging\n", ev->window);
+                unmanageClient(ev->window);
+            } else {
+                fprintf(stderr, "Window %x unmapped but still exists, preserving\n", ev->window);
+                free(reply);
+            }
+        }
     }
 }
 
@@ -1142,6 +1157,11 @@ void handleDestroyNotify(xcb_generic_event_t* event) {
     SClient*                    client = findClient(ev->window);
 
     if (client) {
+        if (workspaceSwitchActive) {
+            fprintf(stderr, "Ignoring destroy notify for window 0x%x during workspace switch\n", ev->window);
+            return;
+        }
+
         fprintf(stderr, "Destroy notify for window 0x%x\n", ev->window);
         unmanageClient(ev->window);
     }
@@ -1381,9 +1401,6 @@ void manageClient(xcb_window_t window) {
                 client->height = geom->height;
 
             free(geom);
-        } else {
-            client->width  = 800;
-            client->height = 600;
         }
 
         if (client->sizeHints.valid && client->isFloating) {
@@ -1849,6 +1866,8 @@ void switchToWorkspace(const char* arg) {
     if (workspace == previousWorkspace)
         return;
 
+    workspaceSwitchActive = 1;
+
     monitor->currentWorkspace = workspace;
     currentWorkspace          = workspace;
 
@@ -1865,6 +1884,8 @@ void switchToWorkspace(const char* arg) {
         focusClient(visibleClient);
     else
         focusClient(NULL);
+
+    workspaceSwitchActive = 0;
 }
 
 void moveClientToWorkspace(const char* arg) {
@@ -1883,7 +1904,10 @@ void moveClientToWorkspace(const char* arg) {
     moveClientToEnd(movedClient);
 
     if (workspace != currentMon->currentWorkspace) {
+        workspaceSwitchActive = 1;
         xcb_unmap_window(connection, movedClient->window);
+        xcb_flush(connection);
+        workspaceSwitchActive = 0;
 
         SClient* focusedClient = focusWindowUnderCursor(currentMon);
 
@@ -1909,6 +1933,8 @@ void moveClientToWorkspace(const char* arg) {
 }
 
 void updateClientVisibility() {
+    workspaceSwitchActive = 1;
+
     SClient* client = clients;
 
     int      hasFullscreen[MAX_MONITORS][100] = {0};
@@ -1928,6 +1954,9 @@ void updateClientVisibility() {
             xcb_unmap_window(connection, client->window);
         client = client->next;
     }
+
+    xcb_flush(connection);
+    workspaceSwitchActive = 0;
 }
 
 SClient* findVisibleClientInWorkspace(int monitor, int workspace) {
