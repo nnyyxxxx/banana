@@ -536,7 +536,6 @@ void handleButtonPress(xcb_generic_event_t* event) {
 
     if (ev->detail == XCB_BUTTON_INDEX_1) {
         if (!client->isFloating) {
-            fprintf(stderr, "DEBUG: Starting window drag (tiled->floating) - window: 0x%x, button: %d\n", client->window, ev->detail);
             client->isFloating      = 1;
             windowMovement.wasTiled = 1;
 
@@ -591,7 +590,6 @@ void handleButtonPress(xcb_generic_event_t* event) {
 
             arrangeClients(monitor);
         } else {
-            fprintf(stderr, "DEBUG: Starting window drag (already floating) - window: 0x%x, button: %d\n", client->window, ev->detail);
             windowMovement.client   = client;
             windowMovement.x        = ev->root_x;
             windowMovement.y        = ev->root_y;
@@ -602,7 +600,6 @@ void handleButtonPress(xcb_generic_event_t* event) {
                              XCB_GRAB_MODE_ASYNC, XCB_NONE, moveCursor, XCB_CURRENT_TIME);
         }
     } else if (ev->detail == XCB_BUTTON_INDEX_3 && client->isFloating) {
-        fprintf(stderr, "DEBUG: Starting window resize - window: 0x%x, button: %d\n", client->window, ev->detail);
         windowResize.client = client;
         windowResize.x      = ev->root_x;
         windowResize.y      = ev->root_y;
@@ -691,12 +688,8 @@ void swapWindowUnderCursor(SClient* client, int cursorX, int cursorY) {
 void handleButtonRelease(xcb_generic_event_t* event) {
     xcb_button_release_event_t* ev = (xcb_button_release_event_t*)event;
 
-    fprintf(stderr, "DEBUG: Button release event - button: %d\n", ev->detail);
-
     if (windowMovement.active) {
         SClient* movingClient = windowMovement.client;
-
-        fprintf(stderr, "DEBUG: Ending window drag - window: 0x%x\n", movingClient ? movingClient->window : 0);
 
         if (movingClient && windowMovement.wasTiled) {
             fprintf(stderr, "Attempting to swap with window under cursor at %d,%d\n", ev->root_x, ev->root_y);
@@ -714,7 +707,6 @@ void handleButtonRelease(xcb_generic_event_t* event) {
     }
 
     if (windowResize.active) {
-        fprintf(stderr, "DEBUG: Ending window resize - window: 0x%x\n", windowResize.client ? windowResize.client->window : 0);
         windowResize.active = 0;
         windowResize.client = NULL;
         xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
@@ -775,7 +767,6 @@ void handleMotionNotify(xcb_generic_event_t* event) {
     }
 
     if (windowMovement.active && windowMovement.client) {
-        fprintf(stderr, "DEBUG: Processing window movement - active: %d\n", windowMovement.active);
         int dx = ev->root_x - windowMovement.x;
         int dy = ev->root_y - windowMovement.y;
 
@@ -784,7 +775,6 @@ void handleMotionNotify(xcb_generic_event_t* event) {
         windowMovement.x = ev->root_x;
         windowMovement.y = ev->root_y;
     } else if (windowResize.active && windowResize.client) {
-        fprintf(stderr, "DEBUG: Processing window resize - active: %d\n", windowResize.active);
         int      dx     = ev->root_x - windowResize.x;
         int      dy     = ev->root_y - windowResize.y;
         SClient* client = windowResize.client;
