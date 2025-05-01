@@ -78,7 +78,7 @@ typedef struct {
 typedef struct {
     const char*  name;
     xcb_keysym_t keysym;
-} KeySymMapping;
+} SKeySymMapping;
 
 void         spawnProgram(const char* arg);
 void         killClient(const char* arg);
