@@ -152,10 +152,11 @@ char** tokenizeLine(const char* line, int* tokenCount) {
     char** tokens = safeMalloc(MAX_TOKEN_LENGTH * sizeof(char*));
     *tokenCount   = 0;
 
-    char* lineClone  = safeStrdup(line);
-    char* p          = lineClone;
-    int   inString   = 0;
-    char* tokenStart = p;
+    char* lineClone         = safeStrdup(line);
+    char* p                 = lineClone;
+    int   inString          = 0;
+    char* tokenStart        = p;
+    int   hasUnmatchedQuote = 0;
 
     while (*p) {
         if (*p == '\"')
@@ -166,7 +167,10 @@ char** tokenizeLine(const char* line, int* tokenCount) {
                 if (tokenStart[0] == '\"' && *(p - 1) == '\"') {
                     tokenStart++;
                     *(p - 1) = '\0';
-                }
+                } else if (tokenStart[0] == '\"' && *(p - 1) != '\"')
+                    hasUnmatchedQuote = 1;
+                else if (tokenStart[0] != '\"' && *(p - 1) == '\"')
+                    hasUnmatchedQuote = 1;
                 tokens[(*tokenCount)++] = safeStrdup(tokenStart);
             }
             tokenStart = p + 1;
@@ -178,8 +182,22 @@ char** tokenizeLine(const char* line, int* tokenCount) {
         if (tokenStart[0] == '\"' && *(p - 1) == '\"') {
             tokenStart++;
             *(p - 1) = '\0';
-        }
+        } else if (tokenStart[0] == '\"' && *(p - 1) != '\"')
+            hasUnmatchedQuote = 1;
+        else if (tokenStart[0] != '\"' && *(p - 1) == '\"')
+            hasUnmatchedQuote = 1;
         tokens[(*tokenCount)++] = safeStrdup(tokenStart);
+    }
+
+    if (inString)
+        hasUnmatchedQuote = 1;
+
+    if (hasUnmatchedQuote && *tokenCount > 0) {
+        char* lastToken    = tokens[*tokenCount - 1];
+        char* flaggedToken = safeMalloc(strlen(lastToken) + 20);
+        sprintf(flaggedToken, "%s__UNMATCHED_QUOTE__", lastToken);
+        free(lastToken);
+        tokens[*tokenCount - 1] = flaggedToken;
     }
 
     free(lineClone);
@@ -424,6 +442,22 @@ int processLine(const char* line, char* section, int* inSection, int* braceDepth
 
     int    tokenCount;
     char** tokens = tokenizeLine(line, &tokenCount);
+
+    if (tokenCount > 0) {
+        char* lastToken = tokens[tokenCount - 1];
+        if (strstr(lastToken, "__UNMATCHED_QUOTE__") != NULL) {
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Unmatched quotes in line");
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            }
+
+            char* marker = strstr(lastToken, "__UNMATCHED_QUOTE__");
+            if (marker)
+                *marker = '\0';
+        }
+    }
 
     if (tokenCount < 2) {
         char errMsg[MAX_LINE_LENGTH];
