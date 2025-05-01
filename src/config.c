@@ -899,8 +899,8 @@ void createDefaultConfig(void) {
     fprintf(fp, "bar {\n");
     fprintf(fp, "    height 20\n");
     fprintf(fp, "    font \"monospace-12\"\n");
-    fprintf(fp, "    show 1\n");
-    fprintf(fp, "    show_only_active_workspaces 0\n");
+    fprintf(fp, "    show true\n");
+    fprintf(fp, "    show_only_active_workspaces false\n");
     fprintf(fp, "    border_width 0\n");
     fprintf(fp, "    struts_top 0\n");
     fprintf(fp, "    struts_left 0\n");
@@ -1496,43 +1496,49 @@ int handleBarSection(STokenHandlerContext* ctx, const char* var, const char* val
             barFont = safeStrdup(val);
         }
     } else if (strcmp(var, "show") == 0) {
-        if (!isValidInteger(val)) {
+        if (strcasecmp(val, "true") == 0)
+            showBar = 1;
+        else if (strcasecmp(val, "false") == 0)
+            showBar = 0;
+        else if (isValidInteger(val)) {
+            int showValue = atoi(val);
+            if (showValue != 0 && showValue != 1) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid bar show value: '%s' - must be true, false, 0, or 1", val);
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+                return 0;
+            }
+            showBar = showValue;
+        } else {
             char errMsg[MAX_LINE_LENGTH];
-            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid bar show value: '%s' - must be 0 or 1", val);
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid bar show value: '%s' - must be true, false, 0, or 1", val);
             addError(ctx->errors, errMsg, lineNum, 0);
             ctx->hasErrors = 1;
             return 0;
         }
-
-        int showValue = atoi(val);
-        if (showValue != 0 && showValue != 1) {
-            char errMsg[MAX_LINE_LENGTH];
-            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid bar show value: '%s' - must be 0 or 1", val);
-            addError(ctx->errors, errMsg, lineNum, 0);
-            ctx->hasErrors = 1;
-            return 0;
-        }
-
-        showBar = atoi(val);
     } else if (strcmp(var, "show_only_active_workspaces") == 0) {
-        if (!isValidInteger(val)) {
+        if (strcasecmp(val, "true") == 0)
+            showOnlyActiveWorkspaces = 1;
+        else if (strcasecmp(val, "false") == 0)
+            showOnlyActiveWorkspaces = 0;
+        else if (isValidInteger(val)) {
+            int showActiveValue = atoi(val);
+            if (showActiveValue != 0 && showActiveValue != 1) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid show_only_active_workspaces value: '%s' - must be true, false, 0, or 1", val);
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+                return 0;
+            }
+            showOnlyActiveWorkspaces = showActiveValue;
+        } else {
             char errMsg[MAX_LINE_LENGTH];
-            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid show_only_active_workspaces value: '%s' - must be 0 or 1", val);
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid show_only_active_workspaces value: '%s' - must be true, false, 0, or 1", val);
             addError(ctx->errors, errMsg, lineNum, 0);
             ctx->hasErrors = 1;
             return 0;
         }
-
-        int showActiveValue = atoi(val);
-        if (showActiveValue != 0 && showActiveValue != 1) {
-            char errMsg[MAX_LINE_LENGTH];
-            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid show_only_active_workspaces value: '%s' - must be 0 or 1", val);
-            addError(ctx->errors, errMsg, lineNum, 0);
-            ctx->hasErrors = 1;
-            return 0;
-        }
-
-        showOnlyActiveWorkspaces = atoi(val);
     } else if (strcmp(var, "border_width") == 0) {
         if (!isValidInteger(val)) {
             char errMsg[MAX_LINE_LENGTH];
