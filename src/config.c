@@ -131,10 +131,8 @@ int isValidHexColor(const char* str) {
     if (!str || *str == '\0')
         return 0;
 
-    if (str[0] != '#')
-        return 0;
-
-    str++;
+    if (str[0] == '#')
+        str++;
 
     size_t len = strlen(str);
     if (len != 6)
@@ -1715,6 +1713,18 @@ int handleBarSection(STokenHandlerContext* ctx, const char* var, const char* val
     return 1;
 }
 
+char* ensureColorPrefix(const char* val) {
+    if (!val || strlen(val) == 0)
+        return NULL;
+
+    if (val[0] == '#')
+        return safeStrdup(val);
+
+    char* result = safeMalloc(strlen(val) + 2);
+    sprintf(result, "#%s", val);
+    return result;
+}
+
 int handleDecorationSection(STokenHandlerContext* ctx, const char* var, const char* val, int lineNum, char** tokens, int tokenCount) {
     if (ctx->mode == TOKEN_HANDLER_LOAD) {
         if (strcmp(var, "active_border_color") == 0) {
@@ -1731,7 +1741,7 @@ int handleDecorationSection(STokenHandlerContext* ctx, const char* var, const ch
                 return 0;
             }
             free(activeBorderColor);
-            activeBorderColor = safeStrdup(val);
+            activeBorderColor = ensureColorPrefix(val);
         } else if (strcmp(var, "inactive_border_color") == 0) {
             if (!isValidHexColor(val)) {
                 char errMsg[MAX_LINE_LENGTH];
@@ -1746,7 +1756,7 @@ int handleDecorationSection(STokenHandlerContext* ctx, const char* var, const ch
                 return 0;
             }
             free(inactiveBorderColor);
-            inactiveBorderColor = safeStrdup(val);
+            inactiveBorderColor = ensureColorPrefix(val);
         } else if (strcmp(var, "bar_border_color") == 0) {
             if (!isValidHexColor(val)) {
                 char errMsg[MAX_LINE_LENGTH];
@@ -1761,7 +1771,7 @@ int handleDecorationSection(STokenHandlerContext* ctx, const char* var, const ch
                 return 0;
             }
             free(barBorderColor);
-            barBorderColor = safeStrdup(val);
+            barBorderColor = ensureColorPrefix(val);
         } else if (strcmp(var, "bar_background_color") == 0) {
             if (!isValidHexColor(val)) {
                 char errMsg[MAX_LINE_LENGTH];
@@ -1776,7 +1786,7 @@ int handleDecorationSection(STokenHandlerContext* ctx, const char* var, const ch
                 return 0;
             }
             free(barBackgroundColor);
-            barBackgroundColor = safeStrdup(val);
+            barBackgroundColor = ensureColorPrefix(val);
         } else if (strcmp(var, "bar_foreground_color") == 0) {
             if (!isValidHexColor(val)) {
                 char errMsg[MAX_LINE_LENGTH];
@@ -1791,7 +1801,7 @@ int handleDecorationSection(STokenHandlerContext* ctx, const char* var, const ch
                 return 0;
             }
             free(barForegroundColor);
-            barForegroundColor = safeStrdup(val);
+            barForegroundColor = ensureColorPrefix(val);
         } else if (strcmp(var, "bar_active_ws_color") == 0) {
             if (!isValidHexColor(val)) {
                 char errMsg[MAX_LINE_LENGTH];
@@ -1806,7 +1816,7 @@ int handleDecorationSection(STokenHandlerContext* ctx, const char* var, const ch
                 return 0;
             }
             free(barActiveWsColor);
-            barActiveWsColor = safeStrdup(val);
+            barActiveWsColor = ensureColorPrefix(val);
         } else if (strcmp(var, "bar_urgent_ws_color") == 0) {
             if (!isValidHexColor(val)) {
                 char errMsg[MAX_LINE_LENGTH];
@@ -1821,7 +1831,7 @@ int handleDecorationSection(STokenHandlerContext* ctx, const char* var, const ch
                 return 0;
             }
             free(barUrgentWsColor);
-            barUrgentWsColor = safeStrdup(val);
+            barUrgentWsColor = ensureColorPrefix(val);
         } else if (strcmp(var, "bar_active_text_color") == 0) {
             if (!isValidHexColor(val)) {
                 char errMsg[MAX_LINE_LENGTH];
@@ -1836,7 +1846,7 @@ int handleDecorationSection(STokenHandlerContext* ctx, const char* var, const ch
                 return 0;
             }
             free(barActiveTextColor);
-            barActiveTextColor = safeStrdup(val);
+            barActiveTextColor = ensureColorPrefix(val);
         } else if (strcmp(var, "bar_urgent_text_color") == 0) {
             if (!isValidHexColor(val)) {
                 char errMsg[MAX_LINE_LENGTH];
@@ -1851,7 +1861,7 @@ int handleDecorationSection(STokenHandlerContext* ctx, const char* var, const ch
                 return 0;
             }
             free(barUrgentTextColor);
-            barUrgentTextColor = safeStrdup(val);
+            barUrgentTextColor = ensureColorPrefix(val);
         } else if (strcmp(var, "bar_inactive_text_color") == 0) {
             if (!isValidHexColor(val)) {
                 char errMsg[MAX_LINE_LENGTH];
@@ -1866,7 +1876,7 @@ int handleDecorationSection(STokenHandlerContext* ctx, const char* var, const ch
                 return 0;
             }
             free(barInactiveTextColor);
-            barInactiveTextColor = safeStrdup(val);
+            barInactiveTextColor = ensureColorPrefix(val);
         } else if (strcmp(var, "bar_status_text_color") == 0) {
             if (!isValidHexColor(val)) {
                 char errMsg[MAX_LINE_LENGTH];
@@ -1881,7 +1891,7 @@ int handleDecorationSection(STokenHandlerContext* ctx, const char* var, const ch
                 return 0;
             }
             free(barStatusTextColor);
-            barStatusTextColor = safeStrdup(val);
+            barStatusTextColor = ensureColorPrefix(val);
         } else
             fprintf(stderr, "banana: unknown decoration setting: %s\n", var);
     } else if (!(strcmp(var, "active_border_color") == 0 || strcmp(var, "inactive_border_color") == 0 || strcmp(var, "bar_border_color") == 0 ||

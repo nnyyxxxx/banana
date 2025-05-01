@@ -1609,11 +1609,15 @@ void configureClient(SClient* client) {
 }
 
 int parseHexColor(const char* hex, uint16_t* r, uint16_t* g, uint16_t* b) {
-    if (!hex || hex[0] != '#')
+    if (!hex || *hex == '\0')
         return 0;
 
+    const char* colorCode = hex;
+    if (colorCode[0] == '#')
+        colorCode++;
+
     unsigned int rgb;
-    if (sscanf(hex, "#%x", &rgb) != 1)
+    if (sscanf(colorCode, "%x", &rgb) != 1)
         return 0;
 
     *r = ((rgb >> 16) & 0xFF) * 257;
