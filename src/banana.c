@@ -296,10 +296,10 @@ void setup() {
     if (xcb_cursor_context_new(connection, screen, &ctx) >= 0) {
         normalCursor   = xcb_cursor_load_cursor(ctx, "left_ptr");
         moveCursor     = xcb_cursor_load_cursor(ctx, "fleur");
-        resizeSECursor = xcb_cursor_load_cursor(ctx, "bottom_right_corner");
-        resizeSWCursor = xcb_cursor_load_cursor(ctx, "bottom_left_corner");
-        resizeNECursor = xcb_cursor_load_cursor(ctx, "top_right_corner");
-        resizeNWCursor = xcb_cursor_load_cursor(ctx, "top_left_corner");
+        resizeSECursor = xcb_cursor_load_cursor(ctx, "se-resize");
+        resizeSWCursor = xcb_cursor_load_cursor(ctx, "sw-resize");
+        resizeNECursor = xcb_cursor_load_cursor(ctx, "ne-resize");
+        resizeNWCursor = xcb_cursor_load_cursor(ctx, "nw-resize");
 
         xcb_cursor_context_free(ctx);
     }
@@ -2071,7 +2071,9 @@ void toggleFloating(const char* arg) {
         }
 
         uint32_t eventMask = XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_BUTTON_MOTION;
-        xcb_grab_button(connection, 0, modkey, focused->window, 0, eventMask, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, resizeSECursor);
+        xcb_grab_button(connection, 0, focused->window, eventMask, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, moveCursor, XCB_BUTTON_INDEX_1, modkey);
+
+        xcb_grab_button(connection, 0, focused->window, eventMask, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, resizeSECursor, XCB_BUTTON_INDEX_3, modkey);
 
         uint32_t values[1] = {XCB_STACK_MODE_ABOVE};
         xcb_configure_window(connection, focused->window, XCB_CONFIG_WINDOW_STACK_MODE, values);
@@ -2617,8 +2619,7 @@ void setFullscreen(SClient* client, int fullscreen) {
         client->width  = monitor->width;
         client->height = monitor->height;
 
-        xcb_ungrab_button(connection, XCB_BUTTON_INDEX_1, modkey, client->window);
-        xcb_ungrab_button(connection, XCB_BUTTON_INDEX_3, modkey, client->window);
+        xcb_ungrab_button(connection, XCB_BUTTON_INDEX_ANY, modkey, client->window);
 
         uint32_t values[] = {0};
         xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
@@ -2644,10 +2645,11 @@ void setFullscreen(SClient* client, int fullscreen) {
         client->height       = client->oldheight;
 
         uint32_t eventMask = XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_BUTTON_MOTION;
-        xcb_grab_button(connection, XCB_BUTTON_INDEX_1, modkey, client->window, 0, eventMask, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, moveCursor);
+
+        xcb_grab_button(connection, 0, client->window, eventMask, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, moveCursor, XCB_BUTTON_INDEX_1, modkey);
 
         if (client->isFloating)
-            xcb_grab_button(connection, XCB_BUTTON_INDEX_3, modkey, client->window, 0, eventMask, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, resizeSECursor);
+            xcb_grab_button(connection, 0, client->window, eventMask, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, resizeSECursor, XCB_BUTTON_INDEX_3, modkey);
 
         uint32_t values[] = {borderWidth};
         xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
@@ -2690,8 +2692,7 @@ void updateWindowType(SClient* client) {
             client->width  = monitor->width;
             client->height = monitor->height;
 
-            xcb_ungrab_button(connection, XCB_BUTTON_INDEX_1, modkey, client->window);
-            xcb_ungrab_button(connection, XCB_BUTTON_INDEX_3, modkey, client->window);
+            xcb_ungrab_button(connection, XCB_BUTTON_INDEX_ANY, modkey, client->window);
 
             uint32_t values[] = {0};
             xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
