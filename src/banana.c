@@ -2631,7 +2631,8 @@ void setFullscreen(SClient* client, int fullscreen) {
 
         configureClient(client);
 
-        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, (unsigned char*)&NET_WM_STATE_FULLSCREEN);
+        xcb_atom_t fs_atom = NET_WM_STATE_FULLSCREEN;
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, &fs_atom);
     } else {
         fprintf(stderr, "Unsetting fullscreen for window 0x%x\n", client->window);
 
@@ -2656,7 +2657,7 @@ void setFullscreen(SClient* client, int fullscreen) {
 
         configureClient(client);
 
-        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, (unsigned char*)NULL);
+        xcb_delete_property(connection, root, NET_WM_STATE);
     }
 
     SMonitor* monitor = &monitors[client->monitor];
@@ -2695,7 +2696,8 @@ void updateWindowType(SClient* client) {
             uint32_t values[] = {0};
             xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
 
-            xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, (unsigned char*)&NET_WM_STATE_FULLSCREEN);
+            xcb_atom_t fs_atom = NET_WM_STATE_FULLSCREEN;
+            xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, &fs_atom);
 
             uint32_t values2[] = {client->x, client->y, client->width, client->height};
             xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values2);
