@@ -149,10 +149,21 @@ int isValidHexColor(const char* str) {
 }
 
 char** tokenizeLine(const char* line, int* tokenCount) {
+    if (!line || !line[0]) {
+        *tokenCount = 0;
+        return NULL;
+    }
+
     char** tokens = safeMalloc(MAX_TOKEN_LENGTH * sizeof(char*));
     *tokenCount   = 0;
 
-    char* lineClone         = safeStrdup(line);
+    char* lineClone = safeStrdup(line);
+    if (!lineClone) {
+        free(tokens);
+        *tokenCount = 0;
+        return NULL;
+    }
+
     char* p                 = lineClone;
     int   inDoubleQuote     = 0;
     int   inSingleQuote     = 0;
@@ -228,14 +239,22 @@ char** tokenizeLine(const char* line, int* tokenCount) {
         hasUnmatchedQuote = 1;
 
     if (hasUnmatchedQuote && *tokenCount > 0) {
-        char* lastToken    = tokens[*tokenCount - 1];
-        char* flaggedToken = safeMalloc(strlen(lastToken) + 20);
-        sprintf(flaggedToken, "%s__UNMATCHED_QUOTE__", lastToken);
-        free(lastToken);
-        tokens[*tokenCount - 1] = flaggedToken;
+        char* lastToken = tokens[*tokenCount - 1];
+        if (lastToken) {
+            char* flaggedToken = safeMalloc(strlen(lastToken) + 20);
+            sprintf(flaggedToken, "%s__UNMATCHED_QUOTE__", lastToken);
+            free(lastToken);
+            tokens[*tokenCount - 1] = flaggedToken;
+        }
     }
 
     free(lineClone);
+
+    if (*tokenCount == 0) {
+        free(tokens);
+        return NULL;
+    }
+
     return tokens;
 }
 
@@ -397,7 +416,7 @@ int processConfigFile(FILE* fp, STokenHandlerContext* ctx, int* braceDepth, int*
             continue;
     }
 
-    return 0;
+    return 1;
 }
 
 int processLine(const char* line, char* section, int* inSection, int* braceDepth, int* potentialSectionLineNum, char* potentialSectionName, SSectionInfo* sectionStack,
@@ -420,7 +439,7 @@ int processLine(const char* line, char* section, int* inSection, int* braceDepth
             potentialSectionName[0]  = '\0';
         } else
             (*braceDepth)++;
-        return 0;
+        return 1;
     }
 
     if (strstr(line, "}")) {
@@ -441,7 +460,7 @@ int processLine(const char* line, char* section, int* inSection, int* braceDepth
         if (*sectionDepth > 0)
             (*sectionDepth)--;
 
-        return 0;
+        return 1;
     }
 
     if (*inSection && *sectionDepth > 0)
@@ -475,11 +494,14 @@ int processLine(const char* line, char* section, int* inSection, int* braceDepth
             *potentialSectionLineNum = 0;
             potentialSectionName[0]  = '\0';
         }
-        return 0;
+        return 1;
     }
 
     int    tokenCount;
     char** tokens = tokenizeLine(line, &tokenCount);
+
+    if (!tokens)
+        return 0;
 
     if (tokenCount > 0) {
         char* lastToken = tokens[tokenCount - 1];
@@ -511,24 +533,32 @@ int processLine(const char* line, char* section, int* inSection, int* braceDepth
         return 0;
     }
 
+    int handlerFreedTokens = 0;
+
     if (strcasecmp(section, SECTION_GENERAL) == 0) {
         const char* var = tokens[0];
         const char* val = tokens[1];
 
-        if (handleGeneralSection(ctx, var, val, lineNum, tokens, tokenCount))
+        if (handleGeneralSection(ctx, var, val, lineNum, tokens, tokenCount)) {
+            handlerFreedTokens = 1;
             return 0;
+        }
     } else if (strcasecmp(section, SECTION_BAR) == 0) {
         const char* var = tokens[0];
         const char* val = tokens[1];
 
-        if (handleBarSection(ctx, var, val, lineNum, tokens, tokenCount))
+        if (handleBarSection(ctx, var, val, lineNum, tokens, tokenCount)) {
+            handlerFreedTokens = 1;
             return 0;
+        }
     } else if (strcasecmp(section, SECTION_DECORATION) == 0) {
         const char* var = tokens[0];
         const char* val = tokens[1];
 
-        if (handleDecorationSection(ctx, var, val, lineNum, tokens, tokenCount))
+        if (handleDecorationSection(ctx, var, val, lineNum, tokens, tokenCount)) {
+            handlerFreedTokens = 1;
             return 0;
+        }
     } else if (strcasecmp(section, SECTION_BINDS) == 0) {
         if (tokenCount < 3) {
             char errMsg[MAX_LINE_LENGTH];
@@ -555,8 +585,10 @@ int processLine(const char* line, char* section, int* inSection, int* braceDepth
         if (tokenCount > 3)
             argStr = tokens[3];
 
-        if (handleBindsSection(ctx, modStr, keyStr, funcStr, argStr, lineNum, tokens, tokenCount))
+        if (handleBindsSection(ctx, modStr, keyStr, funcStr, argStr, lineNum, tokens, tokenCount)) {
+            handlerFreedTokens = 1;
             return 0;
+        }
     } else if (strcasecmp(section, SECTION_RULES) == 0) {
         if (tokenCount < 3) {
             char errMsg[MAX_LINE_LENGTH];
@@ -572,8 +604,10 @@ int processLine(const char* line, char* section, int* inSection, int* braceDepth
             return 0;
         }
 
-        if (handleRulesSection(ctx, tokenCount, tokens, lineNum))
+        if (handleRulesSection(ctx, tokenCount, tokens, lineNum)) {
+            handlerFreedTokens = 1;
             return 0;
+        }
     } else {
         char errMsg[MAX_LINE_LENGTH];
         snprintf(errMsg, MAX_LINE_LENGTH, "Unknown section: %s", section);
@@ -585,7 +619,9 @@ int processLine(const char* line, char* section, int* inSection, int* braceDepth
             fprintf(stderr, "banana: line %d: %s\n", lineNum, errMsg);
     }
 
-    freeTokens(tokens, tokenCount);
+    if (!handlerFreedTokens)
+        freeTokens(tokens, tokenCount);
+
     return 0;
 }
 
@@ -769,8 +805,11 @@ unsigned int getModifier(const char* mod) {
 
     unsigned int result  = 0;
     char*        modCopy = safeStrdup(mod);
-    char*        saveptr = NULL;
-    char*        token   = strtok_r(modCopy, "+", &saveptr);
+    if (!modCopy)
+        return 0;
+
+    char* saveptr = NULL;
+    char* token   = strtok_r(modCopy, "+", &saveptr);
 
     while (token) {
         int found = 0;
@@ -783,7 +822,6 @@ unsigned int getModifier(const char* mod) {
         }
 
         if (!found) {
-            fprintf(stderr, "banana: unknown modifier: %s\n", token);
             free(modCopy);
             return 0;
         }
@@ -812,7 +850,8 @@ void freeTokens(char** tokens, int count) {
         return;
 
     for (int i = 0; i < count; i++) {
-        free(tokens[i]);
+        if (tokens[i])
+            free(tokens[i]);
     }
 
     free(tokens);
@@ -1866,7 +1905,7 @@ int handleBindsSection(STokenHandlerContext* ctx, const char* modStr, const char
             fprintf(stderr, "banana: %s\n", errMsg);
 
         freeTokens(tokens, tokenCount);
-        return 0;
+        return 1;
     }
 
     unsigned int mod = getModifier(modStr);
@@ -1881,7 +1920,7 @@ int handleBindsSection(STokenHandlerContext* ctx, const char* modStr, const char
             fprintf(stderr, "banana: %s\n", errMsg);
 
         freeTokens(tokens, tokenCount);
-        return 0;
+        return 1;
     }
 
     void (*func)(const char*) = getFunction(funcStr);
@@ -1896,7 +1935,7 @@ int handleBindsSection(STokenHandlerContext* ctx, const char* modStr, const char
             fprintf(stderr, "banana: %s\n", errMsg);
 
         freeTokens(tokens, tokenCount);
-        return 0;
+        return 1;
     }
 
     if (argStr) {
@@ -1944,7 +1983,7 @@ int handleBindsSection(STokenHandlerContext* ctx, const char* modStr, const char
                 fprintf(stderr, "banana: %s\n", errMsg);
 
             freeTokens(tokens, tokenCount);
-            return 0;
+            return 1;
         }
     }
 
