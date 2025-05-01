@@ -244,19 +244,43 @@ void checkCursorPosition(struct timeval* lastCheck, int* lastCursorX, int* lastC
     *lastCursorY = root_y;
     *lastWindow  = child_return;
 
-    if (child_return == None || child_return == root)
-        return;
+    SMonitor* currentMonitor = monitorAtPoint(root_x, root_y);
 
-    SClient* windowUnderCursor = findClient(child_return);
-    if (!windowUnderCursor || windowUnderCursor == focused)
-        return;
+    int       activeMonitor = -1;
+    if (focused)
+        activeMonitor = focused->monitor;
 
-    SMonitor* monitor = &monitors[windowUnderCursor->monitor];
-    if (windowUnderCursor->workspace != monitor->currentWorkspace)
-        return;
+    SClient* windowUnderCursor = NULL;
+    if (child_return != None && child_return != root)
+        windowUnderCursor = findClient(child_return);
 
-    fprintf(stderr, "Cursor over window 0x%lx (currently focused: 0x%lx)\n", windowUnderCursor->window, focused ? focused->window : 0);
-    focusClient(windowUnderCursor);
+    if (windowUnderCursor) {
+        if (windowUnderCursor == focused)
+            return;
+
+        SMonitor* monitor = &monitors[windowUnderCursor->monitor];
+        if (windowUnderCursor->workspace != monitor->currentWorkspace)
+            return;
+
+        fprintf(stderr, "Cursor over window 0x%lx (currently focused: 0x%lx)\n", windowUnderCursor->window, focused ? focused->window : 0);
+        focusClient(windowUnderCursor);
+        return;
+    }
+
+    if (activeMonitor != -1 && currentMonitor->num != activeMonitor) {
+        SClient* clientInWorkspace = findVisibleClientInWorkspace(currentMonitor->num, currentMonitor->currentWorkspace);
+
+        if (clientInWorkspace) {
+            fprintf(stderr, "Focusing client on monitor %d\n", currentMonitor->num);
+            focusClient(clientInWorkspace);
+        } else {
+            fprintf(stderr, "Focusing root on monitor %d\n", currentMonitor->num);
+            focused = NULL;
+            XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
+            updateBorders();
+            updateBars();
+        }
+    }
 }
 
 void run() {
