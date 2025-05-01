@@ -6,7 +6,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <errno.h>
-#include <X11/Xlib.h>
+#include <xcb/xcb.h>
+#include <xcb/xcb_keysyms.h>
 #include <X11/keysym.h>
 
 #include "config.h"
@@ -56,7 +57,7 @@ const SFunctionMap functionMap[] = {{"spawn", spawnProgram},
                                     {"reload_config", reloadConfig},
                                     {NULL, NULL}};
 
-const SModifierMap modifierMap[] = {{"alt", Mod1Mask}, {"shift", ShiftMask}, {"control", ControlMask}, {"super", Mod4Mask}, {NULL, 0}};
+const SModifierMap modifierMap[] = {{"alt", XCB_MOD_MASK_1}, {"shift", XCB_MOD_MASK_SHIFT}, {"control", XCB_MOD_MASK_CONTROL}, {"super", XCB_MOD_MASK_4}, {NULL, 0}};
 
 int                isValidWorkspaceIndex(const char* arg) {
     if (!isValidInteger(arg))
@@ -731,80 +732,86 @@ void trim(char* str) {
         end--;
 
     *(end + 1) = '\0';
-}
+};
 
-KeySym getKeysym(const char* key) {
+static const KeySymMapping keysym_mappings[] = {{"F1", XK_F1},
+                                                {"F2", XK_F2},
+                                                {"F3", XK_F3},
+                                                {"F4", XK_F4},
+                                                {"F5", XK_F5},
+                                                {"F6", XK_F6},
+                                                {"F7", XK_F7},
+                                                {"F8", XK_F8},
+                                                {"F9", XK_F9},
+                                                {"F10", XK_F10},
+                                                {"F11", XK_F11},
+                                                {"F12", XK_F12},
+                                                {"Up", XK_Up},
+                                                {"Down", XK_Down},
+                                                {"Left", XK_Left},
+                                                {"Right", XK_Right},
+                                                {"Home", XK_Home},
+                                                {"End", XK_End},
+                                                {"Page_Up", XK_Page_Up},
+                                                {"Page_Down", XK_Page_Down},
+                                                {"Insert", XK_Insert},
+                                                {"Delete", XK_Delete},
+                                                {"Escape", XK_Escape},
+                                                {"Return", XK_Return},
+                                                {"Enter", XK_Return},
+                                                {"Tab", XK_Tab},
+                                                {"BackSpace", XK_BackSpace},
+                                                {"space", XK_space},
+                                                {"Print", XK_Print},
+                                                {"Scroll_Lock", XK_Scroll_Lock},
+                                                {"Pause", XK_Pause},
+                                                {"Menu", XK_Menu},
+                                                {"Num_Lock", XK_Num_Lock},
+                                                {"Caps_Lock", XK_Caps_Lock},
+                                                {"minus", XK_minus},
+                                                {"plus", XK_plus},
+                                                {"equal", XK_equal},
+                                                {"bracketleft", XK_bracketleft},
+                                                {"bracketright", XK_bracketright},
+                                                {"semicolon", XK_semicolon},
+                                                {"apostrophe", XK_apostrophe},
+                                                {"backslash", XK_backslash},
+                                                {"comma", XK_comma},
+                                                {"period", XK_period},
+                                                {"slash", XK_slash},
+                                                {"grave", XK_grave},
+                                                {NULL, 0}};
+
+xcb_keysym_t               getKeysym(const char* key) {
     if (!key)
-        return NoSymbol;
+        return XCB_NO_SYMBOL;
 
     if (strlen(key) == 1) {
-        if (key[0] >= 'a' && key[0] <= 'z')
-            return XK_a + (key[0] - 'a');
-        if (key[0] >= '0' && key[0] <= '9')
-            return XK_0 + (key[0] - '0');
-
-        return XStringToKeysym(key);
+        char c = key[0];
+        if (c >= 'a' && c <= 'z')
+            return XK_a + (c - 'a');
+        if (c >= '0' && c <= '9')
+            return XK_0 + (c - '0');
+        return c;
     }
 
-    if (strcasecmp(key, "escape") == 0)
-        return XK_Escape;
-    if (strcasecmp(key, "return") == 0)
-        return XK_Return;
-    if (strcasecmp(key, "enter") == 0)
-        return XK_Return;
-    if (strcasecmp(key, "tab") == 0)
-        return XK_Tab;
-    if (strcasecmp(key, "space") == 0)
-        return XK_space;
-    if (strcasecmp(key, "backspace") == 0)
-        return XK_BackSpace;
-
-    if (strcasecmp(key, "f1") == 0)
-        return XK_F1;
-    if (strcasecmp(key, "f2") == 0)
-        return XK_F2;
-    if (strcasecmp(key, "f3") == 0)
-        return XK_F3;
-    if (strcasecmp(key, "f4") == 0)
-        return XK_F4;
-    if (strcasecmp(key, "f5") == 0)
-        return XK_F5;
-    if (strcasecmp(key, "f6") == 0)
-        return XK_F6;
-    if (strcasecmp(key, "f7") == 0)
-        return XK_F7;
-    if (strcasecmp(key, "f8") == 0)
-        return XK_F8;
-    if (strcasecmp(key, "f9") == 0)
-        return XK_F9;
-    if (strcasecmp(key, "f10") == 0)
-        return XK_F10;
-    if (strcasecmp(key, "f11") == 0)
-        return XK_F11;
-    if (strcasecmp(key, "f12") == 0)
-        return XK_F12;
-
-    if (strcasecmp(key, "up") == 0)
-        return XK_Up;
-    if (strcasecmp(key, "down") == 0)
-        return XK_Down;
-    if (strcasecmp(key, "left") == 0)
-        return XK_Left;
-    if (strcasecmp(key, "right") == 0)
-        return XK_Right;
+    for (int i = 0; keysym_mappings[i].name != NULL; i++) {
+        if (strcasecmp(key, keysym_mappings[i].name) == 0)
+            return keysym_mappings[i].keysym;
+    }
 
     if (strcasecmp(key, "shift") == 0 || strcasecmp(key, "control") == 0 || strcasecmp(key, "alt") == 0 || strcasecmp(key, "super") == 0)
-        return NoSymbol;
+        return XCB_NO_SYMBOL;
 
-    return XStringToKeysym(key);
+    return key[0] ? key[0] : XCB_NO_SYMBOL;
 }
 
-unsigned int getModifier(const char* mod) {
+uint16_t getModifier(const char* mod) {
     if (!mod)
         return 0;
 
-    unsigned int result  = 0;
-    char*        modCopy = safeStrdup(mod);
+    uint16_t result  = 0;
+    char*    modCopy = safeStrdup(mod);
     if (!modCopy)
         return 0;
 
@@ -1079,14 +1086,22 @@ void reloadConfig(const char* arg) {
         return;
     }
 
-    if (display && root) {
-        XUngrabKey(display, AnyKey, AnyModifier, root);
-        for (size_t i = 0; i < keysCount; i++) {
-            XGrabKey(display, XKeysymToKeycode(display, keys[i].keysym), keys[i].mod, root, True, GrabModeAsync, GrabModeAsync);
+    if (connection && root) {
+        xcb_ungrab_key(connection, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
 
-            XGrabKey(display, XKeysymToKeycode(display, keys[i].keysym), keys[i].mod | LockMask, root, True, GrabModeAsync, GrabModeAsync);
+        for (size_t i = 0; i < keysCount; i++) {
+            xcb_keycode_t* keycodes = xcb_key_symbols_get_keycode(xcb_key_symbols_alloc(connection), keys[i].keysym);
+
+            if (keycodes) {
+                for (xcb_keycode_t* keycode = keycodes; *keycode; keycode++) {
+                    xcb_grab_key(connection, 1, root, keys[i].mod, *keycode, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
+
+                    xcb_grab_key(connection, 1, root, keys[i].mod | XCB_MOD_MASK_LOCK, *keycode, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
+                }
+                free(keycodes);
+            }
         }
-        XSync(display, False);
+        xcb_flush(connection);
     }
 
     for (size_t i = 0; i < oldKeysCount; i++) {
@@ -1116,48 +1131,39 @@ void reloadConfig(const char* arg) {
 
     fprintf(stderr, "banana: configuration reloaded with %zu key bindings and %zu window rules\n", keysCount, rulesCount);
 
-    if (display) {
-        extern void   updateBorders(void);
-        extern void   updateClientPositionsForBar(void);
-        extern void   updateClientVisibility(void);
-        extern void   createBars(void);
-        extern void   updateBars(void);
-        extern void   showHideBars(int show);
-        extern void   tileAllMonitors(void);
-        extern void   resetBarResources(void);
-        extern int    xerrorHandler(Display*, XErrorEvent*);
+    if (connection) {
+        extern void updateBorders(void);
+        extern void updateClientPositionsForBar(void);
+        extern void updateClientVisibility(void);
+        extern void createBars(void);
+        extern void updateBars(void);
+        extern void showHideBars(int show);
+        extern void tileAllMonitors(void);
+        extern void resetBarResources(void);
 
-        XErrorHandler oldHandler = XSetErrorHandler(xerrorHandler);
-
-        if (!oldHandler)
-            fprintf(stderr, "banana: warning - no error handler registered, proceeding with caution\n");
-
-        XSync(display, False);
         updateBorders();
-        XSync(display, False);
+        xcb_flush(connection);
 
         resetBarResources();
-        XSync(display, False);
+        xcb_flush(connection);
 
         createBars();
-        XSync(display, False);
+        xcb_flush(connection);
 
         showHideBars(showBar);
-        XSync(display, False);
+        xcb_flush(connection);
 
         updateClientPositionsForBar();
-        XSync(display, False);
+        xcb_flush(connection);
 
         updateClientVisibility();
-        XSync(display, False);
+        xcb_flush(connection);
 
         tileAllMonitors();
-        XSync(display, False);
+        xcb_flush(connection);
 
         updateBars();
-        XSync(display, False);
-
-        XSetErrorHandler(oldHandler);
+        xcb_flush(connection);
     }
 }
 
@@ -1899,8 +1905,8 @@ int handleDecorationSection(STokenHandlerContext* ctx, const char* var, const ch
 }
 
 int handleBindsSection(STokenHandlerContext* ctx, const char* modStr, const char* keyStr, const char* funcStr, const char* argStr, int lineNum, char** tokens, int tokenCount) {
-    KeySym keysym = getKeysym(keyStr);
-    if (keysym == NoSymbol) {
+    xcb_keysym_t keysym = getKeysym(keyStr);
+    if (keysym == XCB_NO_SYMBOL) {
         char errMsg[MAX_LINE_LENGTH];
         snprintf(errMsg, MAX_LINE_LENGTH, "Invalid key: %s", keyStr);
 
@@ -1914,7 +1920,7 @@ int handleBindsSection(STokenHandlerContext* ctx, const char* modStr, const char
         return 1;
     }
 
-    unsigned int mod = getModifier(modStr);
+    uint16_t mod = getModifier(modStr);
     if (!mod) {
         char errMsg[MAX_LINE_LENGTH];
         snprintf(errMsg, MAX_LINE_LENGTH, "Unknown modifier: %s", modStr);

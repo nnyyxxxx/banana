@@ -3,80 +3,81 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
-#include <X11/Xatom.h>
-#include <X11/Xproto.h>
-#include <X11/cursorfont.h>
-#include <X11/Xcursor/Xcursor.h>
-#include <X11/XKBlib.h>
-#include <X11/extensions/Xinerama.h>
+#include <xcb/xcb.h>
+#include <xcb/xcb_atom.h>
+#include <xcb/xcb_icccm.h>
+#include <xcb/xcb_cursor.h>
+#include <xcb/xcb_keysyms.h>
+#include <xcb/xinerama.h>
+#include <xcb/xproto.h>
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <time.h>
 #include <limits.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <X11/Xft/Xft.h>
 
 #include "banana.h"
 #include "config.h"
 #include "bar.h"
 
-extern char*    safeStrdup(const char* s);
+extern char*      safeStrdup(const char* s);
 
-Display*        display;
-Window          root;
-SClient*        clients     = NULL;
-SClient*        focused     = NULL;
-SMonitor*       monitors    = NULL;
-int             numMonitors = 0;
-Cursor          normalCursor;
-Cursor          moveCursor;
-Cursor          resizeSECursor;
-Cursor          resizeSWCursor;
-Cursor          resizeNECursor;
-Cursor          resizeNWCursor;
-SWindowMovement windowMovement        = {0, 0, NULL, 0, 0};
-SWindowResize   windowResize          = {0, 0, NULL, 0, 0};
-int             currentWorkspace      = 0;
-Window          lastMappedWindow      = 0;
-int             ignoreNextEnterNotify = 0;
+xcb_connection_t* connection;
+xcb_screen_t*     screen;
+xcb_window_t      root;
+SClient*          clients     = NULL;
+SClient*          focused     = NULL;
+SMonitor*         monitors    = NULL;
+int               numMonitors = 0;
+xcb_cursor_t      normalCursor;
+xcb_cursor_t      moveCursor;
+xcb_cursor_t      resizeSECursor;
+xcb_cursor_t      resizeSWCursor;
+xcb_cursor_t      resizeNECursor;
+xcb_cursor_t      resizeNWCursor;
+SWindowMovement   windowMovement        = {0, 0, NULL, 0, 0};
+SWindowResize     windowResize          = {0, 0, NULL, 0, 0};
+int               currentWorkspace      = 0;
+xcb_window_t      lastMappedWindow      = 0;
+int               ignoreNextEnterNotify = 0;
 
-Atom            WM_PROTOCOLS;
-Atom            WM_DELETE_WINDOW;
-Atom            WM_STATE;
-Atom            WM_TAKE_FOCUS;
+xcb_atom_t        WM_PROTOCOLS;
+xcb_atom_t        WM_DELETE_WINDOW;
+xcb_atom_t        WM_STATE;
+xcb_atom_t        WM_TAKE_FOCUS;
 
-Atom            NET_SUPPORTED;
-Atom            NET_WM_NAME;
-Atom            NET_SUPPORTING_WM_CHECK;
-Atom            NET_CLIENT_LIST;
-Atom            NET_NUMBER_OF_DESKTOPS;
-Atom            NET_CURRENT_DESKTOP;
-Atom            NET_WM_STATE;
-Atom            NET_WM_STATE_FULLSCREEN;
-Atom            NET_WM_WINDOW_TYPE;
-Atom            NET_WM_WINDOW_TYPE_DIALOG;
-Atom            NET_WM_WINDOW_TYPE_UTILITY;
-Atom            NET_ACTIVE_WINDOW;
-Atom            UTF8_STRING;
-Window          wmcheckwin;
+xcb_atom_t        NET_SUPPORTED;
+xcb_atom_t        NET_WM_NAME;
+xcb_atom_t        NET_SUPPORTING_WM_CHECK;
+xcb_atom_t        NET_CLIENT_LIST;
+xcb_atom_t        NET_NUMBER_OF_DESKTOPS;
+xcb_atom_t        NET_CURRENT_DESKTOP;
+xcb_atom_t        NET_WM_STATE;
+xcb_atom_t        NET_WM_STATE_FULLSCREEN;
+xcb_atom_t        NET_WM_WINDOW_TYPE;
+xcb_atom_t        NET_WM_WINDOW_TYPE_DIALOG;
+xcb_atom_t        NET_WM_WINDOW_TYPE_UTILITY;
+xcb_atom_t        NET_ACTIVE_WINDOW;
+xcb_atom_t        UTF8_STRING;
+xcb_window_t      wmcheckwin;
 
-int             xerrorHandler(Display* dpy, XErrorEvent* ee) {
-    if (ee->error_code == BadWindow || (ee->request_code == X_SetInputFocus && ee->error_code == BadMatch) ||
-        (ee->request_code == X_ConfigureWindow && ee->error_code == BadMatch) || (ee->request_code == X_GetGeometry && ee->error_code == BadDrawable)) {
+int               xerrorHandler(xcb_connection_t* dpy, xcb_generic_error_t* ee) {
+    (void)dpy;
+
+    if (ee->error_code == 3 /* XCB_BAD_WINDOW */ || (ee->major_code == XCB_SET_INPUT_FOCUS && ee->error_code == 8 /* XCB_BAD_MATCH */) ||
+        (ee->major_code == XCB_CONFIGURE_WINDOW && ee->error_code == 8 /* XCB_BAD_MATCH */) || (ee->major_code == XCB_GET_GEOMETRY && ee->error_code == 9 /* XCB_BAD_DRAWABLE */)) {
         return 0;
     }
 
     char errorText[256];
-    XGetErrorText(dpy, ee->error_code, errorText, sizeof(errorText));
-    fprintf(stderr, "banana: X error: %s (0x%x) request %d\n", errorText, ee->error_code, ee->request_code);
+    snprintf(errorText, sizeof(errorText), "XCB error %d", ee->error_code);
+    fprintf(stderr, "banana: X error: %s (0x%x) request %d\n", errorText, ee->error_code, ee->major_code);
     return 0;
 }
 
-int otherWmRunningHandler(Display* dpy, XErrorEvent* ee) {
-    if (ee->error_code == BadAccess && ee->request_code == X_ChangeWindowAttributes) {
+int otherWmRunningHandler(xcb_connection_t* dpy, xcb_generic_error_t* ee) {
+    if (ee->error_code == 10 /* XCB_BAD_ACCESS */ && ee->major_code == XCB_CHANGE_WINDOW_ATTRIBUTES) {
         fprintf(stderr, "banana: another window manager is already running\n");
         exit(1);
     }
@@ -84,118 +85,232 @@ int otherWmRunningHandler(Display* dpy, XErrorEvent* ee) {
 }
 
 void checkOtherWM() {
-    XSetErrorHandler(otherWmRunningHandler);
-    XSelectInput(display, root, SubstructureRedirectMask);
-    XSync(display, False);
-    XSetErrorHandler(xerrorHandler);
-    XSelectInput(display, root, 0);
-    XSync(display, False);
+    xcb_generic_error_t* error;
+
+    uint32_t             mask   = XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT;
+    xcb_void_cookie_t    cookie = xcb_change_window_attributes_checked(connection, root, XCB_CW_EVENT_MASK, &mask);
+
+    error = xcb_request_check(connection, cookie);
+    if (error) {
+        if (error->error_code == 10 /* XCB_ACCESS */) {
+            fprintf(stderr, "banana: another window manager is already running\n");
+            exit(1);
+        }
+        free(error);
+    }
+
+    mask = 0;
+    xcb_change_window_attributes(connection, root, XCB_CW_EVENT_MASK, &mask);
+    xcb_flush(connection);
 }
 
-static void (*eventHandlers[LASTEvent])(XEvent*) = {
-    [KeyPress] = handleKeyPress,           [ButtonPress] = handleButtonPress, [ButtonRelease] = handleButtonRelease,       [MotionNotify] = handleMotionNotify,
-    [EnterNotify] = handleEnterNotify,     [MapRequest] = handleMapRequest,   [ConfigureRequest] = handleConfigureRequest, [UnmapNotify] = handleUnmapNotify,
-    [DestroyNotify] = handleDestroyNotify, [Expose] = handleExpose,           [PropertyNotify] = handlePropertyNotify,     [ClientMessage] = handleClientMessage,
-};
+static void (*eventHandlers[256])(xcb_generic_event_t*) = {0};
+
+void setupEventHandlers() {
+    eventHandlers[XCB_KEY_PRESS]         = handleKeyPress;
+    eventHandlers[XCB_BUTTON_PRESS]      = handleButtonPress;
+    eventHandlers[XCB_BUTTON_RELEASE]    = handleButtonRelease;
+    eventHandlers[XCB_MOTION_NOTIFY]     = handleMotionNotify;
+    eventHandlers[XCB_ENTER_NOTIFY]      = handleEnterNotify;
+    eventHandlers[XCB_MAP_REQUEST]       = handleMapRequest;
+    eventHandlers[XCB_CONFIGURE_REQUEST] = handleConfigureRequest;
+    eventHandlers[XCB_UNMAP_NOTIFY]      = handleUnmapNotify;
+    eventHandlers[XCB_DESTROY_NOTIFY]    = handleDestroyNotify;
+    eventHandlers[XCB_EXPOSE]            = handleExpose;
+    eventHandlers[XCB_PROPERTY_NOTIFY]   = handlePropertyNotify;
+    eventHandlers[XCB_CLIENT_MESSAGE]    = handleClientMessage;
+}
 
 void scanExistingWindows() {
-    Window       rootReturn, parentReturn;
-    Window*      children;
-    unsigned int numChildren;
+    xcb_query_tree_cookie_t cookie = xcb_query_tree(connection, root);
+    xcb_query_tree_reply_t* reply  = xcb_query_tree_reply(connection, cookie, NULL);
 
-    if (XQueryTree(display, root, &rootReturn, &parentReturn, &children, &numChildren)) {
-        for (unsigned int i = 0; i < numChildren; i++) {
-            XWindowAttributes wa;
-            if (XGetWindowAttributes(display, children[i], &wa) && !wa.override_redirect && wa.map_state == IsViewable)
+    if (reply) {
+        xcb_window_t* children    = xcb_query_tree_children(reply);
+        uint32_t      numChildren = xcb_query_tree_children_length(reply);
+
+        for (uint32_t i = 0; i < numChildren; i++) {
+            xcb_get_window_attributes_cookie_t attr_cookie = xcb_get_window_attributes(connection, children[i]);
+            xcb_get_window_attributes_reply_t* wa          = xcb_get_window_attributes_reply(connection, attr_cookie, NULL);
+
+            if (wa && !wa->override_redirect && wa->map_state == XCB_MAP_STATE_VIEWABLE)
                 manageClient(children[i]);
+
+            free(wa);
         }
 
-        if (children)
-            XFree(children);
+        free(reply);
     }
 }
 
 void setupEWMH() {
-    NET_SUPPORTED              = XInternAtom(display, "_NET_SUPPORTED", False);
-    NET_WM_NAME                = XInternAtom(display, "_NET_WM_NAME", False);
-    NET_SUPPORTING_WM_CHECK    = XInternAtom(display, "_NET_SUPPORTING_WM_CHECK", False);
-    NET_CLIENT_LIST            = XInternAtom(display, "_NET_CLIENT_LIST", False);
-    NET_NUMBER_OF_DESKTOPS     = XInternAtom(display, "_NET_NUMBER_OF_DESKTOPS", False);
-    NET_CURRENT_DESKTOP        = XInternAtom(display, "_NET_CURRENT_DESKTOP", False);
-    NET_WM_STATE               = XInternAtom(display, "_NET_WM_STATE", False);
-    NET_WM_STATE_FULLSCREEN    = XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", False);
-    NET_WM_WINDOW_TYPE         = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
-    NET_WM_WINDOW_TYPE_DIALOG  = XInternAtom(display, "_NET_WM_WINDOW_TYPE_DIALOG", False);
-    NET_WM_WINDOW_TYPE_UTILITY = XInternAtom(display, "_NET_WM_WINDOW_TYPE_UTILITY", False);
-    NET_ACTIVE_WINDOW          = XInternAtom(display, "_NET_ACTIVE_WINDOW", False);
-    UTF8_STRING                = XInternAtom(display, "UTF8_STRING", False);
+    xcb_intern_atom_cookie_t cookies[14];
+    cookies[0]  = xcb_intern_atom(connection, 0, strlen("_NET_SUPPORTED"), "_NET_SUPPORTED");
+    cookies[1]  = xcb_intern_atom(connection, 0, strlen("_NET_WM_NAME"), "_NET_WM_NAME");
+    cookies[2]  = xcb_intern_atom(connection, 0, strlen("_NET_SUPPORTING_WM_CHECK"), "_NET_SUPPORTING_WM_CHECK");
+    cookies[3]  = xcb_intern_atom(connection, 0, strlen("_NET_CLIENT_LIST"), "_NET_CLIENT_LIST");
+    cookies[4]  = xcb_intern_atom(connection, 0, strlen("_NET_NUMBER_OF_DESKTOPS"), "_NET_NUMBER_OF_DESKTOPS");
+    cookies[5]  = xcb_intern_atom(connection, 0, strlen("_NET_CURRENT_DESKTOP"), "_NET_CURRENT_DESKTOP");
+    cookies[6]  = xcb_intern_atom(connection, 0, strlen("_NET_WM_STATE"), "_NET_WM_STATE");
+    cookies[7]  = xcb_intern_atom(connection, 0, strlen("_NET_WM_STATE_FULLSCREEN"), "_NET_WM_STATE_FULLSCREEN");
+    cookies[8]  = xcb_intern_atom(connection, 0, strlen("_NET_WM_WINDOW_TYPE"), "_NET_WM_WINDOW_TYPE");
+    cookies[9]  = xcb_intern_atom(connection, 0, strlen("_NET_WM_WINDOW_TYPE_DIALOG"), "_NET_WM_WINDOW_TYPE_DIALOG");
+    cookies[10] = xcb_intern_atom(connection, 0, strlen("_NET_WM_WINDOW_TYPE_UTILITY"), "_NET_WM_WINDOW_TYPE_UTILITY");
+    cookies[11] = xcb_intern_atom(connection, 0, strlen("_NET_ACTIVE_WINDOW"), "_NET_ACTIVE_WINDOW");
+    cookies[12] = xcb_intern_atom(connection, 0, strlen("UTF8_STRING"), "UTF8_STRING");
 
-    wmcheckwin = XCreateSimpleWindow(display, root, 0, 0, 1, 1, 0, 0, 0);
-    XChangeProperty(display, root, NET_SUPPORTING_WM_CHECK, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&wmcheckwin, 1);
-    XChangeProperty(display, wmcheckwin, NET_SUPPORTING_WM_CHECK, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&wmcheckwin, 1);
-    XChangeProperty(display, wmcheckwin, NET_WM_NAME, UTF8_STRING, 8, PropModeReplace, (unsigned char*)"banana", 6);
+    xcb_intern_atom_reply_t* reply;
 
-    Atom supported[] = {NET_SUPPORTED,
-                        NET_WM_NAME,
-                        NET_SUPPORTING_WM_CHECK,
-                        NET_CLIENT_LIST,
-                        NET_NUMBER_OF_DESKTOPS,
-                        NET_CURRENT_DESKTOP,
-                        NET_WM_STATE,
-                        NET_WM_STATE_FULLSCREEN,
-                        NET_WM_WINDOW_TYPE,
-                        NET_WM_WINDOW_TYPE_DIALOG,
-                        NET_WM_WINDOW_TYPE_UTILITY,
-                        NET_ACTIVE_WINDOW};
+    reply         = xcb_intern_atom_reply(connection, cookies[0], NULL);
+    NET_SUPPORTED = reply->atom;
+    free(reply);
 
-    XChangeProperty(display, root, NET_SUPPORTED, XA_ATOM, 32, PropModeReplace, (unsigned char*)supported, sizeof(supported) / sizeof(Atom));
+    reply       = xcb_intern_atom_reply(connection, cookies[1], NULL);
+    NET_WM_NAME = reply->atom;
+    free(reply);
 
-    long numDesktops = workspaceCount;
-    XChangeProperty(display, root, NET_NUMBER_OF_DESKTOPS, XA_CARDINAL, 32, PropModeReplace, (unsigned char*)&numDesktops, 1);
+    reply                   = xcb_intern_atom_reply(connection, cookies[2], NULL);
+    NET_SUPPORTING_WM_CHECK = reply->atom;
+    free(reply);
 
-    long currentDesktop = currentWorkspace;
-    XChangeProperty(display, root, NET_CURRENT_DESKTOP, XA_CARDINAL, 32, PropModeReplace, (unsigned char*)&currentDesktop, 1);
+    reply           = xcb_intern_atom_reply(connection, cookies[3], NULL);
+    NET_CLIENT_LIST = reply->atom;
+    free(reply);
+
+    reply                  = xcb_intern_atom_reply(connection, cookies[4], NULL);
+    NET_NUMBER_OF_DESKTOPS = reply->atom;
+    free(reply);
+
+    reply               = xcb_intern_atom_reply(connection, cookies[5], NULL);
+    NET_CURRENT_DESKTOP = reply->atom;
+    free(reply);
+
+    reply        = xcb_intern_atom_reply(connection, cookies[6], NULL);
+    NET_WM_STATE = reply->atom;
+    free(reply);
+
+    reply                   = xcb_intern_atom_reply(connection, cookies[7], NULL);
+    NET_WM_STATE_FULLSCREEN = reply->atom;
+    free(reply);
+
+    reply              = xcb_intern_atom_reply(connection, cookies[8], NULL);
+    NET_WM_WINDOW_TYPE = reply->atom;
+    free(reply);
+
+    reply                     = xcb_intern_atom_reply(connection, cookies[9], NULL);
+    NET_WM_WINDOW_TYPE_DIALOG = reply->atom;
+    free(reply);
+
+    reply                      = xcb_intern_atom_reply(connection, cookies[10], NULL);
+    NET_WM_WINDOW_TYPE_UTILITY = reply->atom;
+    free(reply);
+
+    reply             = xcb_intern_atom_reply(connection, cookies[11], NULL);
+    NET_ACTIVE_WINDOW = reply->atom;
+    free(reply);
+
+    reply       = xcb_intern_atom_reply(connection, cookies[12], NULL);
+    UTF8_STRING = reply->atom;
+    free(reply);
+
+    wmcheckwin = xcb_generate_id(connection);
+    xcb_create_window(connection, XCB_COPY_FROM_PARENT, wmcheckwin, root, 0, 0, 1, 1, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, screen->root_visual, 0, NULL);
+
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_SUPPORTING_WM_CHECK, XCB_ATOM_WINDOW, 32, 1, &wmcheckwin);
+
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wmcheckwin, NET_SUPPORTING_WM_CHECK, XCB_ATOM_WINDOW, 32, 1, &wmcheckwin);
+
+    const char* name = "banana";
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, wmcheckwin, NET_WM_NAME, UTF8_STRING, 8, 6, name);
+
+    xcb_atom_t supported[] = {NET_SUPPORTED,
+                              NET_WM_NAME,
+                              NET_SUPPORTING_WM_CHECK,
+                              NET_CLIENT_LIST,
+                              NET_NUMBER_OF_DESKTOPS,
+                              NET_CURRENT_DESKTOP,
+                              NET_WM_STATE,
+                              NET_WM_STATE_FULLSCREEN,
+                              NET_WM_WINDOW_TYPE,
+                              NET_WM_WINDOW_TYPE_DIALOG,
+                              NET_WM_WINDOW_TYPE_UTILITY,
+                              NET_ACTIVE_WINDOW};
+
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_SUPPORTED, XCB_ATOM_ATOM, 32, sizeof(supported) / sizeof(xcb_atom_t), supported);
+
+    uint32_t numDesktops = workspaceCount;
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_NUMBER_OF_DESKTOPS, XCB_ATOM_CARDINAL, 32, 1, &numDesktops);
+
+    uint32_t currentDesktop = currentWorkspace;
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_CURRENT_DESKTOP, XCB_ATOM_CARDINAL, 32, 1, &currentDesktop);
 
     updateClientList();
 }
 
 void setup() {
-    display = XOpenDisplay(NULL);
-    if (!display) {
+    connection = xcb_connect(NULL, NULL);
+    if (xcb_connection_has_error(connection)) {
         fprintf(stderr, "banana: cannot open display\n");
         exit(1);
     }
 
-    XSetErrorHandler(xerrorHandler);
-    root = DefaultRootWindow(display);
+    screen = xcb_setup_roots_iterator(xcb_get_setup(connection)).data;
+    root   = screen->root;
 
     checkOtherWM();
 
-    WM_PROTOCOLS     = XInternAtom(display, "WM_PROTOCOLS", False);
-    WM_DELETE_WINDOW = XInternAtom(display, "WM_DELETE_WINDOW", False);
-    WM_STATE         = XInternAtom(display, "WM_STATE", False);
-    WM_TAKE_FOCUS    = XInternAtom(display, "WM_TAKE_FOCUS", False);
+    xcb_intern_atom_cookie_t cookie_protocols = xcb_intern_atom(connection, 0, strlen("WM_PROTOCOLS"), "WM_PROTOCOLS");
+    xcb_intern_atom_cookie_t cookie_delete    = xcb_intern_atom(connection, 0, strlen("WM_DELETE_WINDOW"), "WM_DELETE_WINDOW");
+    xcb_intern_atom_cookie_t cookie_state     = xcb_intern_atom(connection, 0, strlen("WM_STATE"), "WM_STATE");
+    xcb_intern_atom_cookie_t cookie_focus     = xcb_intern_atom(connection, 0, strlen("WM_TAKE_FOCUS"), "WM_TAKE_FOCUS");
+
+    xcb_intern_atom_reply_t* reply;
+
+    reply        = xcb_intern_atom_reply(connection, cookie_protocols, NULL);
+    WM_PROTOCOLS = reply->atom;
+    free(reply);
+
+    reply            = xcb_intern_atom_reply(connection, cookie_delete, NULL);
+    WM_DELETE_WINDOW = reply->atom;
+    free(reply);
+
+    reply    = xcb_intern_atom_reply(connection, cookie_state, NULL);
+    WM_STATE = reply->atom;
+    free(reply);
+
+    reply         = xcb_intern_atom_reply(connection, cookie_focus, NULL);
+    WM_TAKE_FOCUS = reply->atom;
+    free(reply);
 
     setupEWMH();
+    setupEventHandlers();
 
     if (!loadConfig()) {
         fprintf(stderr, "banana: failed to load configuration\n");
         exit(1);
     }
 
-    normalCursor   = XcursorLibraryLoadCursor(display, "left_ptr");
-    moveCursor     = XcursorLibraryLoadCursor(display, "fleur");
-    resizeSECursor = XcursorLibraryLoadCursor(display, "se-resize");
-    resizeSWCursor = XcursorLibraryLoadCursor(display, "sw-resize");
-    resizeNECursor = XcursorLibraryLoadCursor(display, "ne-resize");
-    resizeNWCursor = XcursorLibraryLoadCursor(display, "nw-resize");
-    XDefineCursor(display, root, normalCursor);
+    xcb_cursor_context_t* ctx;
+    if (xcb_cursor_context_new(connection, screen, &ctx) >= 0) {
+        normalCursor   = xcb_cursor_load_cursor(ctx, "left_ptr");
+        moveCursor     = xcb_cursor_load_cursor(ctx, "fleur");
+        resizeSECursor = xcb_cursor_load_cursor(ctx, "bottom_right_corner");
+        resizeSWCursor = xcb_cursor_load_cursor(ctx, "bottom_left_corner");
+        resizeNECursor = xcb_cursor_load_cursor(ctx, "top_right_corner");
+        resizeNWCursor = xcb_cursor_load_cursor(ctx, "top_left_corner");
 
-    XSetWindowAttributes wa;
-    wa.event_mask = SubstructureRedirectMask | SubstructureNotifyMask | ButtonPressMask | ButtonReleaseMask | EnterWindowMask | LeaveWindowMask | PointerMotionMask |
-                    ButtonMotionMask | StructureNotifyMask | PropertyChangeMask;
-    XChangeWindowAttributes(display, root, CWEventMask, &wa);
-    XSelectInput(display, root, wa.event_mask);
+        xcb_cursor_context_free(ctx);
+    }
+
+    uint32_t cursor_values[] = {normalCursor};
+    xcb_change_window_attributes(connection, root, XCB_CW_CURSOR, cursor_values);
+
+    uint32_t event_mask = XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY | XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE |
+                          XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_LEAVE_WINDOW | XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_BUTTON_MOTION |
+                          XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_PROPERTY_CHANGE;
+
+    uint32_t values[] = {event_mask};
+    xcb_change_window_attributes(connection, root, XCB_CW_EVENT_MASK, values);
 
     fprintf(stderr, "Root window listening to events\n");
 
@@ -216,10 +331,10 @@ void setup() {
     updateClientPositionsForBar();
     updateClientVisibility();
 
-    XSync(display, False);
+    xcb_flush(connection);
 }
 
-void checkCursorPosition(struct timeval* lastCheck, int* lastCursorX, int* lastCursorY, Window* lastWindow) {
+void checkCursorPosition(struct timeval* lastCheck, int* lastCursorX, int* lastCursorY, xcb_window_t* lastWindow) {
     struct timeval now;
     gettimeofday(&now, NULL);
 
@@ -230,19 +345,24 @@ void checkCursorPosition(struct timeval* lastCheck, int* lastCursorX, int* lastC
 
     memcpy(lastCheck, &now, sizeof(struct timeval));
 
-    Window       root_return, child_return;
-    int          root_x, root_y, win_x, win_y;
-    unsigned int mask;
+    xcb_query_pointer_cookie_t cookie = xcb_query_pointer(connection, root);
+    xcb_query_pointer_reply_t* reply  = xcb_query_pointer_reply(connection, cookie, NULL);
 
-    if (!XQueryPointer(display, root, &root_return, &child_return, &root_x, &root_y, &win_x, &win_y, &mask))
+    if (!reply)
         return;
 
-    if (root_x == *lastCursorX && root_y == *lastCursorY && child_return == *lastWindow)
+    int          root_x = reply->root_x;
+    int          root_y = reply->root_y;
+    xcb_window_t child  = reply->child;
+
+    if (root_x == *lastCursorX && root_y == *lastCursorY && child == *lastWindow) {
+        free(reply);
         return;
+    }
 
     *lastCursorX = root_x;
     *lastCursorY = root_y;
-    *lastWindow  = child_return;
+    *lastWindow  = child;
 
     SMonitor* currentMonitor = monitorAtPoint(root_x, root_y);
 
@@ -251,8 +371,10 @@ void checkCursorPosition(struct timeval* lastCheck, int* lastCursorX, int* lastC
         activeMonitor = focused->monitor;
 
     SClient* windowUnderCursor = NULL;
-    if (child_return != None && child_return != root)
-        windowUnderCursor = findClient(child_return);
+    if (child != XCB_NONE && child != root)
+        windowUnderCursor = findClient(child);
+
+    free(reply);
 
     if (windowUnderCursor) {
         if (windowUnderCursor == focused)
@@ -262,7 +384,7 @@ void checkCursorPosition(struct timeval* lastCheck, int* lastCursorX, int* lastC
         if (windowUnderCursor->workspace != monitor->currentWorkspace)
             return;
 
-        fprintf(stderr, "Cursor over window 0x%lx (currently focused: 0x%lx)\n", windowUnderCursor->window, focused ? focused->window : 0);
+        fprintf(stderr, "Cursor over window 0x%x (currently focused: 0x%x)\n", windowUnderCursor->window, focused ? focused->window : 0);
         focusClient(windowUnderCursor);
         return;
     }
@@ -276,7 +398,7 @@ void checkCursorPosition(struct timeval* lastCheck, int* lastCursorX, int* lastC
         } else {
             fprintf(stderr, "Focusing root on monitor %d\n", currentMonitor->num);
             focused = NULL;
-            XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
+            xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, root, XCB_CURRENT_TIME);
             updateBorders();
             updateBars();
         }
@@ -284,28 +406,34 @@ void checkCursorPosition(struct timeval* lastCheck, int* lastCursorX, int* lastC
 }
 
 void run() {
-    XEvent         event;
     struct timeval lastCheck;
     int            lastCursorX = 0, lastCursorY = 0;
-    Window         lastWindow = None;
+    xcb_window_t   lastWindow = XCB_NONE;
     gettimeofday(&lastCheck, NULL);
 
-    XSync(display, False);
+    xcb_flush(connection);
     fprintf(stderr, "Starting main event loop\n");
 
     updateClientVisibility();
     updateBars();
 
     while (1) {
-        if (XPending(display)) {
-            XNextEvent(display, &event);
-            if (eventHandlers[event.type]) {
-                XErrorHandler oldHandler = XSetErrorHandler(xerrorHandler);
-                eventHandlers[event.type](&event);
-                XSync(display, False);
-                XSetErrorHandler(oldHandler);
-            }
+        xcb_generic_event_t* event = xcb_poll_for_event(connection);
+
+        if (event) {
+            uint8_t event_type = event->response_type & ~0x80;
+
+            if (eventHandlers[event_type])
+                eventHandlers[event_type](event);
+
+            free(event);
+            xcb_flush(connection);
         } else {
+            if (xcb_connection_has_error(connection)) {
+                fprintf(stderr, "Connection to X server lost\n");
+                break;
+            }
+
             checkCursorPosition(&lastCheck, &lastCursorX, &lastCursorY, &lastWindow);
             usleep(5000);
         }
@@ -315,8 +443,8 @@ void run() {
 void cleanup() {
     if (barWindows) {
         for (int i = 0; i < numMonitors; i++) {
-            if (barWindows[i] != 0)
-                XDestroyWindow(display, barWindows[i]);
+            if (barWindows[i] != XCB_NONE)
+                xcb_destroy_window(connection, barWindows[i]);
         }
         free(barWindows);
     }
@@ -331,25 +459,50 @@ void cleanup() {
     }
 
     if (wmcheckwin)
-        XDestroyWindow(display, wmcheckwin);
+        xcb_destroy_window(connection, wmcheckwin);
 
-    XFreeCursor(display, normalCursor);
-    XFreeCursor(display, moveCursor);
-    XFreeCursor(display, resizeSECursor);
-    XFreeCursor(display, resizeSWCursor);
-    XFreeCursor(display, resizeNECursor);
-    XFreeCursor(display, resizeNWCursor);
+    xcb_free_cursor(connection, normalCursor);
+    xcb_free_cursor(connection, moveCursor);
+    xcb_free_cursor(connection, resizeSECursor);
+    xcb_free_cursor(connection, resizeSWCursor);
+    xcb_free_cursor(connection, resizeNECursor);
+    xcb_free_cursor(connection, resizeNWCursor);
 
     freeConfig();
 
-    XCloseDisplay(display);
+    xcb_disconnect(connection);
 }
 
-void handleKeyPress(XEvent* event) {
-    XKeyEvent*   ev     = &event->xkey;
-    KeySym       keysym = XLookupKeysym(ev, 0);
+void grabKeys() {
+    xcb_ungrab_key(connection, XCB_GRAB_ANY, root, XCB_MOD_MASK_ANY);
 
-    unsigned int state = ev->state & ~LockMask;
+    xcb_key_symbols_t* keysyms = xcb_key_symbols_alloc(connection);
+
+    for (size_t i = 0; i < keysCount; i++) {
+        xcb_keycode_t* keycode = xcb_key_symbols_get_keycode(keysyms, keys[i].keysym);
+
+        if (keycode) {
+            xcb_grab_key(connection, 1, root, keys[i].mod, keycode[0], XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
+            xcb_grab_key(connection, 1, root, keys[i].mod | XCB_MOD_MASK_LOCK, keycode[0], XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC);
+
+            free(keycode);
+        }
+    }
+
+    xcb_key_symbols_free(keysyms);
+    xcb_flush(connection);
+
+    fprintf(stderr, "Key grabs set up on root window\n");
+}
+
+void handleKeyPress(xcb_generic_event_t* event) {
+    xcb_key_press_event_t* ev = (xcb_key_press_event_t*)event;
+
+    xcb_key_symbols_t*     keysyms = xcb_key_symbols_alloc(connection);
+    xcb_keysym_t           keysym  = xcb_key_symbols_get_keysym(keysyms, ev->detail, 0);
+    xcb_key_symbols_free(keysyms);
+
+    uint16_t state = ev->state & ~XCB_MOD_MASK_LOCK;
 
     lastMappedWindow = 0;
 
@@ -361,9 +514,9 @@ void handleKeyPress(XEvent* event) {
     }
 }
 
-void handleButtonPress(XEvent* event) {
-    XButtonPressedEvent* ev            = &event->xbutton;
-    Window               clickedWindow = ev->window;
+void handleButtonPress(xcb_generic_event_t* event) {
+    xcb_button_press_event_t* ev            = (xcb_button_press_event_t*)event;
+    xcb_window_t              clickedWindow = ev->event;
 
     lastMappedWindow = 0;
 
@@ -374,12 +527,12 @@ void handleButtonPress(XEvent* event) {
         }
     }
 
-    SClient* client = findClient(ev->window);
+    SClient* client = findClient(clickedWindow);
 
     if (!client || (ev->state & modkey) == 0)
         return;
 
-    if (ev->button == Button1) {
+    if (ev->detail == XCB_BUTTON_INDEX_1) {
         if (!client->isFloating) {
             client->isFloating      = 1;
             windowMovement.wasTiled = 1;
@@ -402,62 +555,80 @@ void handleButtonPress(XEvent* event) {
                     newHeight = client->sizeHints.minHeight;
             }
 
-            int newX = ev->x_root - newWidth / 2;
-            int newY = ev->y_root - newHeight / 2;
+            int newX = ev->root_x - newWidth / 2;
+            int newY = ev->root_y - newHeight / 2;
 
             client->x      = newX;
             client->y      = newY;
             client->width  = newWidth;
             client->height = newHeight;
 
-            XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
-            XRaiseWindow(display, client->window);
+            uint32_t values[4];
+            values[0] = client->x;
+            values[1] = client->y;
+            values[2] = client->width;
+            values[3] = client->height;
+            xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
 
-            XGrabButton(display, Button3, modkey, client->window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None,
-                        resizeSECursor);
+            configureClient(client);
+
+            uint32_t stack_mode = XCB_STACK_MODE_ABOVE;
+            xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_STACK_MODE, &stack_mode);
+
+            xcb_grab_button(connection, 0, client->window, XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_BUTTON_MOTION, XCB_GRAB_MODE_ASYNC,
+                            XCB_GRAB_MODE_ASYNC, XCB_NONE, resizeSECursor, XCB_BUTTON_INDEX_3, modkey);
 
             windowMovement.client = client;
-            windowMovement.x      = ev->x_root;
-            windowMovement.y      = ev->y_root;
+            windowMovement.x      = ev->root_x;
+            windowMovement.y      = ev->root_y;
             windowMovement.active = 1;
-            XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, moveCursor, CurrentTime);
+
+            xcb_grab_pointer(connection, 0, root, XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION, XCB_GRAB_MODE_ASYNC,
+                             XCB_GRAB_MODE_ASYNC, XCB_NONE, moveCursor, XCB_CURRENT_TIME);
 
             arrangeClients(monitor);
         } else {
             windowMovement.client   = client;
-            windowMovement.x        = ev->x_root;
-            windowMovement.y        = ev->y_root;
+            windowMovement.x        = ev->root_x;
+            windowMovement.y        = ev->root_y;
             windowMovement.active   = 1;
             windowMovement.wasTiled = 0;
-            XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, moveCursor, CurrentTime);
+
+            xcb_grab_pointer(connection, 0, root, XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION, XCB_GRAB_MODE_ASYNC,
+                             XCB_GRAB_MODE_ASYNC, XCB_NONE, moveCursor, XCB_CURRENT_TIME);
         }
-    } else if (ev->button == Button3 && client->isFloating) {
+    } else if (ev->detail == XCB_BUTTON_INDEX_3 && client->isFloating) {
         windowResize.client = client;
-        windowResize.x      = ev->x_root;
-        windowResize.y      = ev->y_root;
+        windowResize.x      = ev->root_x;
+        windowResize.y      = ev->root_y;
         windowResize.active = 1;
 
-        int relX = ev->x_root - client->x;
-        int relY = ev->y_root - client->y;
+        int relX = ev->root_x - client->x;
+        int relY = ev->root_y - client->y;
 
         int cornerWidth  = client->width * 0.5;
         int cornerHeight = client->height * 0.5;
 
         if (relX < cornerWidth && relY < cornerHeight) {
             windowResize.resizeType = 3;
-            XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, resizeNWCursor, CurrentTime);
+            xcb_grab_pointer(connection, 0, root, XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION, XCB_GRAB_MODE_ASYNC,
+                             XCB_GRAB_MODE_ASYNC, XCB_NONE, resizeNWCursor, XCB_CURRENT_TIME);
         } else if (relX > client->width - cornerWidth && relY < cornerHeight) {
             windowResize.resizeType = 2;
-            XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, resizeNECursor, CurrentTime);
+            xcb_grab_pointer(connection, 0, root, XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION, XCB_GRAB_MODE_ASYNC,
+                             XCB_GRAB_MODE_ASYNC, XCB_NONE, resizeNECursor, XCB_CURRENT_TIME);
         } else if (relX < cornerWidth && relY > client->height - cornerHeight) {
             windowResize.resizeType = 1;
-            XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, resizeSWCursor, CurrentTime);
+            xcb_grab_pointer(connection, 0, root, XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION, XCB_GRAB_MODE_ASYNC,
+                             XCB_GRAB_MODE_ASYNC, XCB_NONE, resizeSWCursor, XCB_CURRENT_TIME);
         } else if (relX > client->width - cornerWidth && relY > client->height - cornerHeight) {
             windowResize.resizeType = 0;
-            XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, resizeSECursor, CurrentTime);
+            xcb_grab_pointer(connection, 0, root, XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION, XCB_GRAB_MODE_ASYNC,
+                             XCB_GRAB_MODE_ASYNC, XCB_NONE, resizeSECursor, XCB_CURRENT_TIME);
         } else {
             windowResize.resizeType = 0;
-            XGrabPointer(display, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync, None, resizeSECursor, CurrentTime);
+            xcb_grab_pointer(connection, 0, root, XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION, XCB_GRAB_MODE_ASYNC,
+                             XCB_GRAB_MODE_ASYNC, XCB_NONE, resizeSECursor, XCB_CURRENT_TIME);
         }
     }
 }
@@ -495,10 +666,10 @@ void swapWindowUnderCursor(SClient* client, int cursorX, int cursorY) {
     }
 
     if (targetClient) {
-        fprintf(stderr, "Swapping client 0x%lx with 0x%lx\n", client->window, targetClient->window);
+        fprintf(stderr, "Swapping client 0x%x with 0x%x\n", client->window, targetClient->window);
         client->isFloating = 0;
 
-        XUngrabButton(display, Button3, modkey, client->window);
+        xcb_ungrab_button(connection, XCB_BUTTON_INDEX_3, modkey, client->window);
 
         swapClients(client, targetClient);
 
@@ -506,36 +677,36 @@ void swapWindowUnderCursor(SClient* client, int cursorX, int cursorY) {
     } else {
         client->isFloating = 0;
 
-        XUngrabButton(display, Button3, modkey, client->window);
+        xcb_ungrab_button(connection, XCB_BUTTON_INDEX_3, modkey, client->window);
 
         arrangeClients(&monitors[client->monitor]);
     }
 }
 
-void handleButtonRelease(XEvent* event) {
-    XButtonEvent* ev = &event->xbutton;
+void handleButtonRelease(xcb_generic_event_t* event) {
+    xcb_button_release_event_t* ev = (xcb_button_release_event_t*)event;
 
-    if (windowMovement.active && ev->button == Button1) {
+    if (windowMovement.active && ev->detail == XCB_BUTTON_INDEX_1) {
         SClient* movingClient = windowMovement.client;
 
         if (movingClient && windowMovement.wasTiled) {
-            fprintf(stderr, "Attempting to swap with window under cursor at %d,%d\n", ev->x_root, ev->y_root);
-            swapWindowUnderCursor(movingClient, ev->x_root, ev->y_root);
+            fprintf(stderr, "Attempting to swap with window under cursor at %d,%d\n", ev->root_x, ev->root_y);
+            swapWindowUnderCursor(movingClient, ev->root_x, ev->root_y);
         } else if (movingClient)
             moveWindow(movingClient, movingClient->x, movingClient->y);
 
         windowMovement.active   = 0;
         windowMovement.client   = NULL;
         windowMovement.wasTiled = 0;
-        XUngrabPointer(display, CurrentTime);
+        xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
 
         updateBars();
     }
 
-    if (windowResize.active && ev->button == Button3) {
+    if (windowResize.active && ev->detail == XCB_BUTTON_INDEX_3) {
         windowResize.active = 0;
         windowResize.client = NULL;
-        XUngrabPointer(display, CurrentTime);
+        xcb_ungrab_pointer(connection, XCB_CURRENT_TIME);
 
         updateBars();
     }
@@ -553,10 +724,10 @@ SClient* clientAtPoint(int x, int y) {
     return NULL;
 }
 
-void handleMotionNotify(XEvent* event) {
-    XMotionEvent* ev             = &event->xmotion;
-    static int    lastMonitor    = -1;
-    SMonitor*     currentMonitor = monitorAtPoint(ev->x_root, ev->y_root);
+void handleMotionNotify(xcb_generic_event_t* event) {
+    xcb_motion_notify_event_t* ev             = (xcb_motion_notify_event_t*)event;
+    static int                 lastMonitor    = -1;
+    SMonitor*                  currentMonitor = monitorAtPoint(ev->root_x, ev->root_y);
 
     if (lastMonitor != currentMonitor->num) {
         lastMonitor = currentMonitor->num;
@@ -570,48 +741,57 @@ void handleMotionNotify(XEvent* event) {
             if (clientInWorkspace)
                 focusClient(clientInWorkspace);
             else {
-                XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
+                xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, root, XCB_CURRENT_TIME);
                 focused = NULL;
                 updateBorders();
             }
         }
     }
 
-    while (XCheckTypedWindowEvent(display, ev->window, MotionNotify, event))
-        ;
+    xcb_generic_event_t* motion_event;
+    while ((motion_event = xcb_poll_for_event(connection)) != NULL) {
+        if ((motion_event->response_type & ~0x80) == XCB_MOTION_NOTIFY) {
+            if (((xcb_motion_notify_event_t*)motion_event)->event == ev->event) {
+                free(motion_event);
+                continue;
+            }
+        }
+        xcb_allow_events(connection, XCB_ALLOW_SYNC_POINTER, XCB_CURRENT_TIME);
+        break;
+    }
 
     if (windowMovement.active && windowMovement.client) {
-        int dx = ev->x_root - windowMovement.x;
-        int dy = ev->y_root - windowMovement.y;
+        int dx = ev->root_x - windowMovement.x;
+        int dy = ev->root_y - windowMovement.y;
 
         moveWindow(windowMovement.client, windowMovement.client->x + dx, windowMovement.client->y + dy);
 
-        windowMovement.x = ev->x_root;
-        windowMovement.y = ev->y_root;
+        windowMovement.x = ev->root_x;
+        windowMovement.y = ev->root_y;
     } else if (windowResize.active && windowResize.client) {
-        int      dx     = ev->x_root - windowResize.x;
-        int      dy     = ev->y_root - windowResize.y;
+        int      dx     = ev->root_x - windowResize.x;
+        int      dy     = ev->root_y - windowResize.y;
         SClient* client = windowResize.client;
 
         if (client->isFullscreen) {
-            windowResize.x = ev->x_root;
-            windowResize.y = ev->y_root;
+            windowResize.x = ev->root_x;
+            windowResize.y = ev->root_y;
             return;
         }
 
         if (!client->isFloating) {
-            windowResize.x = ev->x_root;
-            windowResize.y = ev->y_root;
+            windowResize.x = ev->root_x;
+            windowResize.y = ev->root_y;
             return;
         }
 
-        int  isFixedSize = (client->sizeHints.valid && client->sizeHints.maxWidth && client->sizeHints.maxHeight && client->sizeHints.minWidth && client->sizeHints.minHeight &&
+        int isFixedSize = (client->sizeHints.valid && client->sizeHints.maxWidth && client->sizeHints.maxHeight && client->sizeHints.minWidth && client->sizeHints.minHeight &&
                            client->sizeHints.maxWidth == client->sizeHints.minWidth && client->sizeHints.maxHeight == client->sizeHints.minHeight);
 
-        Atom windowType = getAtomProperty(client, NET_WM_WINDOW_TYPE);
+        xcb_atom_t windowType = getAtomProperty(client, NET_WM_WINDOW_TYPE);
         if (isFixedSize || windowType == NET_WM_WINDOW_TYPE_UTILITY) {
-            windowResize.x = ev->x_root;
-            windowResize.y = ev->y_root;
+            windowResize.x = ev->root_x;
+            windowResize.y = ev->root_y;
             return;
         }
 
@@ -689,13 +869,18 @@ void handleMotionNotify(XEvent* event) {
                     client->height = client->sizeHints.maxHeight;
             }
 
-            XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
-            XRaiseWindow(display, client->window);
+            uint32_t values[4] = {client->x, client->y, client->width, client->height};
+            xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
+
+            uint32_t stack_values[] = {XCB_STACK_MODE_ABOVE};
+            xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_STACK_MODE, stack_values);
+
+            xcb_flush(connection);
             configureClient(client);
         }
 
-        windowResize.x = ev->x_root;
-        windowResize.y = ev->y_root;
+        windowResize.x = ev->root_x;
+        windowResize.y = ev->root_y;
     }
 }
 
@@ -723,7 +908,9 @@ void moveWindow(SClient* client, int x, int y) {
     if (prevMonitor != client->monitor)
         client->workspace = monitor->currentWorkspace;
 
-    XMoveWindow(display, client->window, client->x, client->y);
+    uint32_t values[2] = {client->x, client->y};
+    xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, values);
+    xcb_flush(connection);
 
     configureClient(client);
 
@@ -741,8 +928,10 @@ void moveWindow(SClient* client, int x, int y) {
         updateBars();
     }
 
-    if (windowMovement.active && windowMovement.client == client)
-        XRaiseWindow(display, client->window);
+    if (windowMovement.active && windowMovement.client == client) {
+        uint32_t stack_mode = XCB_STACK_MODE_ABOVE;
+        xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_STACK_MODE, &stack_mode);
+    }
 }
 
 void resizeWindow(SClient* client, int width, int height) {
@@ -751,6 +940,7 @@ void resizeWindow(SClient* client, int width, int height) {
 
     if (!client->isFloating)
         return;
+
     if (client->isFullscreen) {
         SMonitor* monitor = &monitors[client->monitor];
         client->x         = monitor->x;
@@ -758,46 +948,49 @@ void resizeWindow(SClient* client, int width, int height) {
         client->width     = monitor->width;
         client->height    = monitor->height;
 
-        XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+        uint32_t values[4] = {client->x, client->y, client->width, client->height};
+        xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
+        xcb_flush(connection);
         configureClient(client);
         return;
     }
 
-    if (width < 15)
-        width = 15;
-    if (height < 15)
-        height = 15;
+    int oldWidth  = client->width;
+    int oldHeight = client->height;
+
+    client->width  = MAX(15, width);
+    client->height = MAX(15, height);
 
     if (client->sizeHints.valid) {
-        if (client->sizeHints.minWidth > 0 && width < client->sizeHints.minWidth)
-            width = client->sizeHints.minWidth;
-        if (client->sizeHints.minHeight > 0 && height < client->sizeHints.minHeight)
-            height = client->sizeHints.minHeight;
+        if (client->sizeHints.minWidth > 0 && client->width < client->sizeHints.minWidth)
+            client->width = client->sizeHints.minWidth;
+        if (client->sizeHints.minHeight > 0 && client->height < client->sizeHints.minHeight)
+            client->height = client->sizeHints.minHeight;
 
-        if (client->sizeHints.maxWidth > 0 && width > client->sizeHints.maxWidth)
-            width = client->sizeHints.maxWidth;
-        if (client->sizeHints.maxHeight > 0 && height > client->sizeHints.maxHeight)
-            height = client->sizeHints.maxHeight;
+        if (client->sizeHints.maxWidth > 0 && client->width > client->sizeHints.maxWidth)
+            client->width = client->sizeHints.maxWidth;
+        if (client->sizeHints.maxHeight > 0 && client->height > client->sizeHints.maxHeight)
+            client->height = client->sizeHints.maxHeight;
     }
 
-    client->width  = width;
-    client->height = height;
+    if (oldWidth != client->width || oldHeight != client->height) {
+        uint32_t values[2] = {client->width, client->height};
+        xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
 
-    XResizeWindow(display, client->window, client->width, client->height);
+        if (windowResize.active && windowResize.client == client) {
+            uint32_t stack_values[] = {XCB_STACK_MODE_ABOVE};
+            xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_STACK_MODE, stack_values);
+        }
 
-    if (windowResize.active && windowResize.client == client)
-        XRaiseWindow(display, client->window);
-
-    configureClient(client);
+        xcb_flush(connection);
+        configureClient(client);
+    }
 }
 
-void handleEnterNotify(XEvent* event) {
-    XCrossingEvent* ev = &event->xcrossing;
+void handleEnterNotify(xcb_generic_event_t* event) {
+    xcb_enter_notify_event_t* ev = (xcb_enter_notify_event_t*)event;
 
     if (windowMovement.active || windowResize.active)
-        return;
-
-    if (ev->mode != NotifyNormal || ev->detail == NotifyInferior)
         return;
 
     if (ignoreNextEnterNotify) {
@@ -805,126 +998,153 @@ void handleEnterNotify(XEvent* event) {
         return;
     }
 
-    if (lastMappedWindow && focused && focused->window == lastMappedWindow)
+    if (ev->mode != XCB_NOTIFY_MODE_NORMAL)
         return;
 
-    SClient* client = findClient(ev->window);
-    if (client) {
-        SMonitor* monitor = &monitors[client->monitor];
+    if (ev->detail == XCB_NOTIFY_DETAIL_INFERIOR || ev->detail == XCB_NOTIFY_DETAIL_VIRTUAL || ev->detail == XCB_NOTIFY_DETAIL_NONLINEAR_VIRTUAL)
+        return;
 
-        if (client->workspace == monitor->currentWorkspace && client != focused) {
-            fprintf(stderr, "Focusing window 0x%lx after enter notify\n", ev->window);
-            focusClient(client);
-        }
-    }
+    SClient* client = findClient(ev->event);
+    if (!client || client == focused)
+        return;
+
+    fprintf(stderr, "Enter notify for window 0x%x\n", client->window);
+
+    SMonitor* monitor = &monitors[client->monitor];
+    if (client->workspace != monitor->currentWorkspace)
+        return;
+
+    focusClient(client);
 }
 
-void handleMapRequest(XEvent* event) {
-    XMapRequestEvent* ev = &event->xmaprequest;
+void handleMapRequest(xcb_generic_event_t* event) {
+    xcb_map_request_event_t* ev = (xcb_map_request_event_t*)event;
 
     manageClient(ev->window);
+    xcb_map_window(connection, ev->window);
 
-    SClient* client = findClient(ev->window);
+    lastMappedWindow = ev->window;
+}
+
+void handleConfigureRequest(xcb_generic_event_t* event) {
+    xcb_configure_request_event_t* ev = (xcb_configure_request_event_t*)event;
+
+    SClient*                       client = findClient(ev->window);
     if (client) {
-        SMonitor* monitor = &monitors[client->monitor];
-        Atom      state   = getAtomProperty(client, NET_WM_STATE);
-        if (state == NET_WM_STATE_FULLSCREEN) {
-            fprintf(stderr, "Detected fullscreen window during map request, forcing proper position\n");
+        fprintf(stderr, "Configure request for managed window 0x%x\n", ev->window);
 
-            client->oldx      = client->x;
-            client->oldy      = client->y;
-            client->oldwidth  = client->width;
-            client->oldheight = client->height;
+        if (client->isFloating && !client->isFullscreen) {
+            int updateX = (ev->value_mask & XCB_CONFIG_WINDOW_X);
+            int updateY = (ev->value_mask & XCB_CONFIG_WINDOW_Y);
+            int updateW = (ev->value_mask & XCB_CONFIG_WINDOW_WIDTH);
+            int updateH = (ev->value_mask & XCB_CONFIG_WINDOW_HEIGHT);
 
-            client->x            = monitor->x;
-            client->y            = monitor->y;
-            client->width        = monitor->width;
-            client->height       = monitor->height;
-            client->isFullscreen = 1;
-            client->isFloating   = 1;
+            if (updateX)
+                client->x = ev->x;
+            if (updateY)
+                client->y = ev->y;
+            if (updateW)
+                client->width = ev->width;
+            if (updateH)
+                client->height = ev->height;
 
-            XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
-            XSetWindowBorderWidth(display, client->window, 0);
-            configureClient(client);
-            XRaiseWindow(display, client->window);
-        }
+            uint32_t config_values[4];
+            uint16_t config_mask = 0;
+            int      value_index = 0;
 
-        int hasFullscreenWindow = 0;
-        if (!client->isFullscreen) {
-            for (SClient* c = clients; c; c = c->next) {
-                if (c->monitor == client->monitor && c->workspace == client->workspace && c->isFullscreen) {
-                    hasFullscreenWindow = 1;
-                    break;
+            if (updateX || updateY || updateW || updateH) {
+                if (updateX) {
+                    config_values[value_index++] = client->x;
+                    config_mask |= XCB_CONFIG_WINDOW_X;
                 }
+                if (updateY) {
+                    config_values[value_index++] = client->y;
+                    config_mask |= XCB_CONFIG_WINDOW_Y;
+                }
+                if (updateW) {
+                    config_values[value_index++] = client->width;
+                    config_mask |= XCB_CONFIG_WINDOW_WIDTH;
+                }
+                if (updateH) {
+                    config_values[value_index++] = client->height;
+                    config_mask |= XCB_CONFIG_WINDOW_HEIGHT;
+                }
+
+                xcb_configure_window(connection, client->window, config_mask, config_values);
+                xcb_flush(connection);
             }
         }
 
-        if (client->workspace == monitor->currentWorkspace && !hasFullscreenWindow)
-            XMapWindow(display, ev->window);
-        else
-            XUnmapWindow(display, ev->window);
+        xcb_configure_notify_event_t ce;
+        ce.response_type     = XCB_CONFIGURE_NOTIFY;
+        ce.event             = client->window;
+        ce.window            = client->window;
+        ce.x                 = client->x;
+        ce.y                 = client->y;
+        ce.width             = client->width;
+        ce.height            = client->height;
+        ce.border_width      = borderWidth;
+        ce.above_sibling     = XCB_NONE;
+        ce.override_redirect = 0;
 
-        if (!client->isFloating && !client->isFullscreen) {
-            XSync(display, False);
-            arrangeClients(monitor);
+        xcb_send_event(connection, 0, client->window, XCB_EVENT_MASK_STRUCTURE_NOTIFY, (const char*)&ce);
+    } else {
+        uint32_t config_values[7];
+        uint16_t config_mask = 0;
+        int      value_index = 0;
+
+        if (ev->value_mask & XCB_CONFIG_WINDOW_X) {
+            config_values[value_index++] = ev->x;
+            config_mask |= XCB_CONFIG_WINDOW_X;
         }
-    } else
-        XMapWindow(display, ev->window);
-}
-
-void handleConfigureRequest(XEvent* event) {
-    XConfigureRequestEvent* ev = &event->xconfigurerequest;
-    XWindowChanges          wc;
-    wc.x            = ev->x;
-    wc.y            = ev->y;
-    wc.width        = ev->width;
-    wc.height       = ev->height;
-    wc.border_width = borderWidth;
-    wc.sibling      = ev->above;
-    wc.stack_mode   = ev->detail;
-
-    SClient* client = findClient(ev->window);
-    if (client) {
-        if (client->isFullscreen) {
-            fprintf(stderr, "Intercepting configure request for fullscreen window\n");
-            SMonitor* monitor = &monitors[client->monitor];
-            wc.x              = monitor->x;
-            wc.y              = monitor->y;
-            wc.width          = monitor->width;
-            wc.height         = monitor->height;
-            wc.border_width   = 0;
-        } else if (!client->isFloating) {
-            fprintf(stderr, "Intercepting configure request for tiled window\n");
-            wc.x            = client->x;
-            wc.y            = client->y;
-            wc.width        = client->width;
-            wc.height       = client->height;
-            wc.border_width = borderWidth;
+        if (ev->value_mask & XCB_CONFIG_WINDOW_Y) {
+            config_values[value_index++] = ev->y;
+            config_mask |= XCB_CONFIG_WINDOW_Y;
         }
+        if (ev->value_mask & XCB_CONFIG_WINDOW_WIDTH) {
+            config_values[value_index++] = ev->width;
+            config_mask |= XCB_CONFIG_WINDOW_WIDTH;
+        }
+        if (ev->value_mask & XCB_CONFIG_WINDOW_HEIGHT) {
+            config_values[value_index++] = ev->height;
+            config_mask |= XCB_CONFIG_WINDOW_HEIGHT;
+        }
+        if (ev->value_mask & XCB_CONFIG_WINDOW_BORDER_WIDTH) {
+            config_values[value_index++] = ev->border_width;
+            config_mask |= XCB_CONFIG_WINDOW_BORDER_WIDTH;
+        }
+        if (ev->value_mask & XCB_CONFIG_WINDOW_SIBLING) {
+            config_values[value_index++] = ev->sibling;
+            config_mask |= XCB_CONFIG_WINDOW_SIBLING;
+        }
+        if (ev->value_mask & XCB_CONFIG_WINDOW_STACK_MODE) {
+            config_values[value_index++] = ev->stack_mode;
+            config_mask |= XCB_CONFIG_WINDOW_STACK_MODE;
+        }
+
+        xcb_configure_window(connection, ev->window, config_mask, config_values);
+        xcb_flush(connection);
     }
-
-    XConfigureWindow(display, ev->window, ev->value_mask, &wc);
-
-    if (client)
-        configureClient(client);
 }
 
-void handleUnmapNotify(XEvent* event) {
-    XUnmapEvent* ev = &event->xunmap;
+void handleUnmapNotify(xcb_generic_event_t* event) {
+    xcb_unmap_notify_event_t* ev = (xcb_unmap_notify_event_t*)event;
 
-    if (ev->send_event) {
+    if (ev->event != root) {
         SClient* client = findClient(ev->window);
         if (client)
             unmanageClient(ev->window);
     }
 }
 
-void handleDestroyNotify(XEvent* event) {
-    XDestroyWindowEvent* ev     = &event->xdestroywindow;
-    SClient*             client = findClient(ev->window);
+void handleDestroyNotify(xcb_generic_event_t* event) {
+    xcb_destroy_notify_event_t* ev     = (xcb_destroy_notify_event_t*)event;
+    SClient*                    client = findClient(ev->window);
 
-    if (client)
+    if (client) {
+        fprintf(stderr, "Destroy notify for window 0x%x\n", ev->window);
         unmanageClient(ev->window);
+    }
 }
 
 void spawnProgram(const char* program) {
@@ -939,8 +1159,8 @@ void spawnProgram(const char* program) {
     }
 
     if (pid == 0) {
-        if (display)
-            close(ConnectionNumber(display));
+        if (connection)
+            close(xcb_get_file_descriptor(connection));
 
         setsid();
 
@@ -965,15 +1185,15 @@ void killClient(const char* arg) {
     if (!focused)
         return;
 
-    fprintf(stderr, "Killing client 0x%lx\n", focused->window);
+    fprintf(stderr, "Killing client 0x%x\n", focused->window);
 
     if (!sendEvent(focused, WM_DELETE_WINDOW)) {
-        XGrabServer(display);
-        XSetErrorHandler(xerrorHandler);
-        XSetCloseDownMode(display, DestroyAll);
-        XKillClient(display, focused->window);
-        XSync(display, False);
-        XUngrabServer(display);
+        xcb_grab_server(connection);
+
+        xcb_kill_client(connection, focused->window);
+
+        xcb_flush(connection);
+        xcb_ungrab_server(connection);
     }
 }
 
@@ -992,27 +1212,17 @@ void quit(const char* arg) {
     exit(exitCode);
 }
 
-void grabKeys() {
-    XUngrabKey(display, AnyKey, AnyModifier, root);
-
-    for (size_t i = 0; i < keysCount; i++) {
-        XGrabKey(display, XKeysymToKeycode(display, keys[i].keysym), keys[i].mod, root, True, GrabModeAsync, GrabModeAsync);
-
-        XGrabKey(display, XKeysymToKeycode(display, keys[i].keysym), keys[i].mod | LockMask, root, True, GrabModeAsync, GrabModeAsync);
-    }
-
-    fprintf(stderr, "Key grabs set up on root window\n");
-}
-
 void updateFocus() {
     if (!focused) {
-        XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
-        XDeleteProperty(display, root, NET_ACTIVE_WINDOW);
+        xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, root, XCB_CURRENT_TIME);
+        xcb_delete_property(connection, root, NET_ACTIVE_WINDOW);
+        xcb_flush(connection);
         return;
     }
 
-    XSetInputFocus(display, focused->window, RevertToPointerRoot, CurrentTime);
-    XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&focused->window, 1);
+    xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, focused->window, XCB_CURRENT_TIME);
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_ACTIVE_WINDOW, XCB_ATOM_WINDOW, 32, 1, &focused->window);
+    xcb_flush(connection);
     updateBorders();
 }
 
@@ -1020,32 +1230,37 @@ void focusClient(SClient* client) {
     if (!client)
         return;
 
-    fprintf(stderr, "Attempting to focus: 0x%lx\n", client->window);
+    fprintf(stderr, "Attempting to focus: 0x%x\n", client->window);
 
-    XWindowAttributes wa;
-    if (!XGetWindowAttributes(display, client->window, &wa)) {
+    xcb_get_window_attributes_reply_t* wa = xcb_get_window_attributes_reply(connection, xcb_get_window_attributes(connection, client->window), NULL);
+    if (!wa) {
         fprintf(stderr, "  Window no longer exists\n");
         return;
     }
 
-    if (wa.map_state != IsViewable) {
-        fprintf(stderr, "  Window not viewable (state: %d)\n", wa.map_state);
+    if (wa->map_state != XCB_MAP_STATE_VIEWABLE) {
+        fprintf(stderr, "  Window not viewable (state: %d)\n", wa->map_state);
+        free(wa);
         return;
     }
 
-    if (wa.override_redirect) {
+    if (wa->override_redirect) {
         fprintf(stderr, "  Window has override_redirect set\n");
+        free(wa);
         return;
     }
 
     focused = client;
 
-    if ((windowMovement.active && windowMovement.client == client) || (windowResize.active && windowResize.client == client))
-        XRaiseWindow(display, client->window);
+    if ((windowMovement.active && windowMovement.client == client) || (windowResize.active && windowResize.client == client)) {
+        uint32_t stack_mode = XCB_STACK_MODE_ABOVE;
+        xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_STACK_MODE, &stack_mode);
+    }
 
     if (!client->neverfocus) {
-        XSetInputFocus(display, client->window, RevertToPointerRoot, CurrentTime);
-        XChangeProperty(display, root, NET_ACTIVE_WINDOW, XA_WINDOW, 32, PropModeReplace, (unsigned char*)&client->window, 1);
+        xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, client->window, XCB_CURRENT_TIME);
+
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_ACTIVE_WINDOW, XCB_ATOM_WINDOW, 32, 1, &client->window);
     }
 
     sendEvent(client, WM_TAKE_FOCUS);
@@ -1054,40 +1269,44 @@ void focusClient(SClient* client) {
     updateBorders();
     restackFloatingWindows();
     updateBars();
+
+    free(wa);
 }
 
-void manageClient(Window window) {
+void manageClient(xcb_window_t window) {
     if (findClient(window))
         return;
 
-    XWindowAttributes wa;
-    if (!XGetWindowAttributes(display, window, &wa)) {
-        fprintf(stderr, "Cannot manage window 0x%lx: failed to get attributes\n", window);
+    xcb_get_window_attributes_reply_t* wa = xcb_get_window_attributes_reply(connection, xcb_get_window_attributes(connection, window), NULL);
+    if (!wa) {
+        fprintf(stderr, "Cannot manage window 0x%x: failed to get attributes\n", window);
         return;
     }
 
-    if (wa.override_redirect) {
-        fprintf(stderr, "Skipping override_redirect window 0x%lx\n", window);
+    if (wa->override_redirect) {
+        fprintf(stderr, "Skipping override_redirect window 0x%x\n", window);
+        free(wa);
         return;
     }
 
     SClient* client = malloc(sizeof(SClient));
     if (!client) {
         fprintf(stderr, "Failed to allocate memory for client\n");
+        free(wa);
         return;
     }
 
-    int          monitorNum = 0;
-    int          cursorX    = 0;
-    int          cursorY    = 0;
+    int                        monitorNum = 0;
+    int                        rootX, rootY;
+    _Bool                      pointerQuerySuccess = 0;
 
-    int          rootX, rootY;
-    unsigned int mask;
-    Window       root_return, child_return;
-    Bool         pointerQuerySuccess = False;
-
-    if (XQueryPointer(display, root, &root_return, &child_return, &rootX, &rootY, &cursorX, &cursorY, &mask))
-        pointerQuerySuccess = True;
+    xcb_query_pointer_reply_t* pointer = xcb_query_pointer_reply(connection, xcb_query_pointer(connection, root), NULL);
+    if (pointer) {
+        rootX               = pointer->root_x;
+        rootY               = pointer->root_y;
+        pointerQuerySuccess = 1;
+        free(pointer);
+    }
 
     if (pointerQuerySuccess) {
         monitorNum = monitorAtPoint(rootX, rootY)->num;
@@ -1115,8 +1334,11 @@ void manageClient(Window window) {
     client->y               = 0;
     client->sizeHints.valid = 0;
 
-    Window transientFor = None;
-    if (XGetTransientForHint(display, window, &transientFor)) {
+    xcb_window_t              transientFor = XCB_NONE;
+    xcb_get_property_cookie_t cookie       = xcb_get_property(connection, 0, window, XCB_ATOM_WM_TRANSIENT_FOR, XCB_ATOM_WINDOW, 0, 1);
+    xcb_get_property_reply_t* reply        = xcb_get_property_reply(connection, cookie, NULL);
+    if (reply && reply->type == XCB_ATOM_WINDOW && reply->format == 32 && xcb_get_property_value_length(reply) >= 4) {
+        transientFor    = *((xcb_window_t*)xcb_get_property_value(reply));
         SClient* parent = findClient(transientFor);
         if (parent) {
             client->monitor    = parent->monitor;
@@ -1126,8 +1348,9 @@ void manageClient(Window window) {
             client->x = parent->x + 50;
             client->y = parent->y + 50;
 
-            fprintf(stderr, "Transient window detected, attached to parent 0x%lx\n", transientFor);
+            fprintf(stderr, "Transient window detected, attached to parent 0x%x\n", transientFor);
         }
+        free(reply);
     }
 
     SMonitor* monitor = &monitors[client->monitor];
@@ -1145,15 +1368,23 @@ void manageClient(Window window) {
     monitor = &monitors[client->monitor];
 
     if (client->width == 0 || client->height == 0) {
-        if (wa.width > monitor->width - 2 * borderWidth)
-            client->width = monitor->width - 2 * borderWidth;
-        else
-            client->width = wa.width;
+        xcb_get_geometry_reply_t* geom = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, window), NULL);
+        if (geom) {
+            if (geom->width > monitor->width - 2 * borderWidth)
+                client->width = monitor->width - 2 * borderWidth;
+            else
+                client->width = geom->width;
 
-        if (wa.height > monitor->height - 2 * borderWidth)
-            client->height = monitor->height - 2 * borderWidth;
-        else
-            client->height = wa.height;
+            if (geom->height > monitor->height - 2 * borderWidth)
+                client->height = monitor->height - 2 * borderWidth;
+            else
+                client->height = geom->height;
+
+            free(geom);
+        } else {
+            client->width  = 800;
+            client->height = 600;
+        }
 
         if (client->sizeHints.valid && client->isFloating) {
             if (client->sizeHints.minWidth > 0 && client->width < client->sizeHints.minWidth)
@@ -1198,54 +1429,75 @@ void manageClient(Window window) {
         last->next = client;
     }
 
-    XMoveResizeWindow(display, window, client->x, client->y, client->width, client->height);
+    uint32_t values[4];
+    values[0] = client->x;
+    values[1] = client->y;
+    values[2] = client->width;
+    values[3] = client->height;
 
-    XSetWindowBorderWidth(display, window, borderWidth);
+    xcb_configure_window(connection, window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
 
-    XErrorHandler oldHandler = XSetErrorHandler(xerrorHandler);
+    uint32_t border_width = borderWidth;
+    xcb_configure_window(connection, window, XCB_CONFIG_WINDOW_BORDER_WIDTH, &border_width);
 
-    XSelectInput(display, window, EnterWindowMask | FocusChangeMask | PropertyChangeMask | StructureNotifyMask | PointerMotionMask);
+    uint32_t event_mask =
+        XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_FOCUS_CHANGE | XCB_EVENT_MASK_PROPERTY_CHANGE | XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_BUTTON_MOTION;
+
+    xcb_change_window_attributes(connection, window, XCB_CW_EVENT_MASK, &event_mask);
 
     updateWindowType(client);
     updateWMHints(client);
 
-    if (!client->isFullscreen)
-        XGrabButton(display, Button1, modkey, window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, moveCursor);
+    if (!client->isFullscreen) {
+        uint32_t values[3] = {modkey, XCB_BUTTON_INDEX_1, XCB_GRAB_MODE_ASYNC};
+        xcb_grab_button(connection, 0, window, XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_BUTTON_MOTION, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC,
+                        XCB_NONE, moveCursor, values[1], values[0]);
+    }
 
-    if (client->isFloating)
-        XGrabButton(display, Button3, modkey, window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, resizeSECursor);
+    if (client->isFloating) {
+        uint32_t values[3] = {modkey, XCB_BUTTON_INDEX_3, XCB_GRAB_MODE_ASYNC};
+        xcb_grab_button(connection, 0, window, XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_BUTTON_MOTION, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC,
+                        XCB_NONE, resizeSECursor, values[1], values[0]);
+    }
 
-    XSync(display, False);
-    XSetErrorHandler(oldHandler);
+    xcb_flush(connection);
 
-    fprintf(stderr, "Client managed: 0x%lx on monitor %d at position %d,%d with size %dx%d\n", window, client->monitor, client->x, client->y, client->width, client->height);
+    fprintf(stderr, "Client managed: 0x%x on monitor %d at position %d,%d with size %dx%d\n", window, client->monitor, client->x, client->y, client->width, client->height);
 
     updateBorders();
 
-    XChangeProperty(display, root, NET_CLIENT_LIST, XA_WINDOW, 32, PropModeAppend, (unsigned char*)&window, 1);
-    setClientState(client, NormalState);
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_CLIENT_LIST, XCB_ATOM_WINDOW, 32, 1, (unsigned char*)&window);
+
+    long data[2];
+    data[0] = XCB_ICCCM_WM_STATE_NORMAL;
+    data[1] = XCB_NONE;
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, client->window, WM_STATE, WM_STATE, 32, 2, data);
 
     configureClient(client);
 
-    if (wa.map_state == IsViewable) {
+    if (wa->map_state == XCB_MAP_STATE_VIEWABLE) {
         fprintf(stderr, "Window is viewable, focusing now\n");
         focusClient(client);
     } else
-        fprintf(stderr, "Window not yet viewable (state: %d), deferring focus\n", wa.map_state);
+        fprintf(stderr, "Window not yet viewable (state: %d), deferring focus\n", wa->map_state);
 
     arrangeClients(monitor);
 
-    if (!client->isFloating && !client->isFullscreen)
-        XLowerWindow(display, client->window);
+    if (!client->isFloating && !client->isFullscreen) {
+        uint32_t values = XCB_STACK_MODE_BELOW;
+        xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_STACK_MODE, &values);
+    }
 
     restackFloatingWindows();
 
     updateBars();
 
     updateClientList();
+
+    free(wa);
 }
 
-void unmanageClient(Window window) {
+void unmanageClient(xcb_window_t window) {
     SClient* client = clients;
     SClient* prev   = NULL;
 
@@ -1281,7 +1533,7 @@ void unmanageClient(Window window) {
         } else {
             fprintf(stderr, "Window closed, no other windows in workspace, focusing monitor %d\n", currentMonitor->num);
             focused = NULL;
-            XDeleteProperty(display, root, NET_ACTIVE_WINDOW);
+            xcb_delete_property(connection, root, NET_ACTIVE_WINDOW);
         }
 
         updateFocus();
@@ -1307,42 +1559,43 @@ void configureClient(SClient* client) {
     if (!client)
         return;
 
-    XWindowChanges wc;
-    wc.x            = client->x;
-    wc.y            = client->y;
-    wc.width        = client->width;
-    wc.height       = client->height;
-    wc.border_width = client->isFullscreen ? 0 : borderWidth;
-    wc.sibling      = None;
-    wc.stack_mode   = Above;
+    uint32_t values[5];
+    uint32_t mask = 0;
 
-    XConfigureWindow(display, client->window, CWX | CWY | CWWidth | CWHeight | CWBorderWidth, &wc);
+    values[0] = client->x;
+    values[1] = client->y;
+    values[2] = client->width;
+    values[3] = client->height;
+    values[4] = client->isFullscreen ? 0 : borderWidth;
 
-    XEvent event;
-    event.type                         = ConfigureNotify;
-    event.xconfigure.display           = display;
-    event.xconfigure.event             = client->window;
-    event.xconfigure.window            = client->window;
-    event.xconfigure.x                 = client->x;
-    event.xconfigure.y                 = client->y;
-    event.xconfigure.width             = client->width;
-    event.xconfigure.height            = client->height;
-    event.xconfigure.border_width      = client->isFullscreen ? 0 : borderWidth;
-    event.xconfigure.above             = None;
-    event.xconfigure.override_redirect = False;
-    XSendEvent(display, client->window, False, StructureNotifyMask, &event);
+    mask = XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT | XCB_CONFIG_WINDOW_BORDER_WIDTH;
 
-    XSetWindowBorderWidth(display, client->window, client->isFullscreen ? 0 : borderWidth);
+    xcb_configure_window(connection, client->window, mask, values);
+
+    xcb_configure_notify_event_t event = {0};
+
+    event.response_type     = XCB_CONFIGURE_NOTIFY;
+    event.event             = client->window;
+    event.window            = client->window;
+    event.x                 = client->x;
+    event.y                 = client->y;
+    event.width             = client->width;
+    event.height            = client->height;
+    event.border_width      = client->isFullscreen ? 0 : borderWidth;
+    event.above_sibling     = XCB_NONE;
+    event.override_redirect = 0;
+
+    xcb_send_event(connection, 0, client->window, XCB_EVENT_MASK_STRUCTURE_NOTIFY, (const char*)&event);
 
     updateBorders();
-    XSync(display, False);
+    xcb_flush(connection);
 }
 
 void updateBorders() {
-    static unsigned long activeBorder            = 0;
-    static unsigned long inactiveBorder          = 0;
-    static char*         lastActiveBorderColor   = NULL;
-    static char*         lastInactiveBorderColor = NULL;
+    static uint32_t activeBorder            = 0;
+    static uint32_t inactiveBorder          = 0;
+    static char*    lastActiveBorderColor   = NULL;
+    static char*    lastInactiveBorderColor = NULL;
 
     if ((lastActiveBorderColor == NULL && activeBorderColor != NULL) ||
         (lastActiveBorderColor != NULL && activeBorderColor != NULL && strcmp(lastActiveBorderColor, activeBorderColor) != 0) ||
@@ -1364,18 +1617,31 @@ void updateBorders() {
     }
 
     if (activeBorder == 0 || inactiveBorder == 0) {
-        XColor   color;
-        Colormap cmap = DefaultColormap(display, DefaultScreen(display));
+        xcb_colormap_t colormap = screen->default_colormap;
 
-        if (XAllocNamedColor(display, cmap, activeBorderColor, &color, &color))
-            activeBorder = color.pixel;
-        else
-            activeBorder = BlackPixel(display, DefaultScreen(display));
+        if (activeBorderColor) {
+            xcb_alloc_named_color_cookie_t cookie = xcb_alloc_named_color(connection, colormap, strlen(activeBorderColor), activeBorderColor);
+            xcb_alloc_named_color_reply_t* reply  = xcb_alloc_named_color_reply(connection, cookie, NULL);
 
-        if (XAllocNamedColor(display, cmap, inactiveBorderColor, &color, &color))
-            inactiveBorder = color.pixel;
-        else
-            inactiveBorder = BlackPixel(display, DefaultScreen(display));
+            if (reply) {
+                activeBorder = reply->pixel;
+                free(reply);
+            } else
+                activeBorder = screen->black_pixel;
+        } else
+            activeBorder = screen->black_pixel;
+
+        if (inactiveBorderColor) {
+            xcb_alloc_named_color_cookie_t cookie = xcb_alloc_named_color(connection, colormap, strlen(inactiveBorderColor), inactiveBorderColor);
+            xcb_alloc_named_color_reply_t* reply  = xcb_alloc_named_color_reply(connection, cookie, NULL);
+
+            if (reply) {
+                inactiveBorder = reply->pixel;
+                free(reply);
+            } else
+                inactiveBorder = screen->black_pixel;
+        } else
+            inactiveBorder = screen->black_pixel;
 
         lastActiveBorderColor   = safeStrdup(activeBorderColor);
         lastInactiveBorderColor = safeStrdup(inactiveBorderColor);
@@ -1385,12 +1651,13 @@ void updateBorders() {
 
     SClient* client = clients;
     while (client) {
-        XSetWindowBorder(display, client->window, (client == focused) ? activeBorder : inactiveBorder);
+        uint32_t border_color = (client == focused) ? activeBorder : inactiveBorder;
+        xcb_change_window_attributes(connection, client->window, XCB_CW_BORDER_PIXEL, &border_color);
         client = client->next;
     }
 }
 
-SClient* findClient(Window window) {
+SClient* findClient(xcb_window_t window) {
     SClient* client = clients;
     while (client) {
         if (client->window == window)
@@ -1420,21 +1687,54 @@ void updateMonitors() {
         free(monitors);
     }
 
-    XineramaScreenInfo* info = NULL;
-    monitors                 = NULL;
-    int oldNumMonitors       = numMonitors;
-    numMonitors              = 0;
+    monitors           = NULL;
+    int oldNumMonitors = numMonitors;
+    numMonitors        = 0;
 
-    if (XineramaIsActive(display))
-        info = XineramaQueryScreens(display, &numMonitors);
+    xcb_xinerama_is_active_cookie_t active_cookie = xcb_xinerama_is_active(connection);
+    xcb_xinerama_is_active_reply_t* active_reply  = xcb_xinerama_is_active_reply(connection, active_cookie, NULL);
 
-    if (!info) {
+    int                             is_active = 0;
+    if (active_reply) {
+        is_active = active_reply->state;
+        free(active_reply);
+    }
+
+    if (is_active) {
+        xcb_xinerama_query_screens_cookie_t screens_cookie = xcb_xinerama_query_screens(connection);
+        xcb_xinerama_query_screens_reply_t* screens_reply  = xcb_xinerama_query_screens_reply(connection, screens_cookie, NULL);
+
+        if (screens_reply) {
+            xcb_xinerama_screen_info_t* info = xcb_xinerama_query_screens_screen_info(screens_reply);
+            numMonitors                      = xcb_xinerama_query_screens_screen_info_length(screens_reply);
+
+            monitors = malloc(numMonitors * sizeof(SMonitor));
+            for (int i = 0; i < numMonitors; i++) {
+                monitors[i].x                = info[i].x_org;
+                monitors[i].y                = info[i].y_org;
+                monitors[i].width            = info[i].width;
+                monitors[i].height           = info[i].height;
+                monitors[i].num              = i;
+                monitors[i].currentWorkspace = 0;
+                monitors[i].currentLayout    = LAYOUT_TILED;
+                monitors[i].masterCount      = 1;
+                monitors[i].masterFactors    = malloc(workspaceCount * sizeof(float));
+                for (int ws = 0; ws < workspaceCount; ws++) {
+                    monitors[i].masterFactors[ws] = defaultMasterFactor;
+                }
+            }
+
+            free(screens_reply);
+        }
+    }
+
+    if (!monitors) {
         numMonitors                  = 1;
         monitors                     = malloc(sizeof(SMonitor));
         monitors[0].x                = 0;
         monitors[0].y                = 0;
-        monitors[0].width            = DisplayWidth(display, DefaultScreen(display));
-        monitors[0].height           = DisplayHeight(display, DefaultScreen(display));
+        monitors[0].width            = screen->width_in_pixels;
+        monitors[0].height           = screen->height_in_pixels;
         monitors[0].num              = 0;
         monitors[0].currentWorkspace = 0;
         monitors[0].currentLayout    = LAYOUT_TILED;
@@ -1443,23 +1743,6 @@ void updateMonitors() {
         for (int ws = 0; ws < workspaceCount; ws++) {
             monitors[0].masterFactors[ws] = defaultMasterFactor;
         }
-    } else {
-        monitors = malloc(numMonitors * sizeof(SMonitor));
-        for (int i = 0; i < numMonitors; i++) {
-            monitors[i].x                = info[i].x_org;
-            monitors[i].y                = info[i].y_org;
-            monitors[i].width            = info[i].width;
-            monitors[i].height           = info[i].height;
-            monitors[i].num              = i;
-            monitors[i].currentWorkspace = 0;
-            monitors[i].currentLayout    = LAYOUT_TILED;
-            monitors[i].masterCount      = 1;
-            monitors[i].masterFactors    = malloc(workspaceCount * sizeof(float));
-            for (int ws = 0; ws < workspaceCount; ws++) {
-                monitors[i].masterFactors[ws] = defaultMasterFactor;
-            }
-        }
-        XFree(info);
     }
 
     if (numMonitors != oldNumMonitors) {
@@ -1480,12 +1763,12 @@ void updateMonitors() {
     }
 }
 
-void handlePropertyNotify(XEvent* event) {
-    XPropertyEvent* ev = &event->xproperty;
+void handlePropertyNotify(xcb_generic_event_t* event) {
+    xcb_property_notify_event_t* ev = (xcb_property_notify_event_t*)event;
 
-    if (ev->window == root && ev->atom == XA_WM_NAME)
+    if (ev->window == root && ev->atom == XCB_ATOM_WM_NAME)
         updateStatus();
-    else if (ev->atom == XInternAtom(display, "_NET_WM_NAME", False) || ev->atom == XA_WM_NAME) {
+    else if (ev->atom == NET_WM_NAME || ev->atom == XCB_ATOM_WM_NAME) {
         SClient* client = findClient(ev->window);
         if (client)
             updateBars();
@@ -1493,12 +1776,12 @@ void handlePropertyNotify(XEvent* event) {
 
     SClient* client = findClient(ev->window);
     if (client) {
-        if (ev->atom == XA_WM_NORMAL_HINTS || ev->atom == XA_WM_HINTS)
+        if (ev->atom == XCB_ATOM_WM_NORMAL_HINTS || ev->atom == XCB_ATOM_WM_HINTS)
             updateWMHints(client);
         else if (ev->atom == NET_WM_WINDOW_TYPE)
             updateWindowType(client);
         else if (ev->atom == NET_WM_STATE) {
-            Atom state = getAtomProperty(client, NET_WM_STATE);
+            xcb_atom_t state = getAtomProperty(client, NET_WM_STATE);
             if (state == NET_WM_STATE_FULLSCREEN)
                 setFullscreen(client, 1);
             else if (client->isFullscreen)
@@ -1507,8 +1790,8 @@ void handlePropertyNotify(XEvent* event) {
     }
 }
 
-void handleExpose(XEvent* event) {
-    XExposeEvent* ev = &event->xexpose;
+void handleExpose(xcb_generic_event_t* event) {
+    xcb_expose_event_t* ev = (xcb_expose_event_t*)event;
 
     for (int i = 0; i < numMonitors; i++) {
         if (barWindows && barWindows[i] == ev->window) {
@@ -1519,11 +1802,15 @@ void handleExpose(XEvent* event) {
 }
 
 SClient* focusWindowUnderCursor(SMonitor* monitor) {
-    int          x, y;
-    unsigned int mask;
-    Window       root_return, child_return;
+    int                        x, y;
 
-    if (XQueryPointer(display, root, &root_return, &child_return, &x, &y, &x, &y, &mask)) {
+    xcb_query_pointer_reply_t* pointer = xcb_query_pointer_reply(connection, xcb_query_pointer(connection, root), NULL);
+
+    if (pointer) {
+        x = pointer->root_x;
+        y = pointer->root_y;
+        free(pointer);
+
         if (x >= monitor->x && x < monitor->x + monitor->width && y >= monitor->y && y < monitor->y + monitor->height) {
 
             SClient* windowUnderCursor = clientAtPoint(x, y);
@@ -1544,7 +1831,7 @@ SClient* focusWindowUnderCursor(SMonitor* monitor) {
 
     if (activeMonitor != monitor->num || !clientInWorkspace) {
         focused = NULL;
-        XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
+        xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, root, XCB_CURRENT_TIME);
         updateBorders();
         updateBars();
     }
@@ -1552,38 +1839,34 @@ SClient* focusWindowUnderCursor(SMonitor* monitor) {
 }
 
 void switchToWorkspace(const char* arg) {
-    if (!arg)
-        return;
-
     int workspace = atoi(arg);
     if (workspace < 0 || workspace >= workspaceCount)
         return;
 
     SMonitor* monitor = getCurrentMonitor();
-    if (monitor->currentWorkspace == workspace)
+    if (!monitor)
         return;
 
-    fprintf(stderr, "Switching from workspace %d to %d on monitor %d\n", monitor->currentWorkspace, workspace, monitor->num);
+    int previousWorkspace = monitor->currentWorkspace;
+    if (workspace == previousWorkspace)
+        return;
 
     monitor->currentWorkspace = workspace;
+    currentWorkspace          = workspace;
 
-    long currentDesktop = workspace;
-    XChangeProperty(display, root, NET_CURRENT_DESKTOP, XA_CARDINAL, 32, PropModeReplace, (unsigned char*)&currentDesktop, 1);
+    fprintf(stderr, "Switching to workspace %d (monitor %d)\n", workspace, monitor->num);
+
+    uint32_t desktop = currentWorkspace;
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_CURRENT_DESKTOP, XCB_ATOM_CARDINAL, 32, 1, &desktop);
 
     updateClientVisibility();
     updateBars();
 
-    arrangeClients(monitor);
-
-    SClient* focusedClient = focusWindowUnderCursor(monitor);
-
-    if (!focusedClient) {
-        SClient* windowInWorkspace = findVisibleClientInWorkspace(monitor->num, workspace);
-        if (windowInWorkspace) {
-            fprintf(stderr, "No window under cursor, focusing available window in workspace %d\n", workspace);
-            focusClient(windowInWorkspace);
-        }
-    }
+    SClient* visibleClient = findVisibleClientInWorkspace(monitor->num, workspace);
+    if (visibleClient)
+        focusClient(visibleClient);
+    else
+        focusClient(NULL);
 }
 
 void moveClientToWorkspace(const char* arg) {
@@ -1602,7 +1885,7 @@ void moveClientToWorkspace(const char* arg) {
     moveClientToEnd(movedClient);
 
     if (workspace != currentMon->currentWorkspace) {
-        XUnmapWindow(display, movedClient->window);
+        xcb_unmap_window(connection, movedClient->window);
 
         SClient* focusedClient = focusWindowUnderCursor(currentMon);
 
@@ -1640,11 +1923,11 @@ void updateClientVisibility() {
         SMonitor* m = &monitors[client->monitor];
         if (client->workspace == m->currentWorkspace) {
             if (client->isFullscreen || !hasFullscreen[client->monitor][client->workspace])
-                XMapWindow(display, client->window);
+                xcb_map_window(connection, client->window);
             else
-                XUnmapWindow(display, client->window);
+                xcb_unmap_window(connection, client->window);
         } else
-            XUnmapWindow(display, client->window);
+            xcb_unmap_window(connection, client->window);
         client = client->next;
     }
 }
@@ -1662,12 +1945,16 @@ SClient* findVisibleClientInWorkspace(int monitor, int workspace) {
 }
 
 SMonitor* getCurrentMonitor() {
-    int          x, y;
-    unsigned int mask;
-    Window       root_return, child_return;
+    int                        x, y;
 
-    if (XQueryPointer(display, root, &root_return, &child_return, &x, &y, &x, &y, &mask))
+    xcb_query_pointer_reply_t* pointer = xcb_query_pointer_reply(connection, xcb_query_pointer(connection, root), NULL);
+
+    if (pointer) {
+        x = pointer->root_x;
+        y = pointer->root_y;
+        free(pointer);
         return monitorAtPoint(x, y);
+    }
 
     return &monitors[0];
 }
@@ -1748,18 +2035,26 @@ void toggleFloating(const char* arg) {
             focused->width  = newWidth;
             focused->height = newHeight;
 
-            XMoveResizeWindow(display, focused->window, focused->x, focused->y, focused->width, focused->height);
+            uint32_t values[4];
+            values[0] = focused->x;
+            values[1] = focused->y;
+            values[2] = focused->width;
+            values[3] = focused->height;
+            xcb_configure_window(connection, focused->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
         }
 
-        XGrabButton(display, Button3, modkey, focused->window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, resizeSECursor);
+        uint32_t eventMask = XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_BUTTON_MOTION;
+        xcb_grab_button(connection, 0, modkey, focused->window, 0, eventMask, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, resizeSECursor);
 
-        XRaiseWindow(display, focused->window);
+        uint32_t values[1] = {XCB_STACK_MODE_ABOVE};
+        xcb_configure_window(connection, focused->window, XCB_CONFIG_WINDOW_STACK_MODE, values);
+
         if (!focused->neverfocus)
-            XSetInputFocus(display, focused->window, RevertToPointerRoot, CurrentTime);
+            xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, focused->window, XCB_CURRENT_TIME);
 
         arrangeClients(&monitors[focused->monitor]);
     } else if (wasFloating) {
-        XUngrabButton(display, Button3, modkey, focused->window);
+        xcb_ungrab_button(connection, XCB_BUTTON_INDEX_3, modkey, focused->window);
 
         SMonitor* newMonitor = monitorAtPoint(focused->x + focused->width / 2, focused->y + focused->height / 2);
 
@@ -1773,7 +2068,8 @@ void toggleFloating(const char* arg) {
 
         moveClientToEnd(focused);
 
-        XLowerWindow(display, focused->window);
+        uint32_t values[1] = {XCB_STACK_MODE_BELOW};
+        xcb_configure_window(connection, focused->window, XCB_CONFIG_WINDOW_STACK_MODE, values);
 
         arrangeClients(&monitors[focused->monitor]);
     }
@@ -1795,14 +2091,18 @@ void restackFloatingWindows() {
         SMonitor* monitor = &monitors[m];
 
         for (SClient* c = clients; c; c = c->next) {
-            if (c->monitor == monitor->num && c->workspace == monitor->currentWorkspace && !c->isFloating)
-                XLowerWindow(display, c->window);
+            if (c->monitor == monitor->num && c->workspace == monitor->currentWorkspace && !c->isFloating) {
+                uint32_t values[1] = {XCB_STACK_MODE_BELOW};
+                xcb_configure_window(connection, c->window, XCB_CONFIG_WINDOW_STACK_MODE, values);
+            }
         }
 
         for (SClient* c = clients; c; c = c->next) {
             if (c->monitor == monitor->num && c->workspace == monitor->currentWorkspace && c->isFloating) {
-                if (c == focused && (windowMovement.active || windowResize.active))
-                    XRaiseWindow(display, c->window);
+                if (c == focused && (windowMovement.active || windowResize.active)) {
+                    uint32_t values[1] = {XCB_STACK_MODE_ABOVE};
+                    xcb_configure_window(connection, c->window, XCB_CONFIG_WINDOW_STACK_MODE, values);
+                }
             }
         }
     }
@@ -1851,7 +2151,12 @@ void tileClients(SMonitor* monitor) {
         client->width  = width;
         client->height = height;
 
-        XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+        uint32_t values[4];
+        values[0] = client->x;
+        values[1] = client->y;
+        values[2] = client->width;
+        values[3] = client->height;
+        xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
         configureClient(client);
         fprintf(stderr, "Single window tiled: monitor=%d pos=%d,%d size=%dx%d\n", monitor->num, client->x, client->y, client->width, client->height);
         return;
@@ -1896,7 +2201,12 @@ void tileClients(SMonitor* monitor) {
         client->width  = width;
         client->height = height;
 
-        XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+        uint32_t values[4];
+        values[0] = client->x;
+        values[1] = client->y;
+        values[2] = client->width;
+        values[3] = client->height;
+        xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
         configureClient(client);
 
         masterY += currentHeight;
@@ -1920,7 +2230,12 @@ void tileClients(SMonitor* monitor) {
         client->width  = width;
         client->height = height;
 
-        XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+        uint32_t values[4];
+        values[0] = client->x;
+        values[1] = client->y;
+        values[2] = client->width;
+        values[3] = client->height;
+        xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values);
         configureClient(client);
 
         stackY += currentHeight;
@@ -1928,13 +2243,11 @@ void tileClients(SMonitor* monitor) {
 }
 
 void warpPointerToClientCenter(SClient* client) {
-    if (!client)
-        return;
-
     int centerX = client->x + client->width / 2;
     int centerY = client->y + client->height / 2;
 
-    XWarpPointer(display, None, root, 0, 0, 0, 0, centerX, centerY);
+    xcb_warp_pointer(connection, XCB_NONE, root, 0, 0, 0, 0, centerX, centerY);
+    xcb_flush(connection);
 }
 
 void moveWindowInStack(const char* arg) {
@@ -1977,7 +2290,7 @@ void moveWindowInStack(const char* arg) {
     }
 
     if (targetClient && targetClient != focused) {
-        fprintf(stderr, "Moving window in stack: 0x%lx with 0x%lx (direction: %s)\n", focused->window, targetClient->window, arg);
+        fprintf(stderr, "Moving window in stack: 0x%x with 0x%x (direction: %s)\n", focused->window, targetClient->window, arg);
         swapClients(focused, targetClient);
         arrangeClients(monitor);
         restackFloatingWindows();
@@ -2060,7 +2373,7 @@ void focusWindowInStack(const char* arg) {
     }
 
     if (targetClient && targetClient != focused) {
-        fprintf(stderr, "Focusing window in stack: 0x%lx (direction: %s, floating: %d)\n", targetClient->window, arg, targetClient->isFloating);
+        fprintf(stderr, "Focusing window in stack: 0x%x (direction: %s, floating: %d)\n", targetClient->window, arg, targetClient->isFloating);
         focusClient(targetClient);
         warpPointerToClientCenter(targetClient);
     }
@@ -2086,8 +2399,10 @@ void adjustMasterFactor(const char* arg) {
 
     tileClients(monitor);
     for (SClient* c = clients; c; c = c->next) {
-        if (c->monitor == monitor->num && c->workspace == monitor->currentWorkspace && !c->isFloating)
-            XLowerWindow(display, c->window);
+        if (c->monitor == monitor->num && c->workspace == monitor->currentWorkspace && !c->isFloating) {
+            uint32_t values = XCB_STACK_MODE_BELOW;
+            xcb_configure_window(connection, c->window, XCB_CONFIG_WINDOW_STACK_MODE, &values);
+        }
     }
 }
 
@@ -2095,7 +2410,7 @@ void swapClients(SClient* a, SClient* b) {
     if (!a || !b || a == b)
         return;
 
-    fprintf(stderr, "Swapping clients in list: 0x%lx and 0x%lx\n", a->window, b->window);
+    fprintf(stderr, "Swapping clients in list: 0x%x and 0x%x\n", a->window, b->window);
 
     SClient* aNext = a->next;
     SClient* bNext = b->next;
@@ -2153,58 +2468,99 @@ void swapClients(SClient* a, SClient* b) {
 }
 
 void updateClientList() {
-    Window   windowList[MAX_CLIENTS];
     int      count  = 0;
     SClient* client = clients;
+    while (client && count < MAX_CLIENTS) {
+        count++;
+        client = client->next;
+    }
 
+    if (count == 0) {
+        xcb_delete_property(connection, root, NET_CLIENT_LIST);
+        return;
+    }
+
+    xcb_window_t* windowList = malloc(count * sizeof(xcb_window_t));
+    if (!windowList) {
+        fprintf(stderr, "Failed to allocate memory for client list\n");
+        return;
+    }
+
+    client = clients;
+    count  = 0;
     while (client && count < MAX_CLIENTS) {
         windowList[count++] = client->window;
         client              = client->next;
     }
 
-    XChangeProperty(display, root, NET_CLIENT_LIST, XA_WINDOW, 32, PropModeReplace, (unsigned char*)windowList, count);
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_CLIENT_LIST, XCB_ATOM_WINDOW, 32, count, windowList);
+
+    free(windowList);
 }
 
-Atom getAtomProperty(SClient* client, Atom prop) {
-    int            di;
-    unsigned long  dl;
-    unsigned char* p = NULL;
-    Atom           da, atom = None;
+xcb_atom_t getAtomProperty(SClient* client, xcb_atom_t prop) {
+    xcb_atom_t                atom = XCB_ATOM_NONE;
 
-    if (XGetWindowProperty(display, client->window, prop, 0L, sizeof atom, False, XA_ATOM, &da, &di, &dl, &dl, &p) == Success && p) {
-        atom = *(Atom*)p;
-        XFree(p);
+    xcb_get_property_cookie_t cookie = xcb_get_property(connection, 0, client->window, prop, XCB_ATOM_ATOM, 0, 1);
+
+    xcb_get_property_reply_t* reply = xcb_get_property_reply(connection, cookie, NULL);
+
+    if (reply && reply->type == XCB_ATOM_ATOM && reply->format == 32 && xcb_get_property_value_length(reply) >= 4) {
+
+        atom = *((xcb_atom_t*)xcb_get_property_value(reply));
     }
+
+    if (reply)
+        free(reply);
+
     return atom;
 }
 
 void setClientState(SClient* client, long state) {
-    long data[] = {state, None};
+    uint32_t data[2] = {state, XCB_NONE};
 
-    XChangeProperty(display, client->window, WM_STATE, WM_STATE, 32, PropModeReplace, (unsigned char*)data, 2);
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, client->window, WM_STATE, WM_STATE, 32, 2, data);
 }
 
-int sendEvent(SClient* client, Atom proto) {
-    int    n;
-    Atom*  protocols;
-    int    exists = 0;
-    XEvent ev;
+int sendEvent(SClient* client, xcb_atom_t proto) {
+    xcb_get_property_cookie_t cookie;
+    xcb_get_property_reply_t* reply;
+    xcb_atom_t*               protocols;
+    int                       exists = 0;
+    int                       n;
 
-    if (XGetWMProtocols(display, client->window, &protocols, &n)) {
-        while (!exists && n--)
-            exists = protocols[n] == proto;
-        XFree(protocols);
+    cookie = xcb_get_property(connection, 0, client->window, WM_PROTOCOLS, XCB_ATOM_ATOM, 0, 1024);
+    reply  = xcb_get_property_reply(connection, cookie, NULL);
+    if (reply && reply->format == 32 && reply->type == XCB_ATOM_ATOM) {
+        protocols = (xcb_atom_t*)xcb_get_property_value(reply);
+        n         = xcb_get_property_value_length(reply) / sizeof(xcb_atom_t);
+
+        for (int i = 0; i < n; i++) {
+            if (protocols[i] == proto) {
+                exists = 1;
+                break;
+            }
+        }
     }
+
+    if (reply)
+        free(reply);
 
     if (exists) {
-        ev.type                 = ClientMessage;
-        ev.xclient.window       = client->window;
-        ev.xclient.message_type = WM_PROTOCOLS;
-        ev.xclient.format       = 32;
-        ev.xclient.data.l[0]    = proto;
-        ev.xclient.data.l[1]    = CurrentTime;
-        XSendEvent(display, client->window, False, NoEventMask, &ev);
+        xcb_client_message_event_t ev;
+
+        memset(&ev, 0, sizeof(ev));
+        ev.response_type  = XCB_CLIENT_MESSAGE;
+        ev.window         = client->window;
+        ev.type           = WM_PROTOCOLS;
+        ev.format         = 32;
+        ev.data.data32[0] = proto;
+        ev.data.data32[1] = XCB_CURRENT_TIME;
+
+        xcb_send_event(connection, 0, client->window, XCB_EVENT_MASK_STRUCTURE_NOTIFY, (char*)&ev);
+        xcb_flush(connection);
     }
+
     return exists;
 }
 
@@ -2216,7 +2572,7 @@ void setFullscreen(SClient* client, int fullscreen) {
         return;
 
     if (fullscreen) {
-        fprintf(stderr, "Setting fullscreen for window 0x%lx\n", client->window);
+        fprintf(stderr, "Setting fullscreen for window 0x%x\n", client->window);
 
         client->oldx      = client->x;
         client->oldy      = client->y;
@@ -2234,17 +2590,23 @@ void setFullscreen(SClient* client, int fullscreen) {
         client->width  = monitor->width;
         client->height = monitor->height;
 
-        XUngrabButton(display, Button1, modkey, client->window);
-        XUngrabButton(display, Button3, modkey, client->window);
+        xcb_ungrab_button(connection, XCB_BUTTON_INDEX_1, modkey, client->window);
+        xcb_ungrab_button(connection, XCB_BUTTON_INDEX_3, modkey, client->window);
 
-        XSetWindowBorderWidth(display, client->window, 0);
-        XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
-        XRaiseWindow(display, client->window);
+        uint32_t values[] = {0};
+        xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
+
+        uint32_t values2[] = {client->x, client->y, client->width, client->height};
+        xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values2);
+
+        uint32_t stack_mode = XCB_STACK_MODE_ABOVE;
+        xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_STACK_MODE, &stack_mode);
+
         configureClient(client);
 
-        XChangeProperty(display, client->window, NET_WM_STATE, XA_ATOM, 32, PropModeReplace, (unsigned char*)&NET_WM_STATE_FULLSCREEN, 1);
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, (unsigned char*)&NET_WM_STATE_FULLSCREEN);
     } else {
-        fprintf(stderr, "Unsetting fullscreen for window 0x%lx\n", client->window);
+        fprintf(stderr, "Unsetting fullscreen for window 0x%x\n", client->window);
 
         client->isFullscreen = 0;
         client->isFloating   = client->oldState;
@@ -2253,17 +2615,21 @@ void setFullscreen(SClient* client, int fullscreen) {
         client->width        = client->oldwidth;
         client->height       = client->oldheight;
 
-        XGrabButton(display, Button1, modkey, client->window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None, moveCursor);
+        uint32_t eventMask = XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_BUTTON_MOTION;
+        xcb_grab_button(connection, XCB_BUTTON_INDEX_1, modkey, client->window, 0, eventMask, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, moveCursor);
 
         if (client->isFloating)
-            XGrabButton(display, Button3, modkey, client->window, False, ButtonPressMask | ButtonReleaseMask | ButtonMotionMask, GrabModeAsync, GrabModeAsync, None,
-                        resizeSECursor);
+            xcb_grab_button(connection, XCB_BUTTON_INDEX_3, modkey, client->window, 0, eventMask, XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC, XCB_NONE, resizeSECursor);
 
-        XSetWindowBorderWidth(display, client->window, borderWidth);
-        XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+        uint32_t values[] = {borderWidth};
+        xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
+
+        uint32_t values2[] = {client->x, client->y, client->width, client->height};
+        xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values2);
+
         configureClient(client);
 
-        XChangeProperty(display, client->window, NET_WM_STATE, XA_ATOM, 32, PropModeReplace, (unsigned char*)NULL, 0);
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, (unsigned char*)NULL);
     }
 
     SMonitor* monitor = &monitors[client->monitor];
@@ -2273,10 +2639,10 @@ void setFullscreen(SClient* client, int fullscreen) {
 }
 
 void updateWindowType(SClient* client) {
-    Atom state = getAtomProperty(client, NET_WM_STATE);
-    Atom wtype = getAtomProperty(client, NET_WM_WINDOW_TYPE);
+    xcb_atom_t state = getAtomProperty(client, NET_WM_STATE);
+    xcb_atom_t wtype = getAtomProperty(client, NET_WM_WINDOW_TYPE);
 
-    fprintf(stderr, "Checking window type for 0x%lx, state=%ld, wtype=%ld\n", client->window, state, wtype);
+    fprintf(stderr, "Checking window type for 0x%x, state=%d, wtype=%d\n", client->window, (int)state, (int)wtype);
 
     if (state == NET_WM_STATE_FULLSCREEN) {
         fprintf(stderr, "Fullscreen window detected, forcing proper position\n");
@@ -2296,15 +2662,21 @@ void updateWindowType(SClient* client) {
             client->width  = monitor->width;
             client->height = monitor->height;
 
-            XUngrabButton(display, Button1, modkey, client->window);
-            XUngrabButton(display, Button3, modkey, client->window);
+            xcb_ungrab_button(connection, XCB_BUTTON_INDEX_1, modkey, client->window);
+            xcb_ungrab_button(connection, XCB_BUTTON_INDEX_3, modkey, client->window);
 
-            XSetWindowBorderWidth(display, client->window, 0);
-            XChangeProperty(display, client->window, NET_WM_STATE, XA_ATOM, 32, PropModeReplace, (unsigned char*)&NET_WM_STATE_FULLSCREEN, 1);
+            uint32_t values[] = {0};
+            xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
 
-            XMoveResizeWindow(display, client->window, client->x, client->y, client->width, client->height);
+            xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, (unsigned char*)&NET_WM_STATE_FULLSCREEN);
+
+            uint32_t values2[] = {client->x, client->y, client->width, client->height};
+            xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values2);
+
             configureClient(client);
-            XRaiseWindow(display, client->window);
+
+            uint32_t stack_mode = XCB_STACK_MODE_ABOVE;
+            xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_STACK_MODE, &stack_mode);
         }
     }
     if (wtype == NET_WM_WINDOW_TYPE_DIALOG || wtype == NET_WM_WINDOW_TYPE_UTILITY) {
@@ -2314,36 +2686,40 @@ void updateWindowType(SClient* client) {
 }
 
 void updateWMHints(SClient* client) {
-    XWMHints* wmh;
+    xcb_get_property_cookie_t cookie = xcb_get_property(connection, 0, client->window, XCB_ATOM_WM_HINTS, XCB_ATOM_WM_HINTS, 0, 9);
+    xcb_get_property_reply_t* reply  = xcb_get_property_reply(connection, cookie, NULL);
 
-    if ((wmh = XGetWMHints(display, client->window))) {
-        if (client == focused && wmh->flags & XUrgencyHint) {
-            wmh->flags &= ~XUrgencyHint;
-            XSetWMHints(display, client->window, wmh);
+    if (reply && reply->format == 32 && xcb_get_property_value_length(reply) >= 9 * 4) {
+        uint32_t* hints = (uint32_t*)xcb_get_property_value(reply);
+        uint32_t  flags = hints[0];
+
+        if (client == focused && (flags & (1 << 8))) {
+            hints[0] &= ~(1 << 8);
+            xcb_change_property(connection, XCB_PROP_MODE_REPLACE, client->window, XCB_ATOM_WM_HINTS, XCB_ATOM_WM_HINTS, 32, 9, hints);
         } else
-            client->isUrgent = (wmh->flags & XUrgencyHint) ? 1 : 0;
+            client->isUrgent = (flags & (1 << 8)) ? 1 : 0;
 
-        if (wmh->flags & InputHint)
-            client->neverfocus = !wmh->input;
+        if (flags & (1 << 0))
+            client->neverfocus = !hints[1];
         else
             client->neverfocus = 0;
 
-        XFree(wmh);
+        free(reply);
     }
 }
 
-void handleClientMessage(XEvent* event) {
-    XClientMessageEvent* cme = &event->xclient;
+void handleClientMessage(xcb_generic_event_t* event) {
+    xcb_client_message_event_t* cme = (xcb_client_message_event_t*)event;
 
-    SClient*             client = findClient(cme->window);
+    SClient*                    client = findClient(cme->window);
 
     if (!client)
         return;
 
-    if (cme->message_type == NET_WM_STATE) {
-        if (cme->data.l[1] == (long)NET_WM_STATE_FULLSCREEN || cme->data.l[2] == (long)NET_WM_STATE_FULLSCREEN)
-            setFullscreen(client, (cme->data.l[0] == 1 /* _NET_WM_STATE_ADD */ || (cme->data.l[0] == 2 /* _NET_WM_STATE_TOGGLE */ && !client->isFullscreen)));
-    } else if (cme->message_type == NET_ACTIVE_WINDOW) {
+    if (cme->type == NET_WM_STATE) {
+        if (cme->data.data32[1] == NET_WM_STATE_FULLSCREEN || cme->data.data32[2] == NET_WM_STATE_FULLSCREEN)
+            setFullscreen(client, (cme->data.data32[0] == 1 /* _NET_WM_STATE_ADD */ || (cme->data.data32[0] == 2 /* _NET_WM_STATE_TOGGLE */ && !client->isFullscreen)));
+    } else if (cme->type == NET_ACTIVE_WINDOW) {
         if (client != focused) {
             if (client->workspace != monitors[client->monitor].currentWorkspace) {
                 client->isUrgent = 1;
@@ -2365,33 +2741,39 @@ void toggleFullscreen(const char* arg) {
 }
 
 void updateSizeHints(SClient* client) {
-    XSizeHints hints;
-    long       supplied;
-
     client->sizeHints.valid = 0;
 
-    if (!XGetWMNormalHints(display, client->window, &hints, &supplied))
-        return;
+    xcb_get_property_cookie_t cookie = xcb_get_property(connection, 0, client->window, XCB_ATOM_WM_NORMAL_HINTS, XCB_ATOM_WM_SIZE_HINTS, 0, 18);
+    xcb_get_property_reply_t* reply  = xcb_get_property_reply(connection, cookie, NULL);
 
-    if (supplied & PMinSize) {
-        client->sizeHints.minWidth  = hints.min_width;
-        client->sizeHints.minHeight = hints.min_height;
+    if (!reply || reply->type != XCB_ATOM_WM_SIZE_HINTS || reply->format != 32 || xcb_get_property_value_length(reply) < 18 * 4) {
+        if (reply)
+            free(reply);
+        return;
+    }
+
+    uint32_t* hints = xcb_get_property_value(reply);
+    uint32_t  flags = hints[0];
+
+    if (flags & 16) {
+        client->sizeHints.minWidth  = hints[5];
+        client->sizeHints.minHeight = hints[6];
     } else {
         client->sizeHints.minWidth  = 0;
         client->sizeHints.minHeight = 0;
     }
 
-    if (supplied & PMaxSize) {
-        client->sizeHints.maxWidth  = hints.max_width;
-        client->sizeHints.maxHeight = hints.max_height;
+    if (flags & 32) {
+        client->sizeHints.maxWidth  = hints[7];
+        client->sizeHints.maxHeight = hints[8];
     } else {
         client->sizeHints.maxWidth  = 0;
         client->sizeHints.maxHeight = 0;
     }
 
-    if (supplied & PBaseSize) {
-        client->sizeHints.baseWidth  = hints.base_width;
-        client->sizeHints.baseHeight = hints.base_height;
+    if (flags & 256) {
+        client->sizeHints.baseWidth  = hints[9];
+        client->sizeHints.baseHeight = hints[10];
     } else {
         client->sizeHints.baseWidth  = 0;
         client->sizeHints.baseHeight = 0;
@@ -2399,28 +2781,46 @@ void updateSizeHints(SClient* client) {
 
     client->sizeHints.valid = 1;
 
-    fprintf(stderr, "Size hints for 0x%lx: min=%dx%d, max=%dx%d, base=%dx%d\n", client->window, client->sizeHints.minWidth, client->sizeHints.minHeight, client->sizeHints.maxWidth,
+    fprintf(stderr, "Size hints for 0x%x: min=%dx%d, max=%dx%d, base=%dx%d\n", client->window, client->sizeHints.minWidth, client->sizeHints.minHeight, client->sizeHints.maxWidth,
             client->sizeHints.maxHeight, client->sizeHints.baseWidth, client->sizeHints.baseHeight);
+
+    free(reply);
 }
 
-void getWindowClass(Window window, char* className, char* instanceName, size_t bufSize) {
-    XClassHint classHint;
-
+void getWindowClass(xcb_window_t window, char* className, char* instanceName, size_t bufSize) {
     className[0]    = '\0';
     instanceName[0] = '\0';
 
-    if (XGetClassHint(display, window, &classHint)) {
-        if (classHint.res_class) {
-            strncpy(className, classHint.res_class, bufSize - 1);
-            className[bufSize - 1] = '\0';
-            XFree(classHint.res_class);
+    xcb_get_property_cookie_t cookie = xcb_get_property(connection, 0, window, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 0, 128);
+    xcb_get_property_reply_t* reply  = xcb_get_property_reply(connection, cookie, NULL);
+
+    if (reply && reply->type == XCB_ATOM_STRING && reply->format == 8) {
+        char* data = (char*)xcb_get_property_value(reply);
+        int   len  = xcb_get_property_value_length(reply);
+
+        if (len > 0) {
+            char* instance = data;
+            char* class    = NULL;
+
+            for (int i = 0; i < len - 1; i++) {
+                if (data[i] == '\0') {
+                    class = data + i + 1;
+                    break;
+                }
+            }
+
+            if (instance) {
+                strncpy(instanceName, instance, bufSize - 1);
+                instanceName[bufSize - 1] = '\0';
+            }
+
+            if (class) {
+                strncpy(className, class, bufSize - 1);
+                className[bufSize - 1] = '\0';
+            }
         }
 
-        if (classHint.res_name) {
-            strncpy(instanceName, classHint.res_name, bufSize - 1);
-            instanceName[bufSize - 1] = '\0';
-            XFree(classHint.res_name);
-        }
+        free(reply);
     }
 }
 
@@ -2430,10 +2830,16 @@ int applyRules(SClient* client) {
 
     getWindowClass(client->window, className, instanceName, sizeof(className));
 
-    XTextProperty textprop;
-    char*         windowTitle = NULL;
-    if (XGetWMName(display, client->window, &textprop) && textprop.value && textprop.nitems) {
-        windowTitle = (char*)textprop.value;
+    char*                     windowTitle = NULL;
+    xcb_get_property_cookie_t cookie      = xcb_get_property(connection, 0, client->window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 0, 128);
+    xcb_get_property_reply_t* reply       = xcb_get_property_reply(connection, cookie, NULL);
+
+    if (reply && reply->type == XCB_ATOM_STRING && reply->format == 8) {
+        windowTitle = malloc(xcb_get_property_value_length(reply) + 1);
+        if (windowTitle) {
+            memcpy(windowTitle, xcb_get_property_value(reply), xcb_get_property_value_length(reply));
+            windowTitle[xcb_get_property_value_length(reply)] = '\0';
+        }
     }
 
     for (size_t i = 0; i < rulesCount; i++) {
@@ -2480,14 +2886,18 @@ int applyRules(SClient* client) {
 
         fprintf(stderr, "Applied rule for window class=%s instance=%s title=%s\n", className, instanceName, windowTitle ? windowTitle : "(null)");
 
-        if (textprop.value)
-            XFree(textprop.value);
+        if (reply)
+            free(reply);
+        if (windowTitle)
+            free(windowTitle);
 
         return 1;
     }
 
-    if (textprop.value)
-        XFree(textprop.value);
+    if (reply)
+        free(reply);
+    if (windowTitle)
+        free(windowTitle);
 
     return 0;
 }
@@ -2518,7 +2928,7 @@ void focusMonitor(const char* arg) {
     int       centerX = monitor->x + monitor->width / 2;
     int       centerY = monitor->y + monitor->height / 2;
 
-    XWarpPointer(display, None, root, 0, 0, 0, 0, centerX, centerY);
+    xcb_warp_pointer(connection, XCB_NONE, root, 0, 0, 0, 0, centerX, centerY);
 
     SClient* clientToFocus = findVisibleClientInWorkspace(targetMonitor, monitor->currentWorkspace);
 
@@ -2527,17 +2937,13 @@ void focusMonitor(const char* arg) {
     else {
         if (focused) {
             if (focused->monitor != targetMonitor) {
-                XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
+                xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, root, XCB_CURRENT_TIME);
                 focused = NULL;
                 updateBorders();
             }
         } else
-            XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
+            xcb_set_input_focus(connection, XCB_INPUT_FOCUS_POINTER_ROOT, root, XCB_CURRENT_TIME);
     }
-
-    currentWorkspace = monitor->currentWorkspace;
-
-    updateBars();
 }
 
 void toggleBar(const char* arg) {

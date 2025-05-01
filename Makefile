@@ -1,7 +1,8 @@
 CC      ?= gcc
 CFLAGS  ?= -Wall -Wextra -O3 -Isrc
-LDFLAGS ?= -lX11 -lXinerama -lXft -lfontconfig -lfreetype -lXcursor -lm
+LDFLAGS ?= -lxcb -lxcb-util -lxcb-keysyms -lxcb-icccm -lxcb-xinerama -lxcb-xkb -lxcb-randr -lxcb-cursor -lxcb-xrm `pkg-config --libs cairo pango pangocairo glib-2.0 fontconfig freetype2` -lm
 FT_CFLAGS = $(shell pkg-config --cflags freetype2)
+CAIRO_CFLAGS = $(shell pkg-config --cflags cairo pango pangocairo)
 
 PREFIX  ?= /usr/local
 BIN     := build/banana
@@ -26,7 +27,7 @@ $(BIN): $(OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) $(FT_CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(FT_CFLAGS) $(CAIRO_CFLAGS) -c -o $@ $<
 
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)

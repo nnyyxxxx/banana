@@ -1,8 +1,8 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#include <X11/Xlib.h>
-#include <X11/keysym.h>
+#include <xcb/xcb.h>
+#include <xcb/xcb_keysyms.h>
 #include <stddef.h>
 
 #define CONFIG_PATH      "/.config/banana/banana.conf"
@@ -19,8 +19,8 @@
 #define SECTION_RULES      "rules"
 
 typedef struct {
-    unsigned int mod;
-    KeySym       keysym;
+    uint16_t     mod;
+    xcb_keysym_t keysym;
     void (*func)(const char*);
     const char* arg;
 } SKeyBinding;
@@ -42,8 +42,8 @@ typedef struct {
 } SFunctionMap;
 
 typedef struct {
-    const char*  name;
-    unsigned int mask;
+    const char* name;
+    uint16_t    mask;
 } SModifierMap;
 
 typedef struct {
@@ -75,6 +75,11 @@ typedef struct {
     int  lastContentLine;
 } SSectionInfo;
 
+typedef struct {
+    const char*  name;
+    xcb_keysym_t keysym;
+} KeySymMapping;
+
 void         spawnProgram(const char* arg);
 void         killClient(const char* arg);
 void         quit(const char* arg);
@@ -97,8 +102,8 @@ void         initDefaults(void);
 void*        safeMalloc(size_t size);
 char*        getConfigPath(void);
 void         trim(char* str);
-KeySym       getKeysym(const char* key);
-unsigned int getModifier(const char* mod);
+xcb_keysym_t getKeysym(const char* key);
+uint16_t     getModifier(const char* mod);
 void (*getFunction(const char* name))(const char*);
 void   freeTokens(char** tokens, int count);
 void   addError(SConfigErrors* errors, const char* message, int lineNum, int isFatal);
@@ -132,14 +137,14 @@ int    finalizeConfigParser(STokenHandlerContext* ctx, SKeyBinding* oldKeys, siz
                             SSectionInfo* sectionStack, int potentialSectionLineNum, char* potentialSectionName);
 void   cleanupConfigData(void);
 
-extern Display* display;
-extern Window   root;
+extern xcb_connection_t* connection;
+extern xcb_window_t      root;
 
-extern int      workspaceCount;
-extern float    defaultMasterFactor;
-extern int      innerGap;
-extern int      outerGap;
-#define modkey Mod1Mask
+extern int               workspaceCount;
+extern float             defaultMasterFactor;
+extern int               innerGap;
+extern int               outerGap;
+#define modkey XCB_MOD_MASK_1
 extern int                barHeight;
 extern char*              barFont;
 extern int                showBar;
