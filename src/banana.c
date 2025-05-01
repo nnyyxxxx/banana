@@ -1645,8 +1645,6 @@ void updateBorders() {
 
         lastActiveBorderColor   = safeStrdup(activeBorderColor);
         lastInactiveBorderColor = safeStrdup(inactiveBorderColor);
-
-        fprintf(stderr, "Border colors initialized\n");
     }
 
     SClient* client = clients;
