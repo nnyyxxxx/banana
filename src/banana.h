@@ -22,7 +22,7 @@ typedef enum {
     LAYOUT_FLOATING,
     LAYOUT_TILED,
     LAYOUT_MAX
-} Layout;
+} ELayout;
 
 typedef struct {
     int minWidth, minHeight;
@@ -33,7 +33,7 @@ typedef struct {
     int maxAspectNum, maxAspectDen;
     int gravity;
     int valid;
-} SizeHints;
+} SSizeHints;
 
 typedef struct SClient {
     Window          window;
@@ -49,18 +49,18 @@ typedef struct SClient {
     int             neverfocus;
     int             isUrgent;
     int             oldState;
-    SizeHints       sizeHints;
+    SSizeHints      sizeHints;
     struct SClient* next;
 } SClient;
 
 typedef struct SMonitor {
-    int    x, y;
-    int    width, height;
-    int    num;
-    int    currentWorkspace;
-    Layout currentLayout;
-    float* masterFactors;
-    int    masterCount;
+    int     x, y;
+    int     width, height;
+    int     num;
+    int     currentWorkspace;
+    ELayout currentLayout;
+    float*  masterFactors;
+    int     masterCount;
 } SMonitor;
 
 typedef struct {
