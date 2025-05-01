@@ -1608,6 +1608,21 @@ void configureClient(SClient* client) {
     xcb_flush(connection);
 }
 
+int parseHexColor(const char* hex, uint16_t* r, uint16_t* g, uint16_t* b) {
+    if (!hex || hex[0] != '#')
+        return 0;
+
+    unsigned int rgb;
+    if (sscanf(hex, "#%x", &rgb) != 1)
+        return 0;
+
+    *r = ((rgb >> 16) & 0xFF) * 257;
+    *g = ((rgb >> 8) & 0xFF) * 257;
+    *b = (rgb & 0xFF) * 257;
+
+    return 1;
+}
+
 void updateBorders() {
     static uint32_t activeBorder            = 0;
     static uint32_t inactiveBorder          = 0;
@@ -1637,26 +1652,58 @@ void updateBorders() {
         xcb_colormap_t colormap = screen->default_colormap;
 
         if (activeBorderColor) {
-            xcb_alloc_named_color_cookie_t cookie = xcb_alloc_named_color(connection, colormap, strlen(activeBorderColor), activeBorderColor);
-            xcb_alloc_named_color_reply_t* reply  = xcb_alloc_named_color_reply(connection, cookie, NULL);
+            uint16_t r, g, b;
+            if (parseHexColor(activeBorderColor, &r, &g, &b)) {
+                xcb_alloc_color_cookie_t cookie = xcb_alloc_color(connection, colormap, r, g, b);
+                xcb_generic_error_t*     error  = NULL;
+                xcb_alloc_color_reply_t* reply  = xcb_alloc_color_reply(connection, cookie, &error);
 
-            if (reply) {
-                activeBorder = reply->pixel;
-                free(reply);
-            } else
+                if (reply) {
+                    activeBorder = reply->pixel;
+                    free(reply);
+                } else {
+                    fprintf(stderr, "banana: failed to allocate active border color '%s'", activeBorderColor);
+                    if (error) {
+                        fprintf(stderr, " (XCB error code: %d)\n", error->error_code);
+                        free(error);
+                    } else
+                        fprintf(stderr, " (unknown error)\n");
+
+                    activeBorder = screen->black_pixel;
+                    fprintf(stderr, "banana: using black pixel for active border\n");
+                }
+            } else {
+                fprintf(stderr, "banana: invalid hex color format '%s'\n", activeBorderColor);
                 activeBorder = screen->black_pixel;
+            }
         } else
             activeBorder = screen->black_pixel;
 
         if (inactiveBorderColor) {
-            xcb_alloc_named_color_cookie_t cookie = xcb_alloc_named_color(connection, colormap, strlen(inactiveBorderColor), inactiveBorderColor);
-            xcb_alloc_named_color_reply_t* reply  = xcb_alloc_named_color_reply(connection, cookie, NULL);
+            uint16_t r, g, b;
+            if (parseHexColor(inactiveBorderColor, &r, &g, &b)) {
+                xcb_alloc_color_cookie_t cookie = xcb_alloc_color(connection, colormap, r, g, b);
+                xcb_generic_error_t*     error  = NULL;
+                xcb_alloc_color_reply_t* reply  = xcb_alloc_color_reply(connection, cookie, &error);
 
-            if (reply) {
-                inactiveBorder = reply->pixel;
-                free(reply);
-            } else
+                if (reply) {
+                    inactiveBorder = reply->pixel;
+                    free(reply);
+                } else {
+                    fprintf(stderr, "banana: failed to allocate inactive border color '%s'", inactiveBorderColor);
+                    if (error) {
+                        fprintf(stderr, " (XCB error code: %d)\n", error->error_code);
+                        free(error);
+                    } else
+                        fprintf(stderr, " (unknown error)\n");
+
+                    inactiveBorder = screen->black_pixel;
+                    fprintf(stderr, "banana: using black pixel for inactive border\n");
+                }
+            } else {
+                fprintf(stderr, "banana: invalid hex color format '%s'\n", inactiveBorderColor);
                 inactiveBorder = screen->black_pixel;
+            }
         } else
             inactiveBorder = screen->black_pixel;
 
