@@ -154,23 +154,42 @@ char** tokenizeLine(const char* line, int* tokenCount) {
 
     char* lineClone         = safeStrdup(line);
     char* p                 = lineClone;
-    int   inString          = 0;
+    int   inDoubleQuote     = 0;
+    int   inSingleQuote     = 0;
     char* tokenStart        = p;
     int   hasUnmatchedQuote = 0;
 
     while (*p) {
-        if (*p == '\"')
-            inString = !inString;
-        else if (isspace((unsigned char)*p) && !inString) {
+        if (*p == '\"' && !inSingleQuote)
+            inDoubleQuote = !inDoubleQuote;
+        else if (*p == '\'' && !inDoubleQuote)
+            inSingleQuote = !inSingleQuote;
+        else if (isspace((unsigned char)*p) && !inDoubleQuote && !inSingleQuote) {
             *p = '\0';
             if (p > tokenStart && *(p - 1) != '\0') {
+                char* t           = tokenStart;
+                int   dquoteCount = 0;
+                int   squoteCount = 0;
+
+                while (t < p) {
+                    if (*t == '\"')
+                        dquoteCount++;
+                    else if (*t == '\'')
+                        squoteCount++;
+                    t++;
+                }
+
+                if (dquoteCount % 2 != 0 || squoteCount % 2 != 0)
+                    hasUnmatchedQuote = 1;
+
                 if (tokenStart[0] == '\"' && *(p - 1) == '\"') {
                     tokenStart++;
                     *(p - 1) = '\0';
-                } else if (tokenStart[0] == '\"' && *(p - 1) != '\"')
-                    hasUnmatchedQuote = 1;
-                else if (tokenStart[0] != '\"' && *(p - 1) == '\"')
-                    hasUnmatchedQuote = 1;
+                } else if (tokenStart[0] == '\'' && *(p - 1) == '\'') {
+                    tokenStart++;
+                    *(p - 1) = '\0';
+                }
+
                 tokens[(*tokenCount)++] = safeStrdup(tokenStart);
             }
             tokenStart = p + 1;
@@ -179,17 +198,33 @@ char** tokenizeLine(const char* line, int* tokenCount) {
     }
 
     if (p > tokenStart && *(p - 1) != '\0') {
+        char* t           = tokenStart;
+        int   dquoteCount = 0;
+        int   squoteCount = 0;
+
+        while (t < p) {
+            if (*t == '\"')
+                dquoteCount++;
+            else if (*t == '\'')
+                squoteCount++;
+            t++;
+        }
+
+        if (dquoteCount % 2 != 0 || squoteCount % 2 != 0)
+            hasUnmatchedQuote = 1;
+
         if (tokenStart[0] == '\"' && *(p - 1) == '\"') {
             tokenStart++;
             *(p - 1) = '\0';
-        } else if (tokenStart[0] == '\"' && *(p - 1) != '\"')
-            hasUnmatchedQuote = 1;
-        else if (tokenStart[0] != '\"' && *(p - 1) == '\"')
-            hasUnmatchedQuote = 1;
+        } else if (tokenStart[0] == '\'' && *(p - 1) == '\'') {
+            tokenStart++;
+            *(p - 1) = '\0';
+        }
+
         tokens[(*tokenCount)++] = safeStrdup(tokenStart);
     }
 
-    if (inString)
+    if (inDoubleQuote || inSingleQuote)
         hasUnmatchedQuote = 1;
 
     if (hasUnmatchedQuote && *tokenCount > 0) {
@@ -328,20 +363,23 @@ int processConfigFile(FILE* fp, STokenHandlerContext* ctx, int* braceDepth, int*
         if (line[0] == '#' || line[0] == '\n' || line[0] == '\r')
             continue;
 
-        char* comment     = NULL;
-        int   inColorCode = 0;
-        int   inQuotes    = 0;
+        char* comment       = NULL;
+        int   inColorCode   = 0;
+        int   inDoubleQuote = 0;
+        int   inSingleQuote = 0;
 
         for (char* p = line; *p; p++) {
-            if (*p == '\"')
-                inQuotes = !inQuotes;
+            if (*p == '\"' && !inSingleQuote)
+                inDoubleQuote = !inDoubleQuote;
+            else if (*p == '\'' && !inDoubleQuote)
+                inSingleQuote = !inSingleQuote;
 
             if (*p == '#' && isxdigit((unsigned char)*(p + 1)))
                 inColorCode = 1;
             else if (isspace((unsigned char)*p))
                 inColorCode = 0;
 
-            if (*p == '#' && !inColorCode && !inQuotes) {
+            if (*p == '#' && !inColorCode && !inDoubleQuote && !inSingleQuote) {
                 comment = p;
                 break;
             }
