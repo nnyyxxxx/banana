@@ -1049,6 +1049,37 @@ void handleConfigureRequest(xcb_generic_event_t* event) {
     if (client) {
         fprintf(stderr, "Configure request for managed window 0x%x\n", ev->window);
 
+        if (client->isFullscreen) {
+            SMonitor* monitor = &monitors[client->monitor];
+
+            uint32_t  values[5];
+            values[0] = monitor->x;
+            values[1] = monitor->y;
+            values[2] = monitor->width;
+            values[3] = monitor->height;
+            values[4] = 0;
+
+            xcb_configure_window(connection, client->window,
+                                 XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT | XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
+
+            xcb_flush(connection);
+
+            xcb_configure_notify_event_t ce;
+            ce.response_type     = XCB_CONFIGURE_NOTIFY;
+            ce.event             = client->window;
+            ce.window            = client->window;
+            ce.x                 = monitor->x;
+            ce.y                 = monitor->y;
+            ce.width             = monitor->width;
+            ce.height            = monitor->height;
+            ce.border_width      = 0;
+            ce.above_sibling     = XCB_NONE;
+            ce.override_redirect = 0;
+
+            xcb_send_event(connection, 0, client->window, XCB_EVENT_MASK_STRUCTURE_NOTIFY, (const char*)&ce);
+            return;
+        }
+
         if (client->isFloating && !client->isFullscreen) {
             int updateX = (ev->value_mask & XCB_CONFIG_WINDOW_X);
             int updateY = (ev->value_mask & XCB_CONFIG_WINDOW_Y);
@@ -1099,7 +1130,7 @@ void handleConfigureRequest(xcb_generic_event_t* event) {
         ce.y                 = client->y;
         ce.width             = client->width;
         ce.height            = client->height;
-        ce.border_width      = borderWidth;
+        ce.border_width      = client->isFullscreen ? 0 : borderWidth;
         ce.above_sibling     = XCB_NONE;
         ce.override_redirect = 0;
 
@@ -2684,7 +2715,7 @@ void setFullscreen(SClient* client, int fullscreen) {
         client->width  = monitor->width;
         client->height = monitor->height;
 
-        xcb_ungrab_button(connection, XCB_BUTTON_INDEX_ANY, modkey, client->window);
+        xcb_ungrab_button(connection, XCB_BUTTON_INDEX_ANY, XCB_MOD_MASK_ANY, client->window);
 
         uint32_t values[] = {0};
         xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
@@ -2698,7 +2729,8 @@ void setFullscreen(SClient* client, int fullscreen) {
         configureClient(client);
 
         xcb_atom_t fs_atom = NET_WM_STATE_FULLSCREEN;
-        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, &fs_atom);
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, client->window, NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, &fs_atom);
+        xcb_flush(connection);
     } else {
         fprintf(stderr, "Unsetting fullscreen for window 0x%x\n", client->window);
 
@@ -2724,7 +2756,8 @@ void setFullscreen(SClient* client, int fullscreen) {
 
         configureClient(client);
 
-        xcb_delete_property(connection, root, NET_WM_STATE);
+        xcb_delete_property(connection, client->window, NET_WM_STATE);
+        xcb_flush(connection);
     }
 
     SMonitor* monitor = &monitors[client->monitor];
@@ -2757,13 +2790,13 @@ void updateWindowType(SClient* client) {
             client->width  = monitor->width;
             client->height = monitor->height;
 
-            xcb_ungrab_button(connection, XCB_BUTTON_INDEX_ANY, modkey, client->window);
+            xcb_ungrab_button(connection, XCB_BUTTON_INDEX_ANY, XCB_MOD_MASK_ANY, client->window);
 
             uint32_t values[] = {0};
             xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
 
             xcb_atom_t fs_atom = NET_WM_STATE_FULLSCREEN;
-            xcb_change_property(connection, XCB_PROP_MODE_REPLACE, root, NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, &fs_atom);
+            xcb_change_property(connection, XCB_PROP_MODE_REPLACE, client->window, NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, &fs_atom);
 
             uint32_t values2[] = {client->x, client->y, client->width, client->height};
             xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values2);
@@ -2772,6 +2805,7 @@ void updateWindowType(SClient* client) {
 
             uint32_t stack_mode = XCB_STACK_MODE_ABOVE;
             xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_STACK_MODE, &stack_mode);
+            xcb_flush(connection);
         }
     }
     if (wtype == NET_WM_WINDOW_TYPE_DIALOG || wtype == NET_WM_WINDOW_TYPE_UTILITY) {
@@ -2812,8 +2846,19 @@ void handleClientMessage(xcb_generic_event_t* event) {
         return;
 
     if (cme->type == NET_WM_STATE) {
-        if (cme->data.data32[1] == NET_WM_STATE_FULLSCREEN || cme->data.data32[2] == NET_WM_STATE_FULLSCREEN)
-            setFullscreen(client, (cme->data.data32[0] == 1 /* _NET_WM_STATE_ADD */ || (cme->data.data32[0] == 2 /* _NET_WM_STATE_TOGGLE */ && !client->isFullscreen)));
+        if (cme->data.data32[1] == NET_WM_STATE_FULLSCREEN || cme->data.data32[2] == NET_WM_STATE_FULLSCREEN) {
+            int action = cme->data.data32[0];
+            int enable = 0;
+
+            if (action == 1)
+                enable = 1;
+            else if (action == 0)
+                enable = 0;
+            else if (action == 2)
+                enable = !client->isFullscreen;
+
+            setFullscreen(client, enable);
+        }
     } else if (cme->type == NET_ACTIVE_WINDOW) {
         if (client != focused) {
             if (client->workspace != monitors[client->monitor].currentWorkspace) {
