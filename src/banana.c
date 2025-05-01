@@ -577,9 +577,6 @@ void handleButtonPress(xcb_generic_event_t* event) {
             uint32_t stack_mode = XCB_STACK_MODE_ABOVE;
             xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_STACK_MODE, &stack_mode);
 
-            xcb_grab_button(connection, 0, client->window, XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_BUTTON_MOTION, XCB_GRAB_MODE_ASYNC,
-                            XCB_GRAB_MODE_ASYNC, XCB_NONE, resizeSECursor, XCB_BUTTON_INDEX_3, modkey);
-
             windowMovement.client = client;
             windowMovement.x      = ev->root_x;
             windowMovement.y      = ev->root_y;
@@ -671,15 +668,11 @@ void swapWindowUnderCursor(SClient* client, int cursorX, int cursorY) {
         fprintf(stderr, "Swapping client 0x%x with 0x%x\n", client->window, targetClient->window);
         client->isFloating = 0;
 
-        xcb_ungrab_button(connection, XCB_BUTTON_INDEX_3, modkey, client->window);
-
         swapClients(client, targetClient);
 
         arrangeClients(&monitors[client->monitor]);
     } else {
         client->isFloating = 0;
-
-        xcb_ungrab_button(connection, XCB_BUTTON_INDEX_3, modkey, client->window);
 
         arrangeClients(&monitors[client->monitor]);
     }
@@ -2169,8 +2162,6 @@ void toggleFloating(const char* arg) {
 
         arrangeClients(&monitors[focused->monitor]);
     } else if (wasFloating) {
-        xcb_ungrab_button(connection, XCB_BUTTON_INDEX_3, modkey, focused->window);
-
         SMonitor* newMonitor = monitorAtPoint(focused->x + focused->width / 2, focused->y + focused->height / 2);
 
         if (newMonitor->num != focused->monitor) {
@@ -2705,10 +2696,12 @@ void setFullscreen(SClient* client, int fullscreen) {
         client->width  = monitor->width;
         client->height = monitor->height;
 
-        xcb_ungrab_button(connection, XCB_BUTTON_INDEX_ANY, XCB_MOD_MASK_ANY, client->window);
-
         uint32_t values[] = {0};
         xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
+
+        xcb_atom_t fs_atom = NET_WM_STATE_FULLSCREEN;
+        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, client->window, NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, &fs_atom);
+        xcb_flush(connection);
 
         uint32_t values2[] = {client->x, client->y, client->width, client->height};
         xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, values2);
@@ -2717,10 +2710,6 @@ void setFullscreen(SClient* client, int fullscreen) {
         xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_STACK_MODE, &stack_mode);
 
         configureClient(client);
-
-        xcb_atom_t fs_atom = NET_WM_STATE_FULLSCREEN;
-        xcb_change_property(connection, XCB_PROP_MODE_REPLACE, client->window, NET_WM_STATE, XCB_ATOM_ATOM, 32, 1, &fs_atom);
-        xcb_flush(connection);
     } else {
         fprintf(stderr, "Unsetting fullscreen for window 0x%x\n", client->window);
 
@@ -2779,8 +2768,6 @@ void updateWindowType(SClient* client) {
             client->y      = monitor->y;
             client->width  = monitor->width;
             client->height = monitor->height;
-
-            xcb_ungrab_button(connection, XCB_BUTTON_INDEX_ANY, XCB_MOD_MASK_ANY, client->window);
 
             uint32_t values[] = {0};
             xcb_configure_window(connection, client->window, XCB_CONFIG_WINDOW_BORDER_WIDTH, values);
