@@ -1183,8 +1183,31 @@ int handleGeneralSection(STokenHandlerContext* ctx, const char* var, const char*
             return 0;
         }
 
-        if (ctx->mode == TOKEN_HANDLER_LOAD)
-            innerGap = atoi(val);
+        int gap = atoi(val);
+        if (gap < 0) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Inner gap value must be positive, clamping to 0");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                innerGap = 0;
+            }
+        } else if (gap > 100) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Inner gap value must be at most 100, clamping");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                innerGap = 100;
+            }
+        } else if (ctx->mode == TOKEN_HANDLER_LOAD)
+            innerGap = gap;
     } else if (strcmp(var, "outer_gap") == 0) {
         if (!isValidInteger(val)) {
             char errMsg[MAX_LINE_LENGTH];
@@ -1199,8 +1222,31 @@ int handleGeneralSection(STokenHandlerContext* ctx, const char* var, const char*
             return 0;
         }
 
-        if (ctx->mode == TOKEN_HANDLER_LOAD)
-            outerGap = atoi(val);
+        int gap = atoi(val);
+        if (gap < 0) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Outer gap value must be positive, clamping to 0");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                outerGap = 0;
+            }
+        } else if (gap > 100) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Outer gap value must be at most 100, clamping");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                outerGap = 100;
+            }
+        } else if (ctx->mode == TOKEN_HANDLER_LOAD)
+            outerGap = gap;
     } else if (strcmp(var, "border_width") == 0) {
         if (!isValidInteger(val)) {
             char errMsg[MAX_LINE_LENGTH];
@@ -1215,8 +1261,31 @@ int handleGeneralSection(STokenHandlerContext* ctx, const char* var, const char*
             return 0;
         }
 
-        if (ctx->mode == TOKEN_HANDLER_LOAD)
-            borderWidth = atoi(val);
+        int width = atoi(val);
+        if (width < 0) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Border width value must be positive, clamping to 0");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                borderWidth = 0;
+            }
+        } else if (width > 100) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Border width value must be at most 100, clamping");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                borderWidth = 100;
+            }
+        } else if (ctx->mode == TOKEN_HANDLER_LOAD)
+            borderWidth = width;
     } else if (strcmp(var, "default_master_factor") == 0) {
         if (!isValidFloat(val)) {
             char errMsg[MAX_LINE_LENGTH];
@@ -1231,8 +1300,31 @@ int handleGeneralSection(STokenHandlerContext* ctx, const char* var, const char*
             return 0;
         }
 
-        if (ctx->mode == TOKEN_HANDLER_LOAD)
-            defaultMasterFactor = atof(val);
+        float factor = atof(val);
+        if (factor < 0.10) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Default master factor value must be at least 0.10, clamping");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                defaultMasterFactor = 0.10;
+            }
+        } else if (factor > 0.90) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Default master factor value must be at most 0.90, clamping");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                defaultMasterFactor = 0.90;
+            }
+        } else if (ctx->mode == TOKEN_HANDLER_LOAD)
+            defaultMasterFactor = factor;
     } else {
         char errMsg[MAX_LINE_LENGTH];
         snprintf(errMsg, MAX_LINE_LENGTH, "Unknown general setting: %s", var);
@@ -1262,8 +1354,31 @@ int handleBarSection(STokenHandlerContext* ctx, const char* var, const char* val
             return 0;
         }
 
-        if (ctx->mode == TOKEN_HANDLER_LOAD)
-            barHeight = atoi(val);
+        int height = atoi(val);
+        if (height < 0) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Bar height value must be positive, clamping to 0");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                barHeight = 0;
+            }
+        } else if (height > 100) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Bar height value must be at most 100, clamping");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                barHeight = 100;
+            }
+        } else if (ctx->mode == TOKEN_HANDLER_LOAD)
+            barHeight = height;
     } else if (strcmp(var, "font") == 0) {
         if (ctx->mode == TOKEN_HANDLER_LOAD) {
             free(barFont);
@@ -1321,8 +1436,31 @@ int handleBarSection(STokenHandlerContext* ctx, const char* var, const char* val
             return 0;
         }
 
-        if (ctx->mode == TOKEN_HANDLER_LOAD)
-            barBorderWidth = atoi(val);
+        int width = atoi(val);
+        if (width < 0) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Bar border width value must be positive, clamping to 0");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                barBorderWidth = 0;
+            }
+        } else if (width > 100) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Bar border width value must be at most 100, clamping");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                barBorderWidth = 100;
+            }
+        } else if (ctx->mode == TOKEN_HANDLER_LOAD)
+            barBorderWidth = width;
     } else if (strcmp(var, "struts_top") == 0) {
         if (!isValidInteger(val)) {
             char errMsg[MAX_LINE_LENGTH];
@@ -1337,8 +1475,31 @@ int handleBarSection(STokenHandlerContext* ctx, const char* var, const char* val
             return 0;
         }
 
-        if (ctx->mode == TOKEN_HANDLER_LOAD)
-            barStrutsTop = atoi(val);
+        int strutsTop = atoi(val);
+        if (strutsTop < 0) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Struts_top value must be positive, clamping to 0");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                barStrutsTop = 0;
+            }
+        } else if (strutsTop > 100) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Struts_top value must be at most 100, clamping");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                barStrutsTop = 100;
+            }
+        } else if (ctx->mode == TOKEN_HANDLER_LOAD)
+            barStrutsTop = strutsTop;
     } else if (strcmp(var, "struts_left") == 0) {
         if (!isValidInteger(val)) {
             char errMsg[MAX_LINE_LENGTH];
@@ -1353,8 +1514,31 @@ int handleBarSection(STokenHandlerContext* ctx, const char* var, const char* val
             return 0;
         }
 
-        if (ctx->mode == TOKEN_HANDLER_LOAD)
-            barStrutsLeft = atoi(val);
+        int strutsLeft = atoi(val);
+        if (strutsLeft < 0) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Struts_left value must be positive, clamping to 0");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                barStrutsLeft = 0;
+            }
+        } else if (strutsLeft > 100) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Struts_left value must be at most 100, clamping");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                barStrutsLeft = 100;
+            }
+        } else if (ctx->mode == TOKEN_HANDLER_LOAD)
+            barStrutsLeft = strutsLeft;
     } else if (strcmp(var, "struts_right") == 0) {
         if (!isValidInteger(val)) {
             char errMsg[MAX_LINE_LENGTH];
@@ -1369,8 +1553,31 @@ int handleBarSection(STokenHandlerContext* ctx, const char* var, const char* val
             return 0;
         }
 
-        if (ctx->mode == TOKEN_HANDLER_LOAD)
-            barStrutsRight = atoi(val);
+        int strutsRight = atoi(val);
+        if (strutsRight < 0) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Struts_right value must be positive, clamping to 0");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                barStrutsRight = 0;
+            }
+        } else if (strutsRight > 100) {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Struts_right value must be at most 100, clamping");
+
+            if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+            } else {
+                fprintf(stderr, "banana: %s\n", errMsg);
+                barStrutsRight = 100;
+            }
+        } else if (ctx->mode == TOKEN_HANDLER_LOAD)
+            barStrutsRight = strutsRight;
     } else {
         char errMsg[MAX_LINE_LENGTH];
         snprintf(errMsg, MAX_LINE_LENGTH, "Unknown bar setting: %s", var);
