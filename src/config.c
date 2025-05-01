@@ -668,7 +668,7 @@ int validateConfig(SConfigErrors* errors) {
 }
 
 void initDefaults(void) {
-    barFont              = safeStrdup("monospace-12");
+    barFont              = safeStrdup("monospace 12");
     activeBorderColor    = safeStrdup("#6275d3");
     inactiveBorderColor  = safeStrdup("#6275d3");
     barBorderColor       = safeStrdup("#000000");
@@ -903,7 +903,7 @@ void createDefaultConfig(void) {
     fprintf(fp, "# Bar settings\n");
     fprintf(fp, "bar {\n");
     fprintf(fp, "    height 20\n");
-    fprintf(fp, "    font \"monospace-12\"\n");
+    fprintf(fp, "    font \"monospace 12\"\n");
     fprintf(fp, "    show true\n");
     fprintf(fp, "    show_only_active_workspaces false\n");
     fprintf(fp, "    border_width 0\n");
