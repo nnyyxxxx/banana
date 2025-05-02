@@ -35,6 +35,7 @@ typedef struct {
     int         monitor;
     int         width;
     int         height;
+    int         swallowing;
 } SWindowRule;
 
 typedef struct {

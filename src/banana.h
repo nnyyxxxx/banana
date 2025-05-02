@@ -44,6 +44,7 @@ typedef struct SClient {
     int             monitor;
     int             oldMonitor;
     int             workspace;
+    int             oldWorkspace;
     int             isFloating;
     int             isFullscreen;
     int             neverfocus;
@@ -51,6 +52,10 @@ typedef struct SClient {
     int             oldState;
     SSizeHints      sizeHints;
     struct SClient* next;
+    int             pid;
+    int             isSwallowing;
+    struct SClient* swallowedBy;
+    struct SClient* swallowed;
 } SClient;
 
 typedef struct SMonitor {
@@ -150,6 +155,11 @@ void                   setFullscreen(SClient* client, int fullscreen);
 void                   updateWindowType(SClient* client);
 void                   updateWMHints(SClient* client);
 void                   updateSizeHints(SClient* client);
+int                    getWindowPID(Window window);
+int                    isChildProcess(int parentPid, int childPid);
+void                   trySwallowClient(SClient* client);
+void                   unmapSwallowedClient(SClient* swallowed);
+void                   remapSwallowedClient(SClient* client);
 
 void                   tileClients(SMonitor* monitor);
 void                   arrangeClients(SMonitor* monitor);

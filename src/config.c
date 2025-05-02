@@ -2071,6 +2071,7 @@ int handleRulesSection(STokenHandlerContext* ctx, int tokenCount, char** tokens,
     rules[rulesCount].monitor    = -1;
     rules[rulesCount].width      = -1;
     rules[rulesCount].height     = -1;
+    rules[rulesCount].swallowing = -1;
 
     for (int i = 3; i < tokenCount; i++) {
         if (strcasecmp(tokens[i], "floating") == 0)
@@ -2153,7 +2154,9 @@ int handleRulesSection(STokenHandlerContext* ctx, int tokenCount, char** tokens,
 
             rules[rulesCount].width  = atoi(tokens[++i]);
             rules[rulesCount].height = atoi(tokens[++i]);
-        } else {
+        } else if (strcasecmp(tokens[i], "swallow") == 0)
+            rules[rulesCount].swallowing = 1;
+        else {
             char errMsg[MAX_LINE_LENGTH];
             snprintf(errMsg, MAX_LINE_LENGTH, "Unknown rule option: %s", tokens[i]);
 

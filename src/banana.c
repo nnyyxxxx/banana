@@ -1103,6 +1103,7 @@ void manageClient(Window window) {
 
     client->monitor         = monitorNum;
     client->workspace       = monitors[monitorNum].currentWorkspace;
+    client->oldWorkspace    = client->workspace;
     client->window          = window;
     client->isFloating      = 0;
     client->isFullscreen    = 0;
@@ -1118,6 +1119,10 @@ void manageClient(Window window) {
     client->x               = 0;
     client->y               = 0;
     client->sizeHints.valid = 0;
+    client->swallowed       = NULL;
+    client->swallowedBy     = NULL;
+    client->isSwallowing    = 0;
+    client->pid             = getWindowPID(window);
 
     Window transientFor = None;
     if (XGetTransientForHint(display, window, &transientFor)) {
@@ -1252,6 +1257,9 @@ void manageClient(Window window) {
     updateBars();
 
     updateClientList();
+
+    if (client->pid > 0)
+        trySwallowClient(client);
 }
 
 void unmanageClient(Window window) {
@@ -1298,10 +1306,24 @@ void unmanageClient(Window window) {
 
     SMonitor* monitor = &monitors[client->monitor];
 
+    SClient*  swallowedBy = client->swallowedBy;
+    SClient*  swallowed   = client->swallowed;
+
     if (prev)
         prev->next = client->next;
     else
         clients = client->next;
+
+    if (swallowedBy) {
+        fprintf(stderr, "Cleaning up swallow relationship - child window closed\n");
+        swallowedBy->swallowed = NULL;
+        remapSwallowedClient(client);
+    }
+
+    if (swallowed) {
+        fprintf(stderr, "Cleaning up swallow relationship - parent window closed\n");
+        swallowed->swallowedBy = NULL;
+    }
 
     free(client);
 
@@ -1615,7 +1637,8 @@ void moveClientToWorkspace(const char* arg) {
     SMonitor* currentMon  = &monitors[focused->monitor];
     SClient*  movedClient = focused;
 
-    movedClient->workspace = workspace;
+    movedClient->oldWorkspace = movedClient->workspace;
+    movedClient->workspace    = workspace;
 
     moveClientToEnd(movedClient);
 
@@ -2492,6 +2515,11 @@ int applyRules(SClient* client) {
             sizeChanged    = 1;
         }
 
+        if (rule->swallowing != -1) {
+            client->isSwallowing = rule->swallowing;
+            fprintf(stderr, "Setting isSwallowing=%d for window 0x%lx (rule matched)\n", client->isSwallowing, client->window);
+        }
+
         if (sizeChanged && client->isFloating) {
             client->x = mon->x + (mon->width - client->width) / 2;
             client->y = mon->y + (mon->height - client->height) / 2;
@@ -2576,6 +2604,187 @@ void tileAllMonitors(void) {
     for (int i = 0; i < numMonitors; i++) {
         arrangeClients(&monitors[i]);
     }
+}
+
+int getWindowPID(Window window) {
+    Atom           actual_type;
+    int            actual_format;
+    unsigned long  nitems, bytes_after;
+    unsigned char* prop = NULL;
+    int            pid  = -1;
+
+    static Atom    atom_pid = None;
+    if (atom_pid == None) {
+        atom_pid = XInternAtom(display, "_NET_WM_PID", False);
+        fprintf(stderr, "Initialized _NET_WM_PID atom\n");
+    }
+
+    fprintf(stderr, "Getting PID for window 0x%lx\n", window);
+
+    if (XGetWindowProperty(display, window, atom_pid, 0, 1, False, XA_CARDINAL, &actual_type, &actual_format, &nitems, &bytes_after, &prop) == Success) {
+        if (prop && actual_type == XA_CARDINAL && actual_format == 32 && nitems == 1) {
+            pid = *((int*)prop);
+            fprintf(stderr, "Window 0x%lx has PID %d\n", window, pid);
+        } else {
+            fprintf(stderr, "Window 0x%lx has no PID property (type=%ld, format=%d, nitems=%ld)\n", window, actual_type, actual_format, nitems);
+        }
+        if (prop)
+            XFree(prop);
+    } else
+        fprintf(stderr, "Failed to get PID property for window 0x%lx\n", window);
+
+    return pid;
+}
+
+int isChildProcess(int parentPid, int childPid) {
+    if (parentPid <= 0 || childPid <= 0) {
+        fprintf(stderr, "Invalid PIDs for child process check: parent=%d, child=%d\n", parentPid, childPid);
+        return 0;
+    }
+
+    char parentPath[256];
+    char buffer[256];
+
+    snprintf(parentPath, sizeof(parentPath), "/proc/%d/task/%d/children", parentPid, parentPid);
+    fprintf(stderr, "Checking parent-child relationship: %d -> %d (path: %s)\n", parentPid, childPid, parentPath);
+
+    FILE* f = fopen(parentPath, "r");
+    if (!f) {
+        fprintf(stderr, "Failed to open %s: %s\n", parentPath, strerror(errno));
+        return 0;
+    }
+
+    if (fgets(buffer, sizeof(buffer), f)) {
+        fprintf(stderr, "Children of PID %d: %s\n", parentPid, buffer);
+
+        char* token = strtok(buffer, " ");
+        while (token) {
+            int pid = atoi(token);
+            if (pid == childPid) {
+                fclose(f);
+                fprintf(stderr, "Found direct child PID match: %d is child of %d\n", childPid, parentPid);
+                return 1;
+            }
+            token = strtok(NULL, " ");
+        }
+
+        fseek(f, 0, SEEK_SET);
+        if (fgets(buffer, sizeof(buffer), f)) {
+            char* bufferCopy = strdup(buffer);
+            if (bufferCopy) {
+                token = strtok(bufferCopy, " ");
+                while (token) {
+                    int pid = atoi(token);
+                    fclose(f);
+
+                    if (pid > 0 && pid != parentPid) {
+                        fprintf(stderr, "Checking indirect child relationship through: %d\n", pid);
+                        if (isChildProcess(pid, childPid)) {
+                            fprintf(stderr, "Found indirect child relationship: %d -> %d -> %d\n", parentPid, pid, childPid);
+                            free(bufferCopy);
+                            return 1;
+                        }
+                    }
+
+                    f = fopen(parentPath, "r");
+                    if (!f) {
+                        fprintf(stderr, "Failed to reopen %s\n", parentPath);
+                        free(bufferCopy);
+                        return 0;
+                    }
+
+                    token = strtok(NULL, " ");
+                }
+                free(bufferCopy);
+            }
+        }
+    } else
+        fprintf(stderr, "No children found for PID %d\n", parentPid);
+
+    fclose(f);
+    return 0;
+}
+
+void trySwallowClient(SClient* client) {
+    if (!client) {
+        fprintf(stderr, "trySwallowClient: client is NULL\n");
+        return;
+    }
+
+    if (client->pid <= 0) {
+        fprintf(stderr, "trySwallowClient: client PID is invalid: %d\n", client->pid);
+        return;
+    }
+
+    fprintf(stderr, "Trying to swallow client 0x%lx with PID %d\n", client->window, client->pid);
+
+    for (SClient* c = clients; c; c = c->next) {
+        if (c == client) {
+            continue;
+        }
+
+        if (c->swallowed || c->swallowedBy) {
+            fprintf(stderr, "Skipping client 0x%lx - already in swallow relationship\n", c->window);
+            continue;
+        }
+
+        if (!c->isSwallowing) {
+            fprintf(stderr, "Skipping client 0x%lx - swallowing not enabled (isSwallowing=%d)\n", c->window, c->isSwallowing);
+            continue;
+        }
+
+        fprintf(stderr, "Checking if client 0x%lx (PID %d) can swallow 0x%lx (PID %d)\n", c->window, c->pid, client->window, client->pid);
+
+        if (c->monitor != client->monitor || c->workspace != client->workspace) {
+            fprintf(stderr, "Skipping client 0x%lx - different monitor/workspace\n", c->window);
+            continue;
+        }
+
+        if (isChildProcess(c->pid, client->pid)) {
+            fprintf(stderr, "Swallowing client 0x%lx (PID %d) by 0x%lx (PID %d)\n", client->window, client->pid, c->window, c->pid);
+
+            c->swallowed        = client;
+            client->swallowedBy = c;
+
+            unmapSwallowedClient(c);
+            break;
+        } else
+            fprintf(stderr, "Not a child process: %d -> %d\n", c->pid, client->pid);
+    }
+}
+
+void unmapSwallowedClient(SClient* swallowed) {
+    if (!swallowed)
+        return;
+
+    fprintf(stderr, "Moving swallowed client 0x%lx to hidden workspace\n", swallowed->window);
+
+    swallowed->oldWorkspace = swallowed->workspace;
+
+    swallowed->workspace = INT_MAX;
+
+    updateClientVisibility();
+}
+
+void remapSwallowedClient(SClient* client) {
+    if (!client || !client->swallowedBy)
+        return;
+
+    SClient* parent = client->swallowedBy;
+    fprintf(stderr, "Restoring previously swallowed client 0x%lx to workspace %d\n", parent->window, parent->oldWorkspace);
+
+    parent->swallowed   = NULL;
+    client->swallowedBy = NULL;
+
+    parent->workspace = parent->oldWorkspace;
+
+    if (parent->workspace == monitors[parent->monitor].currentWorkspace) {
+        focusClient(parent);
+        XRaiseWindow(display, parent->window);
+    }
+
+    arrangeClients(&monitors[parent->monitor]);
+    updateClientVisibility();
 }
 
 int main(int argc, char* argv[]) {
