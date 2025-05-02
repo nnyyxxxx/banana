@@ -2625,9 +2625,8 @@ int getWindowPID(Window window) {
         if (prop && actual_type == XA_CARDINAL && actual_format == 32 && nitems == 1) {
             pid = *((int*)prop);
             fprintf(stderr, "Window 0x%lx has PID %d\n", window, pid);
-        } else {
+        } else
             fprintf(stderr, "Window 0x%lx has no PID property (type=%ld, format=%d, nitems=%ld)\n", window, actual_type, actual_format, nitems);
-        }
         if (prop)
             XFree(prop);
     } else
@@ -2719,9 +2718,8 @@ void trySwallowClient(SClient* client) {
     fprintf(stderr, "Trying to swallow client 0x%lx with PID %d\n", client->window, client->pid);
 
     for (SClient* c = clients; c; c = c->next) {
-        if (c == client) {
+        if (c == client)
             continue;
-        }
 
         if (c->swallowed || c->swallowedBy) {
             fprintf(stderr, "Skipping client 0x%lx - already in swallow relationship\n", c->window);
