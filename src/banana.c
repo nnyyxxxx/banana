@@ -2777,10 +2777,44 @@ void trySwallowClient(SClient* client) {
         if (isChildProcess(c->pid, client->pid)) {
             fprintf(stderr, "Swallowing client 0x%lx (PID %d) by 0x%lx (PID %d)\n", client->window, client->pid, c->window, c->pid);
 
+            SClient* prevParent = NULL;
+            SClient* curr       = clients;
+            while (curr && curr != c) {
+                prevParent = curr;
+                curr       = curr->next;
+            }
+
+            SClient* prevChild = NULL;
+            curr               = clients;
+            while (curr && curr != client) {
+                prevChild = curr;
+                curr      = curr->next;
+            }
+
+            if (prevChild)
+                prevChild->next = client->next;
+            else
+                clients = client->next;
+
+            if (prevParent) {
+                client->next     = prevParent->next;
+                prevParent->next = client;
+            } else {
+                client->next = clients;
+                clients      = client;
+            }
+
             c->swallowed        = client;
             client->swallowedBy = c;
 
             unmapSwallowedClient(c);
+
+            if (!client->isFloating) {
+                fprintf(stderr, "Child window inheriting position from parent\n");
+                client->isFloating = c->isFloating;
+            }
+
+            arrangeClients(&monitors[client->monitor]);
             break;
         } else
             fprintf(stderr, "Not a child process: %d -> %d\n", c->pid, client->pid);
