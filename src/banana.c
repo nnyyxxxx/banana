@@ -1196,10 +1196,15 @@ void manageClient(Window window) {
     if (!clients)
         clients = client;
     else {
-        SClient* last = clients;
-        while (last->next)
-            last = last->next;
-        last->next = client;
+        if (!client->isFloating && newAsMaster) {
+            client->next = clients;
+            clients      = client;
+        } else {
+            SClient* last = clients;
+            while (last->next)
+                last = last->next;
+            last->next = client;
+        }
     }
 
     XMoveResizeWindow(display, window, client->x, client->y, client->width, client->height);

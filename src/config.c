@@ -35,6 +35,7 @@ char*              barUrgentTextColor       = NULL;
 char*              barInactiveTextColor     = NULL;
 char*              barStatusTextColor       = NULL;
 int                borderWidth              = 2;
+int                newAsMaster              = 0;
 
 SKeyBinding*       keys       = NULL;
 size_t             keysCount  = 0;
@@ -608,6 +609,14 @@ int processLine(const char* line, char* section, int* inSection, int* braceDepth
             handlerFreedTokens = 1;
             return 0;
         }
+    } else if (strcasecmp(section, SECTION_MASTER) == 0) {
+        const char* var = tokens[0];
+        const char* val = tokens[1];
+
+        if (handleMasterSection(ctx, var, val, lineNum, tokens, tokenCount)) {
+            handlerFreedTokens = 1;
+            return 0;
+        }
     } else {
         char errMsg[MAX_LINE_LENGTH];
         snprintf(errMsg, MAX_LINE_LENGTH, "Unknown section: %s", section);
@@ -616,7 +625,7 @@ int processLine(const char* line, char* section, int* inSection, int* braceDepth
             addError(ctx->errors, errMsg, lineNum, 0);
             ctx->hasErrors = 1;
         } else
-            fprintf(stderr, "banana: line %d: %s\n", lineNum, errMsg);
+            fprintf(stderr, "banana: %s\n", errMsg);
     }
 
     if (!handlerFreedTokens)
@@ -920,6 +929,11 @@ void createDefaultConfig(void) {
     fprintf(fp, "    bar_urgent_text_color \"#000000\"\n");
     fprintf(fp, "    bar_inactive_text_color \"#ced4f0\"\n");
     fprintf(fp, "    bar_status_text_color \"#ced4f0\"\n");
+    fprintf(fp, "}\n\n");
+
+    fprintf(fp, "# Master layout\n");
+    fprintf(fp, "master {\n");
+    fprintf(fp, "    new_as_master false\n");
     fprintf(fp, "}\n\n");
 
     fprintf(fp, "# Key bindings\n");
@@ -2152,6 +2166,40 @@ int handleRulesSection(STokenHandlerContext* ctx, int tokenCount, char** tokens,
     }
 
     rulesCount++;
+
+    return 1;
+}
+
+int handleMasterSection(STokenHandlerContext* ctx, const char* var, const char* val, int lineNum, char** tokens __attribute__((unused)), int tokenCount) {
+    if (!var || !val) {
+        addError(ctx->errors, "Missing variable or value in master section", lineNum, 0);
+        ctx->hasErrors = 1;
+        return 0;
+    }
+
+    if (tokenCount < 2) {
+        addError(ctx->errors, "Invalid number of tokens in master section", lineNum, 0);
+        ctx->hasErrors = 1;
+        return 0;
+    }
+
+    if (strcmp(var, "new_as_master") == 0) {
+        if (strcmp(val, "true") == 0) {
+            if (ctx->mode == TOKEN_HANDLER_LOAD)
+                newAsMaster = 1;
+        } else if (strcmp(val, "false") == 0) {
+            if (ctx->mode == TOKEN_HANDLER_LOAD)
+                newAsMaster = 0;
+        } else {
+            addError(ctx->errors, "Invalid value for new_as_master (expected 'true' or 'false')", lineNum, 0);
+            ctx->hasErrors = 1;
+            return 0;
+        }
+    } else {
+        addError(ctx->errors, "Unknown variable in master section", lineNum, 0);
+        ctx->hasErrors = 1;
+        return 0;
+    }
 
     return 1;
 }

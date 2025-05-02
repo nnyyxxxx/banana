@@ -171,6 +171,7 @@ extern SClient*        focused;
 extern SWindowMovement windowMovement;
 extern SWindowResize   windowResize;
 extern SMFactAdjust    mfactAdjust;
+extern int             newAsMaster;
 
 extern Atom            WM_PROTOCOLS;
 extern Atom            WM_DELETE_WINDOW;

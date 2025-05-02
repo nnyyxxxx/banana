@@ -17,6 +17,7 @@
 #define SECTION_DECORATION "decoration"
 #define SECTION_BINDS      "binds"
 #define SECTION_RULES      "rules"
+#define SECTION_MASTER     "master"
 
 typedef struct {
     unsigned int mod;
@@ -119,6 +120,7 @@ int    handleBarSection(STokenHandlerContext* ctx, const char* var, const char* 
 int    handleDecorationSection(STokenHandlerContext* ctx, const char* var, const char* val, int lineNum, char** tokens, int tokenCount);
 int    handleBindsSection(STokenHandlerContext* ctx, const char* modStr, const char* keyStr, const char* funcStr, const char* argStr, int lineNum, char** tokens, int tokenCount);
 int    handleRulesSection(STokenHandlerContext* ctx, int tokenCount, char** tokens, int lineNum);
+int    handleMasterSection(STokenHandlerContext* ctx, const char* var, const char* val, int lineNum, char** tokens, int tokenCount);
 int    reportBraceMismatch(STokenHandlerContext* ctx, int sectionDepth, SSectionInfo* sectionStack);
 
 void   backupConfigState(SKeyBinding** oldKeys, size_t* oldKeysCount, SWindowRule** oldRules, size_t* oldRulesCount);
@@ -164,6 +166,7 @@ extern char*              terminal;
 extern char*              launcher;
 extern char*              wall;
 extern char*              screenshot;
+extern int                newAsMaster;
 
 extern int                showErrorNotifications;
 extern char*              errorBorderColor;
