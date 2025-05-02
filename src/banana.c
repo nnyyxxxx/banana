@@ -510,6 +510,8 @@ void swapWindowUnderCursor(SClient* client, int cursorX, int cursorY) {
 
         arrangeClients(&monitors[client->monitor]);
     }
+
+    restackFloatingWindows();
 }
 
 void handleButtonRelease(XEvent* event) {
