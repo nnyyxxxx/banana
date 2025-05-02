@@ -52,3 +52,9 @@ baked in, you will have to use what is known as a compositor e.g. `picom`.
 As of right now there is no support for docks, only the built in bar is supported. In the
 future I would like to implement it, but for right now the baked in bar is enough, and plenty
 scriptable via xsetroot. Use something like `slstatus`.
+
+## swallowing
+
+Banana supports window swallowing, where a parent window hides when its child window opens.
+This relies on the `_NET_WM_PID` X11 property and parent-child process relationships. Windows
+without a proper PID property cannot be swallowed e.g. xev.
