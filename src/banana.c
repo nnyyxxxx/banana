@@ -868,6 +868,8 @@ void handleMapRequest(XEvent* event) {
             XSync(display, False);
             arrangeClients(monitor);
         }
+
+        restackFloatingWindows();
     } else
         XMapWindow(display, ev->window);
 }
@@ -905,8 +907,10 @@ void handleConfigureRequest(XEvent* event) {
 
     XConfigureWindow(display, ev->window, ev->value_mask, &wc);
 
-    if (client)
+    if (client) {
         configureClient(client);
+        restackFloatingWindows();
+    }
 }
 
 void handleUnmapNotify(XEvent* event) {
@@ -1504,6 +1508,8 @@ void handlePropertyNotify(XEvent* event) {
             else if (client->isFullscreen)
                 setFullscreen(client, 0);
         }
+
+        restackFloatingWindows();
     }
 }
 
@@ -2157,6 +2163,8 @@ void swapClients(SClient* a, SClient* b) {
         a->next = b;
     if (b->next == b)
         b->next = a;
+
+    restackFloatingWindows();
 }
 
 void updateClientList() {
@@ -2360,6 +2368,8 @@ void handleClientMessage(XEvent* event) {
                 focusClient(client);
         }
     }
+
+    restackFloatingWindows();
 }
 
 void toggleFullscreen(const char* arg) {
