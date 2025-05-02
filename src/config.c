@@ -18,6 +18,7 @@ int                outerGap                 = 20;
 int                barHeight                = 20;
 char*              barFont                  = NULL;
 int                showBar                  = 1;
+int                bottomBar                = 0;
 int                showOnlyActiveWorkspaces = 0;
 int                barBorderWidth           = 0;
 int                barStrutsTop             = 0;
@@ -909,6 +910,7 @@ void createDefaultConfig(void) {
     fprintf(fp, "    height 20\n");
     fprintf(fp, "    font \"monospace-12\"\n");
     fprintf(fp, "    show true\n");
+    fprintf(fp, "    bottom_bar false\n");
     fprintf(fp, "    show_only_active_workspaces false\n");
     fprintf(fp, "    border_width 0\n");
     fprintf(fp, "    struts_top 0\n");
@@ -1034,6 +1036,7 @@ void reloadConfig(const char* arg) {
     int          oldOuterGap                 = outerGap;
     int          oldBorderWidth              = borderWidth;
     int          oldShowBar                  = showBar;
+    int          oldBottomBar                = bottomBar;
     int          oldShowOnlyActiveWorkspaces = showOnlyActiveWorkspaces;
     int          oldBarHeight                = barHeight;
     int          oldBarBorderWidth           = barBorderWidth;
@@ -1085,6 +1088,7 @@ void reloadConfig(const char* arg) {
         outerGap                 = oldOuterGap;
         borderWidth              = oldBorderWidth;
         showBar                  = oldShowBar;
+        bottomBar                = oldBottomBar;
         showOnlyActiveWorkspaces = oldShowOnlyActiveWorkspaces;
         barHeight                = oldBarHeight;
         barBorderWidth           = oldBarBorderWidth;
@@ -1551,6 +1555,28 @@ int handleBarSection(STokenHandlerContext* ctx, const char* var, const char* val
         } else {
             char errMsg[MAX_LINE_LENGTH];
             snprintf(errMsg, MAX_LINE_LENGTH, "Invalid show_only_active_workspaces value: '%s' - must be true, false, 0, or 1", val);
+            addError(ctx->errors, errMsg, lineNum, 0);
+            ctx->hasErrors = 1;
+            return 0;
+        }
+    } else if (strcmp(var, "bottom_bar") == 0) {
+        if (strcasecmp(val, "true") == 0)
+            bottomBar = 1;
+        else if (strcasecmp(val, "false") == 0)
+            bottomBar = 0;
+        else if (isValidInteger(val)) {
+            int bottomBarValue = atoi(val);
+            if (bottomBarValue != 0 && bottomBarValue != 1) {
+                char errMsg[MAX_LINE_LENGTH];
+                snprintf(errMsg, MAX_LINE_LENGTH, "Invalid bottom_bar value: '%s' - must be true, false, 0, or 1", val);
+                addError(ctx->errors, errMsg, lineNum, 0);
+                ctx->hasErrors = 1;
+                return 0;
+            }
+            bottomBar = bottomBarValue;
+        } else {
+            char errMsg[MAX_LINE_LENGTH];
+            snprintf(errMsg, MAX_LINE_LENGTH, "Invalid bottom_bar value: '%s' - must be true, false, 0, or 1", val);
             addError(ctx->errors, errMsg, lineNum, 0);
             ctx->hasErrors = 1;
             return 0;

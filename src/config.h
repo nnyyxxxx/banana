@@ -146,6 +146,7 @@ extern int      outerGap;
 extern int                barHeight;
 extern char*              barFont;
 extern int                showBar;
+extern int                bottomBar;
 extern int                barBorderWidth;
 extern int                barStrutsTop;
 extern int                barStrutsLeft;

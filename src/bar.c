@@ -193,9 +193,14 @@ void createBars(void) {
     wa.event_mask        = ExposureMask | ButtonPressMask;
 
     for (int i = 0; i < numMonitors; i++) {
-        int barX     = monitors[i].x + barStrutsLeft;
-        int barY     = monitors[i].y + barStrutsTop;
+        int barX = monitors[i].x + barStrutsLeft;
+        int barY;
         int barWidth = monitors[i].width - barStrutsLeft - barStrutsRight;
+
+        if (bottomBar)
+            barY = monitors[i].y + monitors[i].height - barHeight - barStrutsTop;
+        else
+            barY = monitors[i].y + barStrutsTop;
 
         barWindows[i] = XCreateWindow(display, root, barX, barY, barWidth, barHeight, barBorderWidth, DefaultDepth(display, DefaultScreen(display)), CopyFromParent,
                                       DefaultVisual(display, DefaultScreen(display)), CWOverrideRedirect | CWBackPixel | CWBorderPixel | CWEventMask, &wa);
@@ -204,13 +209,19 @@ void createBars(void) {
 
         long struts[12] = {0};
 
-        struts[2] = barY + barHeight + barBorderWidth * 2;
+        if (bottomBar) {
+            struts[3] = barHeight + barBorderWidth * 2;
 
-        struts[4] = monitors[i].x;
-        struts[5] = monitors[i].x + monitors[i].width - 1;
+            struts[10] = monitors[i].x;
+            struts[11] = monitors[i].x + monitors[i].width - 1;
+        } else {
+            struts[2] = barY + barHeight + barBorderWidth * 2;
+
+            struts[4] = monitors[i].x;
+            struts[5] = monitors[i].x + monitors[i].width - 1;
+        }
 
         XChangeProperty(display, barWindows[i], NET_WM_STRUT, XA_CARDINAL, 32, PropModeReplace, (unsigned char*)&struts, 4);
-
         XChangeProperty(display, barWindows[i], NET_WM_STRUT_PARTIAL, XA_CARDINAL, 32, PropModeReplace, (unsigned char*)&struts, 12);
 
         if (barVisible)
@@ -403,14 +414,27 @@ void updateClientPositionsForBar(void) {
         if (!client->isFloating && !client->isFullscreen) {
             SMonitor* m = &monitors[client->monitor];
             if (barVisible) {
-                int barBottom = m->y + barStrutsTop + barHeight + barBorderWidth * 2;
-                if (client->y < barBottom + outerGap) {
-                    client->y = barBottom + outerGap;
+                if (bottomBar) {
+                    int barTop = m->y + m->height - barStrutsTop - barHeight - barBorderWidth * 2;
+                    if (client->y + client->height > barTop - outerGap) {
+                        int newHeight = barTop - client->y - outerGap;
+                        if (newHeight > 0) {
+                            client->height = newHeight;
+                            XResizeWindow(display, client->window, client->width, client->height);
+                        }
+                    }
+                } else {
+                    int barBottom = m->y + barStrutsTop + barHeight + barBorderWidth * 2;
+                    if (client->y < barBottom + outerGap) {
+                        client->y = barBottom + outerGap;
+                        XMoveWindow(display, client->window, client->x, client->y);
+                    }
+                }
+            } else {
+                if (!bottomBar && client->y == m->y + barStrutsTop + barHeight + barBorderWidth * 2 + outerGap) {
+                    client->y = m->y + outerGap;
                     XMoveWindow(display, client->window, client->x, client->y);
                 }
-            } else if (!barVisible && client->y == m->y + barStrutsTop + barHeight + barBorderWidth * 2 + outerGap) {
-                client->y = m->y + outerGap;
-                XMoveWindow(display, client->window, client->x, client->y);
             }
         }
         client = client->next;
