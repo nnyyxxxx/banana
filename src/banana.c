@@ -1390,6 +1390,45 @@ void manageClient(Window window)
 
 	updateSizeHints(client);
 
+	int	 willBeSwallowed = 0;
+	SClient *potentialParent = NULL;
+
+	if (client->pid > 0) {
+		for (SClient *c = clients; c; c = c->next) {
+			if (c == client) {
+				continue;
+			}
+
+			if (c->isSwallowing && !c->swallowed &&
+			    c->monitor == client->monitor &&
+			    c->workspace == client->workspace) {
+				if (isChildProcess(c->pid, client->pid)) {
+					willBeSwallowed = 1;
+					potentialParent = c;
+					fprintf(stderr,
+						"Window 0x%lx will be "
+						"swallowed by 0x%lx - "
+						"preparing in advance\n",
+						window, c->window);
+					break;
+				}
+			}
+		}
+	}
+
+	if (willBeSwallowed && potentialParent && potentialParent->isFloating) {
+		client->isFloating = 1;
+		client->x	   = potentialParent->x;
+		client->y	   = potentialParent->y;
+		client->width	   = potentialParent->width;
+		client->height	   = potentialParent->height;
+		fprintf(stderr,
+			"Pre-setting window 0x%lx as floating with parent "
+			"geometry: %dx%d at %d,%d\n",
+			window, client->width, client->height, client->x,
+			client->y);
+	}
+
 	applyRules(client);
 
 	if (client->sizeHints.valid && client->sizeHints.maxWidth &&
@@ -1429,8 +1468,13 @@ void manageClient(Window window)
 			}
 		}
 
-		client->x = monitor->x + (monitor->width - client->width) / 2;
-		client->y = monitor->y + (monitor->height - client->height) / 2;
+		if (!willBeSwallowed || !potentialParent ||
+		    !potentialParent->isFloating) {
+			client->x =
+			    monitor->x + (monitor->width - client->width) / 2;
+			client->y =
+			    monitor->y + (monitor->height - client->height) / 2;
+		}
 	}
 
 	if (client->y < monitor->y + barHeight && !client->isFloating) {
@@ -1438,7 +1482,8 @@ void manageClient(Window window)
 	}
 
 	if (client->isFloating) {
-		if (client->x == 0 && client->y == 0) {
+		if (client->x == 0 && client->y == 0 &&
+		    (!willBeSwallowed || !potentialParent)) {
 			client->x =
 			    monitor->x + (monitor->width - client->width) / 2;
 			client->y =
