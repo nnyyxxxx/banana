@@ -1582,6 +1582,13 @@ void switchToWorkspace(const char* arg) {
         if (windowInWorkspace) {
             fprintf(stderr, "No window under cursor, focusing available window in workspace %d\n", workspace);
             focusClient(windowInWorkspace);
+        } else {
+            currentWorkspace = workspace;
+            if (focused && focused->monitor != monitor->num) {
+                XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
+                focused = NULL;
+                updateBorders();
+            }
         }
     }
 }
