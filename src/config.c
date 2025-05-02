@@ -993,9 +993,11 @@ void createDefaultConfig(void) {
     fprintf(fp, "#   workspace N - Place window on workspace N (0-based index)\n");
     fprintf(fp, "#   monitor N - Place window on monitor N (0-based index)\n");
     fprintf(fp, "#   size WIDTH HEIGHT - Set window dimensions (only works with floating windows)\n");
+    fprintf(fp, "#   swallow - Enable window swallowing (parent window disappears when child spawns and so on)\n");
     fprintf(fp, "rules {\n");
     fprintf(fp, "    Pocky * * floating size 1100 700\n");
     fprintf(fp, "    vesktop * * workspace 0 monitor 1\n");
+    fprintf(fp, "    Alacritty * * swallow\n");
     fprintf(fp, "}\n");
 
     fclose(fp);
