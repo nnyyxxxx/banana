@@ -2064,6 +2064,7 @@ void moveClientToWorkspace(const char *arg)
 	moveClientToEnd(movedClient);
 
 	if (workspace != currentMon->currentWorkspace) {
+		ignoreNextEnterNotify = 1;
 		XUnmapWindow(display, movedClient->window);
 
 		SClient *focusedClient = focusWindowUnderCursor(currentMon);
