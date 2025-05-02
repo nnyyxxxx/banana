@@ -2795,9 +2795,13 @@ void unmapSwallowedClient(SClient* swallowed) {
 
     swallowed->oldWorkspace = swallowed->workspace;
 
+    int monitor = swallowed->monitor;
+
     swallowed->workspace = INT_MAX;
 
     updateClientVisibility();
+
+    arrangeClients(&monitors[monitor]);
 }
 
 void remapSwallowedClient(SClient* client) {
