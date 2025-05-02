@@ -3062,6 +3062,8 @@ int applyRules(SClient *client)
 		windowTitle = (char *)textprop.value;
 	}
 
+	int rulesApplied = 0;
+
 	for (size_t i = 0; i < rulesCount; i++) {
 		const SWindowRule *rule = &rules[i];
 
@@ -3138,18 +3140,14 @@ int applyRules(SClient *client)
 			className, instanceName,
 			windowTitle ? windowTitle : "(null)");
 
-		if (textprop.value) {
-			XFree(textprop.value);
-		}
-
-		return 1;
+		rulesApplied = 1;
 	}
 
 	if (textprop.value) {
 		XFree(textprop.value);
 	}
 
-	return 0;
+	return rulesApplied;
 }
 
 void focusMonitor(const char *arg)
