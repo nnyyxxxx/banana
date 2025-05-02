@@ -1122,6 +1122,7 @@ void manageClient(Window window) {
     client->swallowed       = NULL;
     client->swallowedBy     = NULL;
     client->isSwallowing    = 0;
+    client->noswallow       = 0;
     client->pid             = getWindowPID(window);
 
     Window transientFor = None;
@@ -2545,6 +2546,11 @@ int applyRules(SClient* client) {
             fprintf(stderr, "Setting isSwallowing=%d for window 0x%lx (rule matched)\n", client->isSwallowing, client->window);
         }
 
+        if (rule->noswallow != -1) {
+            client->noswallow = rule->noswallow;
+            fprintf(stderr, "Setting noswallow=%d for window 0x%lx (rule matched)\n", client->noswallow, client->window);
+        }
+
         if (sizeChanged && client->isFloating) {
             client->x = mon->x + (mon->width - client->width) / 2;
             client->y = mon->y + (mon->height - client->height) / 2;
@@ -2737,6 +2743,11 @@ void trySwallowClient(SClient* client) {
 
     if (client->pid <= 0) {
         fprintf(stderr, "trySwallowClient: client PID is invalid: %d\n", client->pid);
+        return;
+    }
+
+    if (client->noswallow) {
+        fprintf(stderr, "Skipping swallow for client 0x%lx - has noswallow flag\n", client->window);
         return;
     }
 

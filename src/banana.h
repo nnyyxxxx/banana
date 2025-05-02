@@ -54,6 +54,7 @@ typedef struct SClient {
     struct SClient* next;
     int             pid;
     int             isSwallowing;
+    int             noswallow;
     struct SClient* swallowedBy;
     struct SClient* swallowed;
 } SClient;

@@ -996,6 +996,7 @@ void createDefaultConfig(void) {
     fprintf(fp, "#   monitor N - Place window on monitor N (0-based index)\n");
     fprintf(fp, "#   size WIDTH HEIGHT - Set window dimensions (only works with floating windows)\n");
     fprintf(fp, "#   swallow - Enable window swallowing (parent window disappears when child spawns and so on)\n");
+    fprintf(fp, "#   noswallow - Prevent window from being swallowed by any other window\n");
     fprintf(fp, "rules {\n");
     fprintf(fp, "    Pocky * * floating size 1100 700\n");
     fprintf(fp, "    vesktop * * workspace 0 monitor 1\n");
@@ -2100,6 +2101,7 @@ int handleRulesSection(STokenHandlerContext* ctx, int tokenCount, char** tokens,
     rules[rulesCount].width      = -1;
     rules[rulesCount].height     = -1;
     rules[rulesCount].swallowing = -1;
+    rules[rulesCount].noswallow  = -1;
 
     for (int i = 3; i < tokenCount; i++) {
         if (strcasecmp(tokens[i], "floating") == 0)
@@ -2184,6 +2186,8 @@ int handleRulesSection(STokenHandlerContext* ctx, int tokenCount, char** tokens,
             rules[rulesCount].height = atoi(tokens[++i]);
         } else if (strcasecmp(tokens[i], "swallow") == 0)
             rules[rulesCount].swallowing = 1;
+        else if (strcasecmp(tokens[i], "noswallow") == 0)
+            rules[rulesCount].noswallow = 1;
         else {
             char errMsg[MAX_LINE_LENGTH];
             snprintf(errMsg, MAX_LINE_LENGTH, "Unknown rule option: %s", tokens[i]);
