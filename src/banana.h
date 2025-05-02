@@ -166,6 +166,8 @@ void	  remapSwallowedClient(SClient *client);
 void	  tileClients(SMonitor *monitor);
 void	  arrangeClients(SMonitor *monitor);
 void	  swapClients(SClient *a, SClient *b);
+void	  tileAllMonitors(void);
+void	  updateMasterFactorsForAllMonitors(void);
 
 SClient	 *findClient(Window window);
 SClient	 *clientAtPoint(int x, int y);

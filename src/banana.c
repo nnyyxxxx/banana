@@ -3262,8 +3262,30 @@ void toggleBar(const char *arg)
 	}
 }
 
+void updateMasterFactorsForAllMonitors(void)
+{
+	for (int i = 0; i < numMonitors; i++) {
+		for (int ws = 0; ws < workspaceCount; ws++) {
+			int hasWindows = 0;
+			for (SClient *c = clients; c; c = c->next) {
+				if (c->monitor == i && c->workspace == ws &&
+				    !c->isFloating) {
+					hasWindows = 1;
+					break;
+				}
+			}
+
+			if (hasWindows) {
+				monitors[i].masterFactors[ws] =
+				    defaultMasterFactor;
+			}
+		}
+	}
+}
+
 void tileAllMonitors(void)
 {
+	updateMasterFactorsForAllMonitors();
 	for (int i = 0; i < numMonitors; i++) {
 		arrangeClients(&monitors[i]);
 	}
