@@ -1103,9 +1103,9 @@ void createDefaultConfig(void)
 	fprintf(fp, "general {\n");
 	fprintf(fp, "    workspace_count 9\n");
 	fprintf(fp, "    default_master_factor 0.55\n");
-	fprintf(fp, "    inner_gap 15\n");
-	fprintf(fp, "    outer_gap 20\n");
-	fprintf(fp, "    border_width 2\n");
+	fprintf(fp, "    inner_gap 0\n");
+	fprintf(fp, "    outer_gap 0\n");
+	fprintf(fp, "    border_width 1\n");
 	fprintf(fp, "}\n\n");
 
 	fprintf(fp, "# Bar settings\n");
@@ -1124,7 +1124,7 @@ void createDefaultConfig(void)
 	fprintf(fp, "# Decoration\n");
 	fprintf(fp, "decoration {\n");
 	fprintf(fp, "    active_border_color \"#6275d3\"\n");
-	fprintf(fp, "    inactive_border_color \"#6275d3\"\n");
+	fprintf(fp, "    inactive_border_color \"#595959\"\n");
 	fprintf(fp, "    bar_border_color \"#000000\"\n");
 	fprintf(fp, "    bar_background_color \"#000000\"\n");
 	fprintf(fp, "    bar_foreground_color \"#ced4f0\"\n");
