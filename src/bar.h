@@ -6,20 +6,20 @@
 
 #define MAX_STATUS_LENGTH 256
 
-void           toggleBar(const char* arg);
+void	       toggleBar(const char *arg);
 
-extern Window* barWindows;
+extern Window *barWindows;
 extern int     barVisible;
 
-void           createBars(void);
-void           updateStatus(void);
-void           updateBars(void);
-void           raiseBars(void);
-void           handleBarExpose(XEvent* event);
-void           handleBarClick(XEvent* event);
-void           cleanupBars(void);
-void           updateClientPositionsForBar(void);
-void           showHideBars(int show);
-void           resetBarResources(void);
+void	       createBars(void);
+void	       updateStatus(void);
+void	       updateBars(void);
+void	       raiseBars(void);
+void	       handleBarExpose(XEvent *event);
+void	       handleBarClick(XEvent *event);
+void	       cleanupBars(void);
+void	       updateClientPositionsForBar(void);
+void	       showHideBars(int show);
+void	       resetBarResources(void);
 
 #endif /* BAR_H */

@@ -1,29 +1,47 @@
 ---
 BasedOnStyle: LLVM
-IndentWidth: 4
-TabWidth: 4
-UseTab: Never
-ColumnLimit: 180
+IndentWidth: 8
+TabWidth: 8
+UseTab: Always
+ColumnLimit: 80
 AlignAfterOpenBracket: Align
 AlignConsecutiveMacros: true
 AlignConsecutiveAssignments: true
 AlignConsecutiveDeclarations: AcrossEmptyLines
 AlignTrailingComments: true
-BreakBeforeBraces: Attach
-NamespaceIndentation: All
-AccessModifierOffset: -2
-PointerAlignment: Left
-IndentCaseLabels: true
-AllowShortFunctionsOnASingleLine: Empty
-AllowShortIfStatementsOnASingleLine: Never
+BreakBeforeBraces: Linux
+PointerAlignment: Right
+IndentCaseLabels: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
-AllowShortBlocksOnASingleLine: true
-AllowShortCaseLabelsOnASingleLine: true
+AllowShortBlocksOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
 AllowShortEnumsOnASingleLine: false
-BreakConstructorInitializers: AfterColon
-AlwaysBreakTemplateDeclarations: Yes
-SpaceBeforeParens: ControlStatements
+SpaceBeforeParens: ControlStatementsExceptForEachMacros
 SpacesBeforeTrailingComments: 1
 SortIncludes: false
 IncludeBlocks: Preserve
 ReflowComments: false
+SpaceAfterCStyleCast: false
+IndentGotoLabels: false
+IndentPPDirectives: None
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+BinPackArguments: true
+BinPackParameters: true
+InsertBraces: true
+ForEachMacros:
+  - 'for_each'
+  - 'list_for_each'
+  - 'list_for_each_entry'
+  - 'list_for_each_entry_safe'
+  - 'hlist_for_each_entry'
+  - 'while_for_each_ftrace_op'
+PenaltyBreakAssignment: 10
+PenaltyBreakBeforeFirstCallParameter: 30
+PenaltyBreakComment: 10
+PenaltyBreakFirstLessLess: 0
+PenaltyBreakString: 10
+PenaltyExcessCharacter: 100
+PenaltyReturnTypeOnItsOwnLine: 60
