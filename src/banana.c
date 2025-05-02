@@ -23,8 +23,6 @@
 #include "config.h"
 #include "bar.h"
 
-extern char    *safeStrdup(const char *s);
-
 Display	       *display;
 Window		root;
 SClient	       *clients	    = NULL;
@@ -3427,6 +3425,12 @@ void trySwallowClient(SClient *client)
 				"(PID %d)\n",
 				client->window, client->pid, c->window, c->pid);
 
+			int	 wasFloating	= client->isFloating;
+			int	 originalX	= client->x;
+			int	 originalY	= client->y;
+			int	 originalWidth	= client->width;
+			int	 originalHeight = client->height;
+
 			SClient *prevParent = NULL;
 			SClient *curr	    = clients;
 			while (curr && curr != c) {
@@ -3458,13 +3462,67 @@ void trySwallowClient(SClient *client)
 			c->swallowed	    = client;
 			client->swallowedBy = c;
 
+			int parentX	     = c->x;
+			int parentY	     = c->y;
+			int parentWidth	     = c->width;
+			int parentHeight     = c->height;
+			int parentIsFloating = c->isFloating;
+
+			fprintf(stderr,
+				"Parent window geometry being inherited: "
+				"%dx%d at %d,%d (floating: %d)\n",
+				parentWidth, parentHeight, parentX, parentY,
+				parentIsFloating);
+
 			unmapSwallowedClient(c);
 
-			if (!client->isFloating) {
-				fprintf(stderr, "Child window inheriting "
-						"position from parent\n");
-				client->isFloating = c->isFloating;
+			if (wasFloating) {
+				fprintf(stderr,
+					"Child was already floating, "
+					"preserving geometry: "
+					"%dx%d at %d,%d\n",
+					originalWidth, originalHeight,
+					originalX, originalY);
+				client->x      = originalX;
+				client->y      = originalY;
+				client->width  = originalWidth;
+				client->height = originalHeight;
+			} else {
+				fprintf(stderr,
+					"Child inheriting parent geometry: "
+					"%dx%d at %d,%d (floating: %d)\n",
+					parentWidth, parentHeight, parentX,
+					parentY, parentIsFloating);
+				client->isFloating = parentIsFloating;
+				client->x	   = parentX;
+				client->y	   = parentY;
+				client->width	   = parentWidth;
+				client->height	   = parentHeight;
 			}
+
+			if (client->isFloating) {
+				XGrabButton(display, Button3, modkey,
+					    client->window, False,
+					    ButtonPressMask |
+						ButtonReleaseMask |
+						ButtonMotionMask,
+					    GrabModeAsync, GrabModeAsync, None,
+					    resizeSECursor);
+
+				XMoveResizeWindow(display, client->window,
+						  client->x, client->y,
+						  client->width,
+						  client->height);
+				XRaiseWindow(display, client->window);
+
+				fprintf(stderr,
+					"Applied floating geometry to child: "
+					"%dx%d at %d,%d\n",
+					client->width, client->height,
+					client->x, client->y);
+			}
+
+			configureClient(client);
 
 			arrangeClients(&monitors[client->monitor]);
 			break;
