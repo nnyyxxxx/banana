@@ -1316,13 +1316,23 @@ void unmanageClient(Window window) {
 
     if (swallowedBy) {
         fprintf(stderr, "Cleaning up swallow relationship - child window closed\n");
-        swallowedBy->swallowed = NULL;
-        remapSwallowedClient(client);
-    }
+        swallowedBy->swallowed = swallowed;
 
-    if (swallowed) {
+        if (swallowed) {
+            fprintf(stderr, "Transferring nested swallow relationship to parent\n");
+            swallowed->swallowedBy = swallowedBy;
+        } else
+            remapSwallowedClient(client);
+    } else if (swallowed) {
         fprintf(stderr, "Cleaning up swallow relationship - parent window closed\n");
         swallowed->swallowedBy = NULL;
+
+        swallowed->workspace = swallowed->oldWorkspace;
+
+        if (client->workspace == monitors[client->monitor].currentWorkspace) {
+            fprintf(stderr, "Focusing previously swallowed window\n");
+            focusClient(swallowed);
+        }
     }
 
     free(client);
@@ -1678,14 +1688,18 @@ void updateClientVisibility() {
     }
 
     while (client) {
-        SMonitor* m = &monitors[client->monitor];
-        if (client->workspace == m->currentWorkspace) {
-            if (client->isFullscreen || !hasFullscreen[client->monitor][client->workspace])
-                XMapWindow(display, client->window);
-            else
-                XUnmapWindow(display, client->window);
-        } else
+        if (client->workspace == INT_MAX)
             XUnmapWindow(display, client->window);
+        else {
+            SMonitor* m = &monitors[client->monitor];
+            if (client->workspace == m->currentWorkspace) {
+                if (client->isFullscreen || !hasFullscreen[client->monitor][client->workspace])
+                    XMapWindow(display, client->window);
+                else
+                    XUnmapWindow(display, client->window);
+            } else
+                XUnmapWindow(display, client->window);
+        }
         client = client->next;
     }
 }
@@ -2721,8 +2735,8 @@ void trySwallowClient(SClient* client) {
         if (c == client)
             continue;
 
-        if (c->swallowed || c->swallowedBy) {
-            fprintf(stderr, "Skipping client 0x%lx - already in swallow relationship\n", c->window);
+        if (c->swallowed) {
+            fprintf(stderr, "Skipping client 0x%lx - already swallowing another window\n", c->window);
             continue;
         }
 
