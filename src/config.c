@@ -1102,7 +1102,6 @@ void createDefaultConfig(void)
 	fprintf(fp, "# General settings\n");
 	fprintf(fp, "general {\n");
 	fprintf(fp, "    workspace_count 9\n");
-	fprintf(fp, "    default_master_factor 0.55\n");
 	fprintf(fp, "    inner_gap 0\n");
 	fprintf(fp, "    outer_gap 0\n");
 	fprintf(fp, "    border_width 1\n");
@@ -1139,6 +1138,7 @@ void createDefaultConfig(void)
 	fprintf(fp, "# Master layout\n");
 	fprintf(fp, "master {\n");
 	fprintf(fp, "    new_as_master false\n");
+	fprintf(fp, "    factor 0.55\n");
 	fprintf(fp, "}\n\n");
 
 	fprintf(fp, "# Key bindings\n");
@@ -1695,54 +1695,6 @@ int handleGeneralSection(STokenHandlerContext *ctx, const char *var,
 			}
 		} else if (ctx->mode == TOKEN_HANDLER_LOAD) {
 			borderWidth = width;
-		}
-	} else if (strcmp(var, "default_master_factor") == 0) {
-		if (!isValidFloat(val)) {
-			char errMsg[MAX_LINE_LENGTH];
-			snprintf(errMsg, MAX_LINE_LENGTH,
-				 "Invalid master factor: '%s' - must be a "
-				 "floating point number",
-				 val);
-
-			if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-				addError(ctx->errors, errMsg, lineNum, 0);
-				ctx->hasErrors = 1;
-			} else {
-				fprintf(stderr, "banana: %s\n", errMsg);
-			}
-			freeTokens(tokens, tokenCount);
-			return 0;
-		}
-
-		float factor = atof(val);
-		if (factor < 0.10) {
-			char errMsg[MAX_LINE_LENGTH];
-			snprintf(errMsg, MAX_LINE_LENGTH,
-				 "Default master factor value must be at least "
-				 "0.10, clamping");
-
-			if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-				addError(ctx->errors, errMsg, lineNum, 0);
-				ctx->hasErrors = 1;
-			} else {
-				fprintf(stderr, "banana: %s\n", errMsg);
-				defaultMasterFactor = 0.10;
-			}
-		} else if (factor > 0.90) {
-			char errMsg[MAX_LINE_LENGTH];
-			snprintf(errMsg, MAX_LINE_LENGTH,
-				 "Default master factor value must be at most "
-				 "0.90, clamping");
-
-			if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-				addError(ctx->errors, errMsg, lineNum, 0);
-				ctx->hasErrors = 1;
-			} else {
-				fprintf(stderr, "banana: %s\n", errMsg);
-				defaultMasterFactor = 0.90;
-			}
-		} else if (ctx->mode == TOKEN_HANDLER_LOAD) {
-			defaultMasterFactor = factor;
 		}
 	} else {
 		char errMsg[MAX_LINE_LENGTH];
@@ -2750,6 +2702,53 @@ int handleMasterSection(STokenHandlerContext *ctx, const char *var,
 				 lineNum, 0);
 			ctx->hasErrors = 1;
 			return 0;
+		}
+	} else if (strcmp(var, "factor") == 0) {
+		if (!isValidFloat(val)) {
+			char errMsg[MAX_LINE_LENGTH];
+			snprintf(errMsg, MAX_LINE_LENGTH,
+				 "Invalid master factor: '%s' - must be a "
+				 "floating point number",
+				 val);
+
+			if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+				addError(ctx->errors, errMsg, lineNum, 0);
+				ctx->hasErrors = 1;
+			} else {
+				fprintf(stderr, "banana: %s\n", errMsg);
+			}
+			return 0;
+		}
+
+		float factor = atof(val);
+		if (factor < 0.10) {
+			char errMsg[MAX_LINE_LENGTH];
+			snprintf(errMsg, MAX_LINE_LENGTH,
+				 "Master factor value must be at least "
+				 "0.10, clamping");
+
+			if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+				addError(ctx->errors, errMsg, lineNum, 0);
+				ctx->hasErrors = 1;
+			} else {
+				fprintf(stderr, "banana: %s\n", errMsg);
+				defaultMasterFactor = 0.10;
+			}
+		} else if (factor > 0.90) {
+			char errMsg[MAX_LINE_LENGTH];
+			snprintf(errMsg, MAX_LINE_LENGTH,
+				 "Master factor value must be at most "
+				 "0.90, clamping");
+
+			if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+				addError(ctx->errors, errMsg, lineNum, 0);
+				ctx->hasErrors = 1;
+			} else {
+				fprintf(stderr, "banana: %s\n", errMsg);
+				defaultMasterFactor = 0.90;
+			}
+		} else if (ctx->mode == TOKEN_HANDLER_LOAD) {
+			defaultMasterFactor = factor;
 		}
 	} else {
 		addError(ctx->errors, "Unknown variable in master section",
