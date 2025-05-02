@@ -3558,6 +3558,20 @@ void trySwallowClient(SClient *client)
 						  client->x, client->y,
 						  client->width,
 						  client->height);
+
+				fprintf(stderr, "Applying resize for swallowed "
+						"window\n");
+				int tempWidth  = client->width - 1;
+				int tempHeight = client->height - 1;
+
+				XResizeWindow(display, client->window,
+					      tempWidth, tempHeight);
+				XSync(display, False);
+
+				XResizeWindow(display, client->window,
+					      client->width, client->height);
+				XSync(display, False);
+
 				XRaiseWindow(display, client->window);
 
 				fprintf(stderr,
