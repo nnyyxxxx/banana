@@ -33,7 +33,7 @@ then this window manager might not be for you.
 
 Changes to the config file do not require a restart, but changes are not applied immediately,
 to apply changes use `alt+r` or whatever you have `reload_config` set to in the config
-file.
+file. Additionally you can use `banana reload` to reload the config as well.
 
 By default the terminal specified in the config file is set to `alacritty` the keybind to
 launch it is `alt+q`. Make sure you have `alacritty` installed, or just change it before
