@@ -40,7 +40,6 @@ SWindowMovement windowMovement	      = {0, 0, NULL, 0, 0};
 SWindowResize	windowResize	      = {0, 0, NULL, 0, 0};
 int		currentWorkspace      = 0;
 Window		lastMappedWindow      = 0;
-int		ignoreNextEnterNotify = 0;
 
 Atom		WM_PROTOCOLS;
 Atom		WM_DELETE_WINDOW;
@@ -1012,36 +1011,7 @@ void handleEnterNotify(XEvent *event)
 {
 	XCrossingEvent *ev = &event->xcrossing;
 
-	if (windowMovement.active || windowResize.active) {
-		return;
-	}
-
-	if (ev->mode != NotifyNormal || ev->detail == NotifyInferior) {
-		return;
-	}
-
-	if (ignoreNextEnterNotify) {
-		ignoreNextEnterNotify = 0;
-		return;
-	}
-
-	if (lastMappedWindow && focused &&
-	    focused->window == lastMappedWindow) {
-		return;
-	}
-
-	SClient *client = findClient(ev->window);
-	if (client) {
-		SMonitor *monitor = &monitors[client->monitor];
-
-		if (client->workspace == monitor->currentWorkspace &&
-		    client != focused) {
-			fprintf(stderr,
-				"Focusing window 0x%lx after enter notify\n",
-				ev->window);
-			focusClient(client);
-		}
-	}
+	fprintf(stderr, "Enter notify event for window 0x%lx (ignored)\n", ev->window);
 }
 
 void handleMapRequest(XEvent *event)
@@ -2233,7 +2203,6 @@ void moveClientToWorkspace(const char *arg)
 	moveClientToEnd(movedClient);
 
 	if (workspace != currentMon->currentWorkspace) {
-		ignoreNextEnterNotify = 1;
 		XUnmapWindow(display, movedClient->window);
 
 		SClient *focusedClient = focusWindowUnderCursor(currentMon);
@@ -2441,8 +2410,6 @@ void toggleFloating(const char *arg)
 	     focused->sizeHints.minHeight &&
 	     focused->sizeHints.maxWidth == focused->sizeHints.minWidth &&
 	     focused->sizeHints.maxHeight == focused->sizeHints.minHeight);
-
-	ignoreNextEnterNotify = 1;
 
 	focused->isFloating = !focused->isFloating || isFixedSize;
 
@@ -2906,7 +2873,6 @@ void moveWindowInStack(const char *arg)
 		arrangeClients(monitor);
 		restackFloatingWindows();
 
-		ignoreNextEnterNotify = 1;
 		warpPointerToClientCenter(focused);
 		updateBorders();
 	}
