@@ -2217,7 +2217,8 @@ void updateClientVisibility()
 			SMonitor *m = &monitors[client->monitor];
 			if (client->workspace == m->currentWorkspace) {
 				if (m->currentLayout == LAYOUT_MONOCLE &&
-				    !client->isFloating) {
+				    !client->isFloating &&
+				    !client->isFullscreen) {
 					if (client == focused ||
 					    (focused &&
 					     focused->monitor !=
@@ -2444,6 +2445,8 @@ void arrangeClients(SMonitor *monitor)
 	} else {
 		tileClients(monitor);
 	}
+
+	updateClientVisibility();
 }
 
 void monocleClients(SMonitor *monitor)
@@ -2528,12 +2531,12 @@ void monocleClients(SMonitor *monitor)
 		client->width  = width;
 		client->height = height;
 
+		XMoveResizeWindow(display, client->window, client->x, client->y,
+				  client->width, client->height);
+		XSetWindowBorderWidth(display, client->window, 0);
+		configureClient(client);
+
 		if (client == focusedClient) {
-			XMoveResizeWindow(display, client->window, client->x,
-					  client->y, client->width,
-					  client->height);
-			XSetWindowBorderWidth(display, client->window, 0);
-			configureClient(client);
 			XRaiseWindow(display, client->window);
 			XMapWindow(display, client->window);
 		} else {
