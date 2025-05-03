@@ -2236,95 +2236,88 @@ void moveClientToWorkspace(const char *arg)
 
 void updateClientVisibility()
 {
-	SClient *client = clients;
-
-	int	 hasFullscreen[MAX_MONITORS][100] = {0};
+	int hasFullscreen[MAX_MONITORS][100] = {0};
 	for (SClient *c = clients; c; c = c->next) {
-		if (c->isFullscreen && c->monitor < MAX_MONITORS &&
-		    c->workspace < workspaceCount) {
-			hasFullscreen[c->monitor][c->workspace] = 1;
+		if (!c->isFullscreen || c->monitor >= MAX_MONITORS ||
+		    c->workspace >= workspaceCount) {
+			continue;
 		}
+		hasFullscreen[c->monitor][c->workspace] = 1;
 	}
 
 	for (int i = 0; i < numMonitors; i++) {
 		SMonitor *m = &monitors[i];
-		if (m->currentLayout == LAYOUT_MONOCLE) {
-			for (int ws = 0; ws < workspaceCount; ws++) {
-				if (m->lastTiledClient[ws] != None) {
-					SClient *lastClient =
-					    findClient(m->lastTiledClient[ws]);
-					if (!lastClient ||
-					    lastClient->monitor != i ||
-					    lastClient->workspace != ws ||
-					    lastClient->isFloating ||
-					    lastClient->isFullscreen) {
-						m->lastTiledClient[ws] = None;
+		if (m->currentLayout != LAYOUT_MONOCLE) {
+			continue;
+		}
 
-						for (SClient *c = clients; c;
-						     c		= c->next) {
-							if (c->monitor == i &&
-							    c->workspace ==
-								ws &&
-							    !c->isFloating &&
-							    !c->isFullscreen) {
-								m->lastTiledClient
-								    [ws] =
-								    c->window;
-								fprintf(
-								    stderr,
-								    "Resetting "
-								    "lastTiledC"
-								    "lient to "
-								    "0x%lx\n",
-								    c->window);
-								break;
-							}
-						}
-					}
+		for (int ws = 0; ws < workspaceCount; ws++) {
+			if (m->lastTiledClient[ws] == None) {
+				continue;
+			}
+
+			SClient *lastClient =
+			    findClient(m->lastTiledClient[ws]);
+			if (lastClient && lastClient->monitor == i &&
+			    lastClient->workspace == ws &&
+			    !lastClient->isFloating &&
+			    !lastClient->isFullscreen) {
+				continue;
+			}
+
+			m->lastTiledClient[ws] = None;
+
+			for (SClient *c = clients; c; c = c->next) {
+				if (c->monitor != i || c->workspace != ws ||
+				    c->isFloating || c->isFullscreen) {
+					continue;
 				}
+
+				m->lastTiledClient[ws] = c->window;
+				fprintf(stderr,
+					"Resetting lastTiledClient to 0x%lx\n",
+					c->window);
+				break;
 			}
 		}
 	}
 
-	while (client) {
+	for (SClient *client = clients; client; client = client->next) {
 		if (client->workspace == INT_MAX) {
 			XUnmapWindow(display, client->window);
-		} else {
-			SMonitor *m = &monitors[client->monitor];
-			if (client->workspace == m->currentWorkspace) {
-				if (m->currentLayout == LAYOUT_MONOCLE &&
-				    !client->isFloating &&
-				    !client->isFullscreen) {
-					if (client == focused ||
-					    m->lastTiledClient
-						    [m->currentWorkspace] ==
-						client->window) {
-						XMapWindow(display,
-							   client->window);
-						if (client != focused &&
-						    m->lastTiledClient
-							    [m->currentWorkspace] ==
-							client->window) {
-							XRaiseWindow(
-							    display,
-							    client->window);
-						}
-					} else {
-						XUnmapWindow(display,
-							     client->window);
-					}
-				} else if (client->isFullscreen ||
-					   !hasFullscreen[client->monitor]
-							 [client->workspace]) {
-					XMapWindow(display, client->window);
-				} else {
-					XUnmapWindow(display, client->window);
+			continue;
+		}
+
+		SMonitor *m = &monitors[client->monitor];
+		if (client->workspace != m->currentWorkspace) {
+			XUnmapWindow(display, client->window);
+			continue;
+		}
+
+		if (m->currentLayout == LAYOUT_MONOCLE && !client->isFloating &&
+		    !client->isFullscreen) {
+			if (client == focused ||
+			    m->lastTiledClient[m->currentWorkspace] ==
+				client->window) {
+				XMapWindow(display, client->window);
+
+				if (client != focused &&
+				    m->lastTiledClient[m->currentWorkspace] ==
+					client->window) {
+					XRaiseWindow(display, client->window);
 				}
 			} else {
 				XUnmapWindow(display, client->window);
 			}
+			continue;
 		}
-		client = client->next;
+
+		if (client->isFullscreen ||
+		    !hasFullscreen[client->monitor][client->workspace]) {
+			XMapWindow(display, client->window);
+		} else {
+			XUnmapWindow(display, client->window);
+		}
 	}
 }
 
@@ -3779,72 +3772,80 @@ int isChildProcess(int parentPid, int childPid)
 		return 0;
 	}
 
-	if (fgets(buffer, sizeof(buffer), f)) {
-		fprintf(stderr, "Children of PID %d: %s\n", parentPid, buffer);
-
-		char *token = strtok(buffer, " ");
-		while (token) {
-			int pid = atoi(token);
-			if (pid == childPid) {
-				fclose(f);
-				fprintf(stderr,
-					"Found direct child PID match: %d is "
-					"child of %d\n",
-					childPid, parentPid);
-				return 1;
-			}
-			token = strtok(NULL, " ");
-		}
-
-		fseek(f, 0, SEEK_SET);
-		if (fgets(buffer, sizeof(buffer), f)) {
-			char *bufferCopy = strdup(buffer);
-			if (bufferCopy) {
-				token = strtok(bufferCopy, " ");
-				while (token) {
-					int pid = atoi(token);
-					fclose(f);
-
-					if (pid > 0 && pid != parentPid) {
-						fprintf(stderr,
-							"Checking indirect "
-							"child relationship "
-							"through: %d\n",
-							pid);
-						if (isChildProcess(pid,
-								   childPid)) {
-							fprintf(stderr,
-								"Found "
-								"indirect "
-								"child "
-								"relationship: "
-								"%d -> %d -> "
-								"%d\n",
-								parentPid, pid,
-								childPid);
-							free(bufferCopy);
-							return 1;
-						}
-					}
-
-					f = fopen(parentPath, "r");
-					if (!f) {
-						fprintf(stderr,
-							"Failed to reopen %s\n",
-							parentPath);
-						free(bufferCopy);
-						return 0;
-					}
-
-					token = strtok(NULL, " ");
-				}
-				free(bufferCopy);
-			}
-		}
-	} else {
+	if (!fgets(buffer, sizeof(buffer), f)) {
 		fprintf(stderr, "No children found for PID %d\n", parentPid);
+		fclose(f);
+		return 0;
 	}
 
+	fprintf(stderr, "Children of PID %d: %s\n", parentPid, buffer);
+
+	char *token = strtok(buffer, " ");
+	while (token) {
+		int pid = atoi(token);
+		if (pid == childPid) {
+			fclose(f);
+			fprintf(stderr,
+				"Found direct child PID match: %d is "
+				"child of %d\n",
+				childPid, parentPid);
+			return 1;
+		}
+		token = strtok(NULL, " ");
+	}
+
+	fseek(f, 0, SEEK_SET);
+	if (!fgets(buffer, sizeof(buffer), f)) {
+		fclose(f);
+		return 0;
+	}
+
+	char *bufferCopy = strdup(buffer);
+	if (!bufferCopy) {
+		fclose(f);
+		return 0;
+	}
+
+	token = strtok(bufferCopy, " ");
+	while (token) {
+		int pid = atoi(token);
+		fclose(f);
+
+		if (pid <= 0 || pid == parentPid) {
+			f = fopen(parentPath, "r");
+			if (!f) {
+				fprintf(stderr, "Failed to reopen %s\n",
+					parentPath);
+				free(bufferCopy);
+				return 0;
+			}
+			token = strtok(NULL, " ");
+			continue;
+		}
+
+		fprintf(stderr,
+			"Checking indirect child relationship through: %d\n",
+			pid);
+		if (isChildProcess(pid, childPid)) {
+			fprintf(stderr,
+				"Found indirect child relationship: %d -> %d "
+				"-> %d\n",
+				parentPid, pid, childPid);
+			free(bufferCopy);
+			return 1;
+		}
+
+		f = fopen(parentPath, "r");
+		if (!f) {
+			fprintf(stderr, "Failed to reopen %s\n", parentPath);
+			free(bufferCopy);
+			return 0;
+		}
+
+		token = strtok(NULL, " ");
+	}
+
+	free(bufferCopy);
 	fclose(f);
 	return 0;
 }
