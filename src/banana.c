@@ -3307,6 +3307,15 @@ void setFullscreen(SClient *client, int fullscreen)
 
 		XChangeProperty(display, client->window, NET_WM_STATE, XA_ATOM,
 				32, PropModeReplace, (unsigned char *)NULL, 0);
+
+		SMonitor *monitor = &monitors[client->monitor];
+		if (!client->isFloating &&
+		    monitor->currentLayout == LAYOUT_MONOCLE) {
+			fprintf(stderr, "Unfullscreening in monocle mode, "
+					"setting as lastTiledClient\n");
+			monitor->lastTiledClient[client->workspace] =
+			    client->window;
+		}
 	}
 
 	SMonitor *monitor = &monitors[client->monitor];
