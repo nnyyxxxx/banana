@@ -60,14 +60,15 @@ typedef struct SClient {
 } SClient;
 
 typedef struct SMonitor {
-	int	x, y;
-	int	width, height;
-	int	num;
-	int	currentWorkspace;
-	ELayout currentLayout;
-	float  *masterFactors;
-	int	masterCount;
-	Window *lastTiledClient;
+	int	 x, y;
+	int	 width, height;
+	int	 num;
+	int	 currentWorkspace;
+	ELayout	 currentLayout;
+	ELayout *workspaceLayouts;
+	float	*masterFactors;
+	int	 masterCount;
+	Window	*lastTiledClient;
 } SMonitor;
 
 typedef struct {

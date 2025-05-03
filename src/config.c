@@ -58,6 +58,7 @@ const SFunctionMap functionMap[] = {{"spawn", spawnProgram},
 				    {"focus_monitor", focusMonitor},
 				    {"toggle_bar", toggleBar},
 				    {"reload_config", reloadConfig},
+				    {"cycle_layouts", cycleLayouts},
 				    {NULL, NULL}};
 
 const SModifierMap modifierMap[] = {{"alt", Mod1Mask},
@@ -1245,7 +1246,8 @@ void createDefaultConfig(void)
 	fprintf(fp, "    alt space toggle_floating\n");
 	fprintf(fp, "    alt f toggle_fullscreen\n");
 	fprintf(fp, "    alt b toggle_bar\n");
-	fprintf(fp, "    alt r reload_config\n\n");
+	fprintf(fp, "    alt r reload_config\n");
+	fprintf(fp, "    alt t cycle_layouts\n\n");
 
 	fprintf(fp, "    alt h adjust_master \"decrease\"\n");
 	fprintf(fp, "    alt l adjust_master \"increase\"\n\n");

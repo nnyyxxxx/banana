@@ -90,6 +90,7 @@ void	     focusWindowInStack(const char *arg);
 void	     adjustMasterFactor(const char *arg);
 void	     focusMonitor(const char *arg);
 void	     toggleBar(const char *arg);
+void	     cycleLayouts(const char *arg);
 void	     reloadConfig(const char *arg);
 char	    *safeStrdup(const char *s);
 int	     loadConfig(void);

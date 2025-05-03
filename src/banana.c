@@ -399,6 +399,7 @@ void cleanup()
 	if (monitors) {
 		for (int i = 0; i < numMonitors; i++) {
 			free(monitors[i].masterFactors);
+			free(monitors[i].workspaceLayouts);
 			free(monitors[i].lastTiledClient);
 		}
 		free(monitors);
@@ -1910,6 +1911,7 @@ void updateMonitors()
 	if (monitors) {
 		for (int i = 0; i < numMonitors; i++) {
 			free(monitors[i].masterFactors);
+			free(monitors[i].workspaceLayouts);
 			free(monitors[i].lastTiledClient);
 		}
 		free(monitors);
@@ -1939,10 +1941,16 @@ void updateMonitors()
 		monitors[0].masterCount	     = 1;
 		monitors[0].masterFactors =
 		    malloc(workspaceCount * sizeof(float));
+		monitors[0].workspaceLayouts =
+		    malloc(workspaceCount * sizeof(ELayout));
 		monitors[0].lastTiledClient =
 		    malloc(workspaceCount * sizeof(Window));
 		for (int ws = 0; ws < workspaceCount; ws++) {
-			monitors[0].masterFactors[ws]	= defaultMasterFactor;
+			monitors[0].masterFactors[ws] = defaultMasterFactor;
+			monitors[0].workspaceLayouts[ws] =
+			    strcasecmp(defaultLayout, "monocle") == 0
+				? LAYOUT_MONOCLE
+				: LAYOUT_TILED;
 			monitors[0].lastTiledClient[ws] = None;
 		}
 	} else {
@@ -1958,11 +1966,17 @@ void updateMonitors()
 			monitors[i].masterCount	     = 1;
 			monitors[i].masterFactors =
 			    malloc(workspaceCount * sizeof(float));
+			monitors[i].workspaceLayouts =
+			    malloc(workspaceCount * sizeof(ELayout));
 			monitors[i].lastTiledClient =
 			    malloc(workspaceCount * sizeof(Window));
 			for (int ws = 0; ws < workspaceCount; ws++) {
 				monitors[i].masterFactors[ws] =
 				    defaultMasterFactor;
+				monitors[i].workspaceLayouts[ws] =
+				    strcasecmp(defaultLayout, "monocle") == 0
+					? LAYOUT_MONOCLE
+					: LAYOUT_TILED;
 				monitors[i].lastTiledClient[ws] = None;
 			}
 		}
@@ -2466,6 +2480,9 @@ void arrangeClients(SMonitor *monitor)
 	} else {
 		monitor->currentLayout = LAYOUT_TILED;
 	}
+
+	monitor->currentLayout =
+	    monitor->workspaceLayouts[monitor->currentWorkspace];
 
 	if (monitor->currentLayout == LAYOUT_MONOCLE) {
 		monocleClients(monitor);
@@ -3580,16 +3597,35 @@ void toggleBar(const char *arg)
 {
 	(void)arg;
 
-	showBar = !showBar;
-	createBars();
-	showHideBars(showBar);
+	barVisible = !barVisible;
+	showHideBars(barVisible);
 	updateClientPositionsForBar();
+	arrangeClients(getCurrentMonitor());
+}
+
+void cycleLayouts(const char *arg)
+{
+	(void)arg;
+
+	SMonitor *currentMonitor = getCurrentMonitor();
+	if (!currentMonitor) {
+		return;
+	}
+
+	ELayout newLayout = (currentMonitor->currentLayout == LAYOUT_TILED)
+				? LAYOUT_MONOCLE
+				: LAYOUT_TILED;
 
 	for (int i = 0; i < numMonitors; i++) {
+		for (int ws = 0; ws < workspaceCount; ws++) {
+			monitors[i].workspaceLayouts[ws] = newLayout;
+		}
+		monitors[i].currentLayout = newLayout;
 		arrangeClients(&monitors[i]);
 	}
 
-	updateBars();
+	updateClientVisibility();
+	updateBorders();
 }
 
 void updateMasterFactorsForAllMonitors(void)
@@ -3616,7 +3652,16 @@ void updateMasterFactorsForAllMonitors(void)
 void tileAllMonitors(void)
 {
 	updateMasterFactorsForAllMonitors();
+
+	ELayout configLayout = strcasecmp(defaultLayout, "monocle") == 0
+				   ? LAYOUT_MONOCLE
+				   : LAYOUT_TILED;
+
 	for (int i = 0; i < numMonitors; i++) {
+		for (int ws = 0; ws < workspaceCount; ws++) {
+			monitors[i].workspaceLayouts[ws] = configLayout;
+		}
+		monitors[i].currentLayout = configLayout;
 		arrangeClients(&monitors[i]);
 	}
 }
