@@ -50,6 +50,10 @@ options are different between layouts, for instance `focus_window` will cycle be
 in the `monocle` layout while in the `master&stack` layout it will simply focus the next window
 in the direction.
 
+For cycling between layouts on the fly use `cycle_layouts` it will cycle between the available
+layouts, this will be overriden on config reload depending on if a different layout is specified
+in your config.
+
 ## compositing
 
 By default banana doesn't have rounded corners, opacity, animations, and all of that junk
