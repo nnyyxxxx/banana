@@ -1183,6 +1183,14 @@ void killClient(const char *arg)
 		return;
 	}
 
+	if (focused->swallowed) {
+		fprintf(stderr,
+			"Not killing client 0x%lx - it's swallowing another "
+			"window\n",
+			focused->window);
+		return;
+	}
+
 	fprintf(stderr, "Killing client 0x%lx\n", focused->window);
 
 	if (!sendEvent(focused, WM_DELETE_WINDOW)) {
@@ -3607,6 +3615,7 @@ void trySwallowClient(SClient *client)
 			configureClient(client);
 
 			arrangeClients(&monitors[client->monitor]);
+			focusClient(client);
 			break;
 		} else {
 			fprintf(stderr, "Not a child process: %d -> %d\n",
@@ -3651,9 +3660,20 @@ void remapSwallowedClient(SClient *client)
 
 	parent->workspace = parent->oldWorkspace;
 
-	if (parent->workspace == monitors[parent->monitor].currentWorkspace) {
-		focusClient(parent);
-		XRaiseWindow(display, parent->window);
+	XWindowAttributes wa;
+	if (XGetWindowAttributes(display, parent->window, &wa)) {
+		if (parent->workspace ==
+		    monitors[parent->monitor].currentWorkspace) {
+			XMapWindow(display, parent->window);
+			XSync(display, False);
+			focusClient(parent);
+			XRaiseWindow(display, parent->window);
+		}
+	} else {
+		fprintf(stderr,
+			"Parent window 0x%lx no longer exists, skipping "
+			"focus\n",
+			parent->window);
 	}
 
 	arrangeClients(&monitors[parent->monitor]);
