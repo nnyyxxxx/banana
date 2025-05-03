@@ -22,6 +22,7 @@
 #include "banana.h"
 #include "config.h"
 #include "bar.h"
+#include "ipc.h"
 
 Display	       *display;
 Window		root;
@@ -257,6 +258,10 @@ void setup()
 	updateClientPositionsForBar();
 	updateClientVisibility();
 
+	if (ipcInitServer() != 0) {
+		fprintf(stderr, "Failed to initialize IPC server\n");
+	}
+
 	XSync(display, False);
 }
 
@@ -368,6 +373,11 @@ void run()
 				XSetErrorHandler(oldHandler);
 			}
 		} else {
+			int ipc_result = ipcHandleCommands();
+			if (ipc_result > 0) {
+				reloadConfig(NULL);
+			}
+
 			checkCursorPosition(&lastCheck, &lastCursorX,
 					    &lastCursorY, &lastWindow);
 			usleep(5000);
@@ -387,6 +397,9 @@ void cleanup()
 	}
 
 	if (monitors) {
+		for (int i = 0; i < numMonitors; i++) {
+			free(monitors[i].masterFactors);
+		}
 		free(monitors);
 	}
 
@@ -408,6 +421,8 @@ void cleanup()
 	XFreeCursor(display, resizeNWCursor);
 
 	freeConfig();
+
+	ipcCleanup();
 
 	XCloseDisplay(display);
 }
@@ -3691,10 +3706,18 @@ int main(int argc, char *argv[])
 			printConfigErrors(&errors);
 
 			return result ? 0 : 1;
+		} else if (strcmp(argv[1], "reload") == 0) {
+			int result = ipcSendCommand(IPC_COMMAND_RELOAD, NULL);
+			if (result != 0) {
+				fprintf(stderr, "Failed to send reload command "
+						"to running banana instance\n");
+				return 1;
+			}
+			return 0;
 		} else {
 			fprintf(stderr, "banana: unknown command '%s'\n",
 				argv[1]);
-			fprintf(stderr, "Usage: banana [validate]\n");
+			fprintf(stderr, "Usage: banana [validate|reload]\n");
 			return 1;
 		}
 	}
