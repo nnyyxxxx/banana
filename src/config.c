@@ -1810,7 +1810,7 @@ int handleGeneralSection(STokenHandlerContext *ctx, const char *var,
 				fprintf(stderr, "banana: %s\n", errMsg);
 			}
 			freeTokens(tokens, tokenCount);
-			return 0;
+			return 1;
 		}
 
 		if (ctx->mode == TOKEN_HANDLER_LOAD) {
