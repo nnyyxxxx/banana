@@ -2884,6 +2884,10 @@ void focusWindowInStack(const char *arg)
 		return;
 	}
 
+	if (focused->isFullscreen && monitor->currentLayout == LAYOUT_MONOCLE) {
+		return;
+	}
+
 	int	 workspace    = focused->workspace;
 	SClient *targetClient = NULL;
 	SClient *prevFocused  = focused;
