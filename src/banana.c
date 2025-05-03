@@ -36,10 +36,10 @@ Cursor		resizeSECursor;
 Cursor		resizeSWCursor;
 Cursor		resizeNECursor;
 Cursor		resizeNWCursor;
-SWindowMovement windowMovement	      = {0, 0, NULL, 0, 0};
-SWindowResize	windowResize	      = {0, 0, NULL, 0, 0};
-int		currentWorkspace      = 0;
-Window		lastMappedWindow      = 0;
+SWindowMovement windowMovement	 = {0, 0, NULL, 0, 0};
+SWindowResize	windowResize	 = {0, 0, NULL, 0, 0};
+int		currentWorkspace = 0;
+Window		lastMappedWindow = 0;
 
 Atom		WM_PROTOCOLS;
 Atom		WM_DELETE_WINDOW;
@@ -499,6 +499,10 @@ void handleButtonPress(XEvent *event)
 			client->y      = newY;
 			client->width  = newWidth;
 			client->height = newHeight;
+
+			XSetWindowBorderWidth(display, client->window,
+					      borderWidth);
+			updateBorders();
 
 			XMoveResizeWindow(display, client->window, client->x,
 					  client->y, client->width,
@@ -1011,7 +1015,8 @@ void handleEnterNotify(XEvent *event)
 {
 	XCrossingEvent *ev = &event->xcrossing;
 
-	fprintf(stderr, "Enter notify event for window 0x%lx (ignored)\n", ev->window);
+	fprintf(stderr, "Enter notify event for window 0x%lx (ignored)\n",
+		ev->window);
 }
 
 void handleMapRequest(XEvent *event)
