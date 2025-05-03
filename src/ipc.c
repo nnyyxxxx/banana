@@ -127,12 +127,6 @@ static void processIpcCommand(int clientFd, SIPCMessage *msg)
 			sizeof(response.data) - 1);
 		break;
 
-	case IPC_COMMAND_VALIDATE:
-		fprintf(stderr, "Processing validate command via IPC\n");
-		strncpy(response.data, "Validation requested",
-			sizeof(response.data) - 1);
-		break;
-
 	default:
 		fprintf(stderr, "Unknown IPC command: %d\n", msg->type);
 		response.status = 1;

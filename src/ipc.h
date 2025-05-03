@@ -6,8 +6,7 @@
 #define SOCKET_PATH_MAX 108
 
 typedef enum {
-	IPC_COMMAND_RELOAD   = 1,
-	IPC_COMMAND_VALIDATE = 2
+	IPC_COMMAND_RELOAD = 1
 } EIPCCommandType;
 
 typedef struct {
