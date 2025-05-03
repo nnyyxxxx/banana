@@ -465,53 +465,51 @@ void handleBarClick(XEvent *event)
 	}
 
 	for (int i = 0; i < numMonitors; i++) {
-		if (ev->window == barWindows[i]) {
-			int x = 0;
-
-			int maxTextWidth = 0;
-			for (int w = 0; w < workspaceCount; w++) {
-				int textWidth = getTextWidth(workspaceNames[w]);
-				if (textWidth > maxTextWidth) {
-					maxTextWidth = textWidth;
-				}
-			}
-
-			int wsWidth = maxTextWidth + 16;
-
-			if (showOnlyActiveWorkspaces) {
-				int clickPos = 0;
-				for (int w = 0; w < workspaceCount; w++) {
-					if (monitors[i].currentWorkspace != w &&
-					    !workspaceHasClients(i, w) &&
-					    !workspaceHasUrgentWindow(i, w)) {
-						continue;
-					}
-
-					if (ev->x >= clickPos &&
-					    ev->x < clickPos + wsWidth) {
-						monitors[i].currentWorkspace =
-						    w;
-						updateClientVisibility();
-						updateBars();
-						break;
-					}
-					clickPos += wsWidth;
-				}
-			} else {
-				for (int w = 0; w < workspaceCount; w++) {
-					if (ev->x >= x && ev->x < x + wsWidth) {
-						monitors[i].currentWorkspace =
-						    w;
-						updateClientVisibility();
-						updateBars();
-						break;
-					}
-					x += wsWidth;
-				}
-			}
-
-			break;
+		if (ev->window != barWindows[i]) {
+			continue;
 		}
+
+		int maxTextWidth = 0;
+		for (int w = 0; w < workspaceCount; w++) {
+			int textWidth = getTextWidth(workspaceNames[w]);
+			if (textWidth > maxTextWidth) {
+				maxTextWidth = textWidth;
+			}
+		}
+
+		int wsWidth = maxTextWidth + 16;
+
+		if (showOnlyActiveWorkspaces) {
+			int clickPos = 0;
+			for (int w = 0; w < workspaceCount; w++) {
+				if (monitors[i].currentWorkspace != w &&
+				    !workspaceHasClients(i, w) &&
+				    !workspaceHasUrgentWindow(i, w)) {
+					continue;
+				}
+
+				if (ev->x >= clickPos &&
+				    ev->x < clickPos + wsWidth) {
+					monitors[i].currentWorkspace = w;
+					updateClientVisibility();
+					updateBars();
+					break;
+				}
+				clickPos += wsWidth;
+			}
+		} else {
+			int x = 0;
+			for (int w = 0; w < workspaceCount; w++) {
+				if (ev->x >= x && ev->x < x + wsWidth) {
+					monitors[i].currentWorkspace = w;
+					updateClientVisibility();
+					updateBars();
+					break;
+				}
+				x += wsWidth;
+			}
+		}
+		break;
 	}
 }
 
@@ -520,52 +518,49 @@ void updateClientPositionsForBar(void)
 	SClient *client = clients;
 
 	while (client) {
-		if (!client->isFloating && !client->isFullscreen) {
-			SMonitor *m = &monitors[client->monitor];
-			if (barVisible) {
-				if (bottomBar) {
-					int barTop = m->y + m->height -
-						     barStrutsTop - barHeight -
-						     barBorderWidth * 2;
-					if (client->y + client->height >
-					    barTop - outerGap) {
-						int newHeight = barTop -
-								client->y -
-								outerGap;
-						if (newHeight > 0) {
-							client->height =
-							    newHeight;
-							XResizeWindow(
-							    display,
-							    client->window,
-							    client->width,
-							    client->height);
-						}
-					}
-				} else {
-					int barBottom = m->y + barStrutsTop +
-							barHeight +
-							barBorderWidth * 2;
-					if (client->y < barBottom + outerGap) {
-						client->y =
-						    barBottom + outerGap;
-						XMoveWindow(display,
-							    client->window,
-							    client->x,
-							    client->y);
-					}
-				}
-			} else {
-				if (!bottomBar &&
-				    client->y ==
-					m->y + barStrutsTop + barHeight +
-					    barBorderWidth * 2 + outerGap) {
-					client->y = m->y + outerGap;
-					XMoveWindow(display, client->window,
-						    client->x, client->y);
+		if (client->isFloating || client->isFullscreen) {
+			client = client->next;
+			continue;
+		}
+
+		SMonitor *m = &monitors[client->monitor];
+
+		if (!barVisible) {
+			if (!bottomBar &&
+			    client->y == m->y + barStrutsTop + barHeight +
+					     barBorderWidth * 2 + outerGap) {
+				client->y = m->y + outerGap;
+				XMoveWindow(display, client->window, client->x,
+					    client->y);
+			}
+			client = client->next;
+			continue;
+		}
+
+		if (bottomBar) {
+			int barTop = m->y + m->height - barStrutsTop -
+				     barHeight - barBorderWidth * 2;
+
+			if (client->y + client->height > barTop - outerGap) {
+				int newHeight = barTop - client->y - outerGap;
+				if (newHeight > 0) {
+					client->height = newHeight;
+					XResizeWindow(display, client->window,
+						      client->width,
+						      client->height);
 				}
 			}
+		} else {
+			int barBottom = m->y + barStrutsTop + barHeight +
+					barBorderWidth * 2;
+
+			if (client->y < barBottom + outerGap) {
+				client->y = barBottom + outerGap;
+				XMoveWindow(display, client->window, client->x,
+					    client->y);
+			}
 		}
+
 		client = client->next;
 	}
 }
