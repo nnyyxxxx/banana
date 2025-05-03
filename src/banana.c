@@ -2098,6 +2098,28 @@ void switchToWorkspace(const char *arg)
 	XChangeProperty(display, root, NET_CURRENT_DESKTOP, XA_CARDINAL, 32,
 			PropModeReplace, (unsigned char *)&currentDesktop, 1);
 
+	if (monitor->currentLayout == LAYOUT_MONOCLE &&
+	    monitor->lastTiledClient[workspace] == None) {
+		SClient *firstTiled = NULL;
+		for (SClient *c = clients; c; c = c->next) {
+			if (c->monitor == monitor->num &&
+			    c->workspace == workspace && !c->isFloating &&
+			    !c->isFullscreen) {
+				firstTiled = c;
+				break;
+			}
+		}
+
+		if (firstTiled) {
+			monitor->lastTiledClient[workspace] =
+			    firstTiled->window;
+			fprintf(stderr,
+				"Setting lastTiledClient for workspace %d to "
+				"0x%lx\n",
+				workspace, firstTiled->window);
+		}
+	}
+
 	updateClientVisibility();
 	updateBars();
 
@@ -2220,14 +2242,19 @@ void updateClientVisibility()
 				    !client->isFloating &&
 				    !client->isFullscreen) {
 					if (client == focused ||
-					    (focused &&
-					     focused->monitor !=
-						 client->monitor &&
-					     m->lastTiledClient
-						     [m->currentWorkspace] ==
-						 client->window)) {
+					    m->lastTiledClient
+						    [m->currentWorkspace] ==
+						client->window) {
 						XMapWindow(display,
 							   client->window);
+						if (client != focused &&
+						    m->lastTiledClient
+							    [m->currentWorkspace] ==
+							client->window) {
+							XRaiseWindow(
+							    display,
+							    client->window);
+						}
 					} else {
 						XUnmapWindow(display,
 							     client->window);
@@ -2499,6 +2526,10 @@ void monocleClients(SMonitor *monitor)
 				"client 0x%lx\n",
 				focusedClient->window);
 		}
+
+		monitor->lastTiledClient[monitor->currentWorkspace] =
+		    focusedClient->window;
+
 		focusClient(focusedClient);
 	}
 
