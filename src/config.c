@@ -515,7 +515,25 @@ int processLine(const char *line, char *section, int *inSection,
 		char *potentialSectionName, SSectionInfo *sectionStack,
 		int *sectionDepth, int lineNum, STokenHandlerContext *ctx)
 {
-	if (strstr(line, "{")) {
+	int hasOpeningBrace = 0;
+	{
+		int inDoubleQuote = 0;
+		int inSingleQuote = 0;
+
+		for (int i = 0; line[i]; i++) {
+			if (line[i] == '\"' && !inSingleQuote) {
+				inDoubleQuote = !inDoubleQuote;
+			} else if (line[i] == '\'' && !inDoubleQuote) {
+				inSingleQuote = !inSingleQuote;
+			} else if (line[i] == '{' && !inDoubleQuote &&
+				   !inSingleQuote) {
+				hasOpeningBrace = 1;
+				break;
+			}
+		}
+	}
+
+	if (hasOpeningBrace) {
 		char sectionName[MAX_TOKEN_LENGTH] = "";
 		if (sscanf(line, "%s {", sectionName) == 1) {
 			strcpy(section, sectionName);
@@ -536,10 +554,60 @@ int processLine(const char *line, char *section, int *inSection,
 		} else {
 			(*braceDepth)++;
 		}
+
+		int inDoubleQuote   = 0;
+		int inSingleQuote   = 0;
+		int foundOpenBrace  = 0;
+		int foundCloseBrace = 0;
+
+		for (int i = 0; line[i]; i++) {
+			if (line[i] == '\"' && !inSingleQuote) {
+				inDoubleQuote = !inDoubleQuote;
+			} else if (line[i] == '\'' && !inDoubleQuote) {
+				inSingleQuote = !inSingleQuote;
+			} else if (line[i] == '{' && !inDoubleQuote &&
+				   !inSingleQuote) {
+				foundOpenBrace = 1;
+			} else if (line[i] == '}' && !inDoubleQuote &&
+				   !inSingleQuote && foundOpenBrace) {
+				foundCloseBrace = 1;
+			}
+		}
+
+		if (foundOpenBrace && foundCloseBrace) {
+			(*braceDepth)--;
+			if (*braceDepth == 0) {
+				*inSection = 0;
+				section[0] = '\0';
+			}
+
+			if (*sectionDepth > 0) {
+				(*sectionDepth)--;
+			}
+		}
+
 		return 1;
 	}
 
-	if (strstr(line, "}")) {
+	int hasClosingBrace = 0;
+	{
+		int inDoubleQuote = 0;
+		int inSingleQuote = 0;
+
+		for (int i = 0; line[i]; i++) {
+			if (line[i] == '\"' && !inSingleQuote) {
+				inDoubleQuote = !inDoubleQuote;
+			} else if (line[i] == '\'' && !inDoubleQuote) {
+				inSingleQuote = !inSingleQuote;
+			} else if (line[i] == '}' && !inDoubleQuote &&
+				   !inSingleQuote) {
+				hasClosingBrace = 1;
+				break;
+			}
+		}
+	}
+
+	if (hasClosingBrace) {
 		(*braceDepth)--;
 		if (*braceDepth < 0) {
 			if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
@@ -568,7 +636,28 @@ int processLine(const char *line, char *section, int *inSection,
 	}
 
 	if (!*inSection) {
-		if (strchr(line, ' ') && !strstr(line, "{")) {
+		int hasSpace	 = 0;
+		int hasOpenBrace = 0;
+		{
+			int inDoubleQuote = 0;
+			int inSingleQuote = 0;
+
+			for (int i = 0; line[i]; i++) {
+				if (line[i] == '\"' && !inSingleQuote) {
+					inDoubleQuote = !inDoubleQuote;
+				} else if (line[i] == '\'' && !inDoubleQuote) {
+					inSingleQuote = !inSingleQuote;
+				} else if (isspace((unsigned char)line[i]) &&
+					   !inDoubleQuote && !inSingleQuote) {
+					hasSpace = 1;
+				} else if (line[i] == '{' && !inDoubleQuote &&
+					   !inSingleQuote) {
+					hasOpenBrace = 1;
+				}
+			}
+		}
+
+		if (hasSpace && !hasOpenBrace) {
 			if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
 				if (*potentialSectionLineNum > 0) {
 					char errMsg[MAX_LINE_LENGTH];
@@ -590,7 +679,7 @@ int processLine(const char *line, char *section, int *inSection,
 				addError(ctx->errors, errMsg, lineNum, 0);
 				ctx->hasErrors = 1;
 			}
-		} else if (!strchr(line, ' ') && !strstr(line, "{")) {
+		} else if (!hasSpace && !hasOpenBrace) {
 			if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
 				strncpy(potentialSectionName, line,
 					MAX_TOKEN_LENGTH - 1);
@@ -599,7 +688,7 @@ int processLine(const char *line, char *section, int *inSection,
 				trim(potentialSectionName);
 				*potentialSectionLineNum = lineNum;
 			}
-		} else if (strstr(line, "{")) {
+		} else if (hasOpenBrace) {
 			*potentialSectionLineNum = 0;
 			potentialSectionName[0]	 = '\0';
 		}
