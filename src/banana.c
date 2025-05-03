@@ -1065,14 +1065,10 @@ void handleMapRequest(XEvent *event)
 			}
 		}
 
-		if (!client->isFloating &&
-		    monitor->currentLayout == LAYOUT_MONOCLE &&
-		    client->workspace == monitor->currentWorkspace) {
+		if (client->workspace == monitor->currentWorkspace &&
+		    !hasFullscreenWindow) {
 			XMapWindow(display, ev->window);
 			focusClient(client);
-		} else if (client->workspace == monitor->currentWorkspace &&
-			   !hasFullscreenWindow) {
-			XMapWindow(display, ev->window);
 		} else {
 			XUnmapWindow(display, ev->window);
 		}
