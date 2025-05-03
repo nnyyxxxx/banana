@@ -12,8 +12,12 @@
 #include "bar.h"
 
 #define MOUSEMASK (ButtonPressMask | ButtonReleaseMask | ButtonMotionMask)
+#ifndef MAX
 #define MAX(A, B) ((A) > (B) ? (A) : (B))
+#endif
+#ifndef MIN
 #define MIN(A, B) ((A) < (B) ? (A) : (B))
+#endif
 
 #define MAX_CLIENTS  64
 #define MAX_MONITORS 16

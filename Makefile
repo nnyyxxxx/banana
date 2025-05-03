@@ -1,7 +1,8 @@
 CC      ?= gcc
 CFLAGS  ?= -Wall -Wextra -O3 -Isrc
-LDFLAGS ?= -lX11 -lXinerama -lXft -lfontconfig -lfreetype -lXcursor -lm
+LDFLAGS ?= -lX11 -lXinerama -lXcursor -lpango-1.0 -lpangocairo-1.0 -lcairo -lgobject-2.0 -lglib-2.0 -lm
 FT_CFLAGS = $(shell pkg-config --cflags freetype2)
+PANGO_CFLAGS = $(shell pkg-config --cflags pangocairo)
 
 PREFIX  ?= /usr/local
 BIN     := build/banana
@@ -26,7 +27,7 @@ $(BIN): $(OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) $(FT_CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(FT_CFLAGS) $(PANGO_CFLAGS) -c -o $@ $<
 
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)

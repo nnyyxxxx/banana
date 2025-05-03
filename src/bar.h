@@ -6,6 +6,10 @@
 
 #define MAX_STATUS_LENGTH 256
 
+typedef struct {
+	double r, g, b, a;
+} SBarColor;
+
 void	       toggleBar(const char *arg);
 
 extern Window *barWindows;

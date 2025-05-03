@@ -17,7 +17,6 @@
 #include <limits.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <X11/Xft/Xft.h>
 
 #include "banana.h"
 #include "config.h"

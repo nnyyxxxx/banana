@@ -1,7 +1,10 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
-#include <X11/Xft/Xft.h>
+#include <pango/pango.h>
+#include <pango/pangocairo.h>
+#include <cairo/cairo.h>
+#include <cairo/cairo-xlib.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,33 +12,59 @@
 #include "bar.h"
 #include "config.h"
 
-static char	    *workspaceNames[9];
+static char		    *workspaceNames[9];
 
-Window		    *barWindows = NULL;
-int		     barVisible = 1;
+Window			    *barWindows = NULL;
+int			     barVisible = 1;
 
-static unsigned long barBgColor;
-static unsigned long barFgColor;
-static unsigned long barBorderPixel;
-static unsigned long barActiveWsPixel;
-static unsigned long barUrgentWsPixel;
+static unsigned long	     barBgColor;
+static unsigned long	     barFgColor;
+static unsigned long	     barBorderPixel;
+static unsigned long	     barActiveWsPixel;
+static unsigned long	     barUrgentWsPixel;
 
-static XftFont	    *barFontPtr = NULL;
-static XftColor	     barActiveTextColorXft;
-static XftColor	     barInactiveTextColorXft;
-static XftColor	     barUrgentTextColorXft;
-static XftColor	     barStatusTextColorXft;
-static XftDraw	   **barDraws = NULL;
+static PangoFontDescription *barFontDesc     = NULL;
+static PangoContext	    *barPangoContext = NULL;
+static cairo_surface_t	   **barSurfaces     = NULL;
+static cairo_t		   **barCairos	     = NULL;
+static PangoLayout	   **barLayouts	     = NULL;
 
-static Atom	     WM_NAME;
-static Atom	     NET_WM_STRUT;
-static Atom	     NET_WM_STRUT_PARTIAL;
+static Atom		     WM_NAME;
+static Atom		     NET_WM_STRUT;
+static Atom		     NET_WM_STRUT_PARTIAL;
 
-static char	     statusText[MAX_STATUS_LENGTH] = "";
+static char		     statusText[MAX_STATUS_LENGTH] = "";
 
-static int	     initialized = 0;
+static int		     initialized = 0;
 
-static void	     initWorkspaceNames(void)
+static SBarColor	     sBarActiveTextColor;
+static SBarColor	     sBarInactiveTextColor;
+static SBarColor	     sBarUrgentTextColor;
+static SBarColor	     sBarStatusTextColor;
+
+static void xColorToSBarColor(unsigned long pixel, SBarColor *color)
+{
+	color->r = ((pixel >> 16) & 0xFF) / 255.0;
+	color->g = ((pixel >> 8) & 0xFF) / 255.0;
+	color->b = ((pixel) & 0xFF) / 255.0;
+	color->a = 1.0;
+}
+
+static void stringToSBarColor(const char *colorStr, SBarColor *color)
+{
+	unsigned int r, g, b;
+	if (sscanf(colorStr, "#%2x%2x%2x", &r, &g, &b) == 3) {
+		color->r = r / 255.0;
+		color->g = g / 255.0;
+		color->b = b / 255.0;
+		color->a = 1.0;
+	} else {
+		color->r = color->g = color->b = 0.0;
+		color->a		       = 1.0;
+	}
+}
+
+static void initWorkspaceNames(void)
 {
 	for (int i = 0; i < workspaceCount; i++) {
 		workspaceNames[i] = malloc(8);
@@ -90,62 +119,64 @@ static void initColors(void)
 		barUrgentWsPixel = 0xFF0000;
 	}
 
-	XftColorAllocName(display,
-			  DefaultVisual(display, DefaultScreen(display)),
-			  DefaultColormap(display, DefaultScreen(display)),
-			  barActiveTextColor, &barActiveTextColorXft);
-
-	XftColorAllocName(display,
-			  DefaultVisual(display, DefaultScreen(display)),
-			  DefaultColormap(display, DefaultScreen(display)),
-			  barUrgentTextColor, &barUrgentTextColorXft);
-
-	XftColorAllocName(display,
-			  DefaultVisual(display, DefaultScreen(display)),
-			  DefaultColormap(display, DefaultScreen(display)),
-			  barInactiveTextColor, &barInactiveTextColorXft);
-
-	XftColorAllocName(display,
-			  DefaultVisual(display, DefaultScreen(display)),
-			  DefaultColormap(display, DefaultScreen(display)),
-			  barStatusTextColor, &barStatusTextColorXft);
+	stringToSBarColor(barActiveTextColor, &sBarActiveTextColor);
+	stringToSBarColor(barUrgentTextColor, &sBarUrgentTextColor);
+	stringToSBarColor(barInactiveTextColor, &sBarInactiveTextColor);
+	stringToSBarColor(barStatusTextColor, &sBarStatusTextColor);
 }
 
 static int initFont(void)
 {
-	barFontPtr = XftFontOpenName(display, DefaultScreen(display), barFont);
-	if (!barFontPtr) {
+	barFontDesc = pango_font_description_from_string(barFont);
+	if (!barFontDesc) {
 		fprintf(stderr, "Failed to load bar font\n");
 		return 0;
 	}
+
+	barPangoContext =
+	    pango_font_map_create_context(pango_cairo_font_map_get_default());
+	if (!barPangoContext) {
+		fprintf(stderr, "Failed to create Pango context\n");
+		pango_font_description_free(barFontDesc);
+		barFontDesc = NULL;
+		return 0;
+	}
+
 	return 1;
 }
 
-static int getTextWidth(const char *text)
+static int getTextWidth(const char *text, PangoLayout *layout)
 {
-	XGlyphInfo extents;
-	XftTextExtentsUtf8(display, barFontPtr, (XftChar8 *)text, strlen(text),
-			   &extents);
-	return extents.xOff;
+	int width, height;
+	pango_layout_set_text(layout, text, -1);
+	pango_layout_get_pixel_size(layout, &width, &height);
+	return width;
 }
 
 static void drawText(int monitorIndex, const char *text, int x, int y,
-		     XftColor *color, int isCenter)
+		     SBarColor *color, int isCenter)
 {
 	if (!text || !text[0]) {
 		return;
 	}
 
-	int txtWidth = getTextWidth(text);
+	cairo_t	    *cr	    = barCairos[monitorIndex];
+	PangoLayout *layout = barLayouts[monitorIndex];
+
+	pango_layout_set_text(layout, text, -1);
+
+	int width, height;
+	pango_layout_get_pixel_size(layout, &width, &height);
 
 	if (isCenter) {
-		x = x - (txtWidth / 2);
+		x = x - (width / 2);
 	}
 
-	XftDrawStringUtf8(
-	    barDraws[monitorIndex], color, barFontPtr, x,
-	    y + (barHeight + barFontPtr->ascent - barFontPtr->descent) / 2,
-	    (XftChar8 *)text, strlen(text));
+	cairo_save(cr);
+	cairo_set_source_rgba(cr, color->r, color->g, color->b, color->a);
+	cairo_move_to(cr, x, y + (barHeight - height) / 2);
+	pango_cairo_show_layout(cr, layout);
+	cairo_restore(cr);
 }
 
 void showHideBars(int show)
@@ -169,23 +200,45 @@ void showHideBars(int show)
 
 void resetBarResources(void)
 {
-	if (barFontPtr) {
-		XftFontClose(display, barFontPtr);
-		barFontPtr = NULL;
+	if (barLayouts) {
+		for (int i = 0; i < numMonitors; i++) {
+			if (barLayouts[i]) {
+				g_object_unref(barLayouts[i]);
+			}
+		}
+		free(barLayouts);
+		barLayouts = NULL;
 	}
 
-	XftColorFree(display, DefaultVisual(display, DefaultScreen(display)),
-		     DefaultColormap(display, DefaultScreen(display)),
-		     &barActiveTextColorXft);
-	XftColorFree(display, DefaultVisual(display, DefaultScreen(display)),
-		     DefaultColormap(display, DefaultScreen(display)),
-		     &barUrgentTextColorXft);
-	XftColorFree(display, DefaultVisual(display, DefaultScreen(display)),
-		     DefaultColormap(display, DefaultScreen(display)),
-		     &barInactiveTextColorXft);
-	XftColorFree(display, DefaultVisual(display, DefaultScreen(display)),
-		     DefaultColormap(display, DefaultScreen(display)),
-		     &barStatusTextColorXft);
+	if (barCairos) {
+		for (int i = 0; i < numMonitors; i++) {
+			if (barCairos[i]) {
+				cairo_destroy(barCairos[i]);
+			}
+		}
+		free(barCairos);
+		barCairos = NULL;
+	}
+
+	if (barSurfaces) {
+		for (int i = 0; i < numMonitors; i++) {
+			if (barSurfaces[i]) {
+				cairo_surface_destroy(barSurfaces[i]);
+			}
+		}
+		free(barSurfaces);
+		barSurfaces = NULL;
+	}
+
+	if (barPangoContext) {
+		g_object_unref(barPangoContext);
+		barPangoContext = NULL;
+	}
+
+	if (barFontDesc) {
+		pango_font_description_free(barFontDesc);
+		barFontDesc = NULL;
+	}
 
 	initialized = 0;
 }
@@ -196,19 +249,32 @@ void createBars(void)
 		for (int i = 0; i < numMonitors; i++) {
 			if (barWindows[i] != 0) {
 				XDestroyWindow(display, barWindows[i]);
-				if (barDraws && barDraws[i]) {
-					XftDrawDestroy(barDraws[i]);
+
+				if (barLayouts && barLayouts[i]) {
+					g_object_unref(barLayouts[i]);
+				}
+
+				if (barCairos && barCairos[i]) {
+					cairo_destroy(barCairos[i]);
+				}
+
+				if (barSurfaces && barSurfaces[i]) {
+					cairo_surface_destroy(barSurfaces[i]);
 				}
 			}
 		}
 		free(barWindows);
-		free(barDraws);
+		free(barLayouts);
+		free(barCairos);
+		free(barSurfaces);
 	}
 
-	barWindows = calloc(numMonitors, sizeof(Window));
-	barDraws   = calloc(numMonitors, sizeof(XftDraw *));
+	barWindows  = calloc(numMonitors, sizeof(Window));
+	barLayouts  = calloc(numMonitors, sizeof(PangoLayout *));
+	barCairos   = calloc(numMonitors, sizeof(cairo_t *));
+	barSurfaces = calloc(numMonitors, sizeof(cairo_surface_t *));
 
-	if (!barWindows || !barDraws) {
+	if (!barWindows || !barLayouts || !barCairos || !barSurfaces) {
 		fprintf(stderr, "Failed to allocate memory for bars\n");
 		return;
 	}
@@ -218,8 +284,12 @@ void createBars(void)
 		if (!initFont()) {
 			free(barWindows);
 			barWindows = NULL;
-			free(barDraws);
-			barDraws = NULL;
+			free(barLayouts);
+			barLayouts = NULL;
+			free(barCairos);
+			barCairos = NULL;
+			free(barSurfaces);
+			barSurfaces = NULL;
 			return;
 		}
 
@@ -263,10 +333,14 @@ void createBars(void)
 			CWEventMask,
 		    &wa);
 
-		barDraws[i] = XftDrawCreate(
+		barSurfaces[i] = cairo_xlib_surface_create(
 		    display, barWindows[i],
-		    DefaultVisual(display, DefaultScreen(display)),
-		    DefaultColormap(display, DefaultScreen(display)));
+		    DefaultVisual(display, DefaultScreen(display)), barWidth,
+		    barHeight);
+		barCairos[i] = cairo_create(barSurfaces[i]);
+
+		barLayouts[i] = pango_cairo_create_layout(barCairos[i]);
+		pango_layout_set_font_description(barLayouts[i], barFontDesc);
 
 		long struts[12] = {0};
 
@@ -350,17 +424,24 @@ void updateBars(void)
 	}
 
 	for (int i = 0; i < numMonitors; i++) {
-		if (!barWindows[i] || !barDraws[i]) {
+		if (!barWindows[i] || !barCairos[i] || !barLayouts[i]) {
 			continue;
 		}
 
-		XClearWindow(display, barWindows[i]);
+		cairo_t	 *cr = barCairos[i];
+		SBarColor bgColor;
+		xColorToSBarColor(barBgColor, &bgColor);
+
+		cairo_set_source_rgba(cr, bgColor.r, bgColor.g, bgColor.b,
+				      bgColor.a);
+		cairo_paint(cr);
 
 		int x = 0;
 
 		int maxTextWidth = 0;
 		for (int w = 0; w < workspaceCount; w++) {
-			int textWidth = getTextWidth(workspaceNames[w]);
+			int textWidth =
+			    getTextWidth(workspaceNames[w], barLayouts[i]);
 			if (textWidth > maxTextWidth) {
 				maxTextWidth = textWidth;
 			}
@@ -376,31 +457,32 @@ void updateBars(void)
 				continue;
 			}
 
-			XftColor *textColor = &barInactiveTextColorXft;
-			int	  wsBgColor = barBgColor;
-			int	  hasUrgent = workspaceHasUrgentWindow(i, w);
+			SBarColor *textColor = &sBarInactiveTextColor;
+			SBarColor  wsBgColor;
+			int	   hasUrgent = workspaceHasUrgentWindow(i, w);
 
 			if (monitors[i].currentWorkspace == w) {
-				textColor = &barActiveTextColorXft;
-				wsBgColor = barActiveWsPixel;
+				textColor = &sBarActiveTextColor;
+				xColorToSBarColor(barActiveWsPixel, &wsBgColor);
 			} else if (hasUrgent) {
-				textColor = &barUrgentTextColorXft;
-				wsBgColor = barUrgentWsPixel;
+				textColor = &sBarUrgentTextColor;
+				xColorToSBarColor(barUrgentWsPixel, &wsBgColor);
+			} else {
+				xColorToSBarColor(barBgColor, &wsBgColor);
 			}
 
-			XSetForeground(
-			    display, DefaultGC(display, DefaultScreen(display)),
-			    wsBgColor);
-			XFillRectangle(display, barWindows[i],
-				       DefaultGC(display,
-						 DefaultScreen(display)),
-				       x, 0, wsWidth, barHeight);
+			cairo_set_source_rgba(cr, wsBgColor.r, wsBgColor.g,
+					      wsBgColor.b, wsBgColor.a);
+			cairo_rectangle(cr, x, 0, wsWidth, barHeight);
+			cairo_fill(cr);
 
 			char wsLabel[32];
 			snprintf(wsLabel, sizeof(wsLabel), " %s ",
 				 workspaceNames[w]);
 
-			int textX = x + (wsWidth - getTextWidth(wsLabel)) / 2;
+			int textX = x + (wsWidth -
+					 getTextWidth(wsLabel, barLayouts[i])) /
+					    2;
 			drawText(i, wsLabel, textX, 0, textColor, 0);
 
 			x += wsWidth;
@@ -411,9 +493,12 @@ void updateBars(void)
 
 		if (statusText[0] != '\0') {
 			drawText(i, statusText,
-				 barWidth - getTextWidth(statusText), 0,
-				 &barStatusTextColorXft, 0);
+				 barWidth -
+				     getTextWidth(statusText, barLayouts[i]),
+				 0, &sBarStatusTextColor, 0);
 		}
+
+		cairo_surface_flush(barSurfaces[i]);
 	}
 }
 
@@ -436,15 +521,28 @@ void cleanupBars(void)
 		for (int i = 0; i < numMonitors; i++) {
 			if (barWindows[i]) {
 				XDestroyWindow(display, barWindows[i]);
-				if (barDraws && barDraws[i]) {
-					XftDrawDestroy(barDraws[i]);
+
+				if (barLayouts && barLayouts[i]) {
+					g_object_unref(barLayouts[i]);
+				}
+
+				if (barCairos && barCairos[i]) {
+					cairo_destroy(barCairos[i]);
+				}
+
+				if (barSurfaces && barSurfaces[i]) {
+					cairo_surface_destroy(barSurfaces[i]);
 				}
 			}
 		}
 		free(barWindows);
 		barWindows = NULL;
-		free(barDraws);
-		barDraws = NULL;
+		free(barLayouts);
+		barLayouts = NULL;
+		free(barCairos);
+		barCairos = NULL;
+		free(barSurfaces);
+		barSurfaces = NULL;
 	}
 
 	freeWorkspaceNames();
@@ -471,7 +569,8 @@ void handleBarClick(XEvent *event)
 
 		int maxTextWidth = 0;
 		for (int w = 0; w < workspaceCount; w++) {
-			int textWidth = getTextWidth(workspaceNames[w]);
+			int textWidth =
+			    getTextWidth(workspaceNames[w], barLayouts[i]);
 			if (textWidth > maxTextWidth) {
 				maxTextWidth = textWidth;
 			}
