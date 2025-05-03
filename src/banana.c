@@ -623,8 +623,26 @@ void swapWindowUnderCursor(SClient *client, int cursorX, int cursorY)
 
 		XUngrabButton(display, Button3, modkey, client->window);
 
-		swapClients(client, targetClient);
+		SMonitor *monitor = &monitors[client->monitor];
+		if (monitor->currentLayout == LAYOUT_MONOCLE) {
+			Window lastVisible =
+			    monitor->lastTiledClient[client->workspace];
+			SClient *lastClient = findClient(lastVisible);
 
+			if (lastClient && lastClient != targetClient &&
+			    lastClient != client) {
+				fprintf(stderr,
+					"Unmapping previously visible monocle "
+					"window: 0x%lx\n",
+					lastClient->window);
+				XUnmapWindow(display, lastClient->window);
+			}
+
+			monitor->lastTiledClient[client->workspace] =
+			    client->window;
+		}
+
+		swapClients(client, targetClient);
 		arrangeClients(&monitors[client->monitor]);
 	} else {
 		client->isFloating = 0;
