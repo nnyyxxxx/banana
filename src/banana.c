@@ -1705,6 +1705,18 @@ void unmanageClient(Window window)
 			fprintf(stderr, "Window closed, focusing next client "
 					"in workspace\n");
 			focused = nextClient;
+
+			if (currentMonitor->currentLayout == LAYOUT_MONOCLE &&
+			    !nextClient->isFloating &&
+			    !nextClient->isFullscreen) {
+				currentMonitor
+				    ->lastTiledClient[currentWorkspace] =
+				    nextClient->window;
+				fprintf(stderr,
+					"Setting new last tiled client for "
+					"monocle: 0x%lx\n",
+					nextClient->window);
+			}
 		} else {
 			fprintf(stderr,
 				"Window closed, no other windows in workspace, "
@@ -2243,6 +2255,46 @@ void updateClientVisibility()
 		if (c->isFullscreen && c->monitor < MAX_MONITORS &&
 		    c->workspace < workspaceCount) {
 			hasFullscreen[c->monitor][c->workspace] = 1;
+		}
+	}
+
+	for (int i = 0; i < numMonitors; i++) {
+		SMonitor *m = &monitors[i];
+		if (m->currentLayout == LAYOUT_MONOCLE) {
+			for (int ws = 0; ws < workspaceCount; ws++) {
+				if (m->lastTiledClient[ws] != None) {
+					SClient *lastClient =
+					    findClient(m->lastTiledClient[ws]);
+					if (!lastClient ||
+					    lastClient->monitor != i ||
+					    lastClient->workspace != ws ||
+					    lastClient->isFloating ||
+					    lastClient->isFullscreen) {
+						m->lastTiledClient[ws] = None;
+
+						for (SClient *c = clients; c;
+						     c		= c->next) {
+							if (c->monitor == i &&
+							    c->workspace ==
+								ws &&
+							    !c->isFloating &&
+							    !c->isFullscreen) {
+								m->lastTiledClient
+								    [ws] =
+								    c->window;
+								fprintf(
+								    stderr,
+								    "Resetting "
+								    "lastTiledC"
+								    "lient to "
+								    "0x%lx\n",
+								    c->window);
+								break;
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 
