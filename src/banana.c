@@ -9,11 +9,8 @@
 #include <X11/Xproto.h>
 #include <X11/cursorfont.h>
 #include <X11/Xcursor/Xcursor.h>
-#include <X11/XKBlib.h>
 #include <X11/extensions/Xinerama.h>
-#include <sys/wait.h>
 #include <sys/time.h>
-#include <time.h>
 #include <limits.h>
 #include <fcntl.h>
 #include <errno.h>
