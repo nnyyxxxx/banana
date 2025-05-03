@@ -37,6 +37,7 @@ char		  *barInactiveTextColor	    = NULL;
 char		  *barStatusTextColor	    = NULL;
 int		   borderWidth		    = 2;
 int		   newAsMaster		    = 0;
+char		  *defaultLayout	    = NULL;
 
 SKeyBinding	  *keys	      = NULL;
 size_t		   keysCount  = 0;
@@ -930,6 +931,7 @@ void initDefaults(void)
 	barUrgentTextColor   = safeStrdup("#000000");
 	barInactiveTextColor = safeStrdup("#ced4f0");
 	barStatusTextColor   = safeStrdup("#ced4f0");
+	defaultLayout	     = safeStrdup("master");
 }
 
 void *safeMalloc(size_t size)
@@ -1194,6 +1196,7 @@ void createDefaultConfig(void)
 	fprintf(fp, "    inner_gap 0\n");
 	fprintf(fp, "    outer_gap 0\n");
 	fprintf(fp, "    border_width 1\n");
+	fprintf(fp, "    layout master\n");
 	fprintf(fp, "}\n\n");
 
 	fprintf(fp, "# Bar settings\n");
@@ -1333,6 +1336,7 @@ void reloadConfig(const char *arg)
 	char	    *oldBarUrgentTextColor   = barUrgentTextColor;
 	char	    *oldBarInactiveTextColor = barInactiveTextColor;
 	char	    *oldBarStatusTextColor   = barStatusTextColor;
+	char	    *oldDefaultLayout	     = defaultLayout;
 
 	int	     oldWorkspaceCount		 = workspaceCount;
 	float	     oldDefaultMasterFactor	 = defaultMasterFactor;
@@ -1364,6 +1368,7 @@ void reloadConfig(const char *arg)
 	barUrgentTextColor   = NULL;
 	barInactiveTextColor = NULL;
 	barStatusTextColor   = NULL;
+	defaultLayout	     = NULL;
 
 	int result = loadConfig();
 
@@ -1400,6 +1405,7 @@ void reloadConfig(const char *arg)
 		barStrutsTop		 = oldBarStrutsTop;
 		barStrutsLeft		 = oldBarStrutsLeft;
 		barStrutsRight		 = oldBarStrutsRight;
+		defaultLayout		 = oldDefaultLayout;
 
 		return;
 	}
@@ -1444,6 +1450,7 @@ void reloadConfig(const char *arg)
 	free(oldBarUrgentTextColor);
 	free(oldBarInactiveTextColor);
 	free(oldBarStatusTextColor);
+	free(oldDefaultLayout);
 
 	fprintf(stderr,
 		"banana: configuration reloaded with %zu key bindings and %zu "
@@ -1784,6 +1791,29 @@ int handleGeneralSection(STokenHandlerContext *ctx, const char *var,
 			}
 		} else if (ctx->mode == TOKEN_HANDLER_LOAD) {
 			borderWidth = width;
+		}
+	} else if (strcmp(var, "layout") == 0) {
+		if (strcasecmp(val, "master") != 0 &&
+		    strcasecmp(val, "monocle") != 0) {
+			char errMsg[MAX_LINE_LENGTH];
+			snprintf(errMsg, MAX_LINE_LENGTH,
+				 "Invalid layout value: '%s' - must be "
+				 "'master' or 'monocle'",
+				 val);
+
+			if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+				addError(ctx->errors, errMsg, lineNum, 0);
+				ctx->hasErrors = 1;
+			} else {
+				fprintf(stderr, "banana: %s\n", errMsg);
+			}
+			freeTokens(tokens, tokenCount);
+			return 0;
+		}
+
+		if (ctx->mode == TOKEN_HANDLER_LOAD) {
+			free(defaultLayout);
+			defaultLayout = safeStrdup(val);
 		}
 	} else {
 		char errMsg[MAX_LINE_LENGTH];

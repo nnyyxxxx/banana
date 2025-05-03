@@ -21,7 +21,7 @@
 typedef enum {
 	LAYOUT_FLOATING,
 	LAYOUT_TILED,
-	LAYOUT_MAX
+	LAYOUT_MONOCLE
 } ELayout;
 
 typedef struct {
@@ -67,6 +67,7 @@ typedef struct SMonitor {
 	ELayout currentLayout;
 	float  *masterFactors;
 	int	masterCount;
+	Window *lastTiledClient;
 } SMonitor;
 
 typedef struct {
@@ -130,6 +131,7 @@ void	  moveWindowInStack(const char *arg);
 void	  focusWindowInStack(const char *arg);
 void	  adjustMasterFactor(const char *arg);
 void	  focusMonitor(const char *arg);
+void	  toggleBar(const char *arg);
 void	  moveClientToEnd(SClient *client);
 void	  checkCursorPosition(struct timeval *lastCheck, int *lastCursorX,
 			      int *lastCursorY, Window *lastWindow);
@@ -164,6 +166,7 @@ void	  unmapSwallowedClient(SClient *swallowed);
 void	  remapSwallowedClient(SClient *client);
 
 void	  tileClients(SMonitor *monitor);
+void	  monocleClients(SMonitor *monitor);
 void	  arrangeClients(SMonitor *monitor);
 void	  swapClients(SClient *a, SClient *b);
 void	  tileAllMonitors(void);

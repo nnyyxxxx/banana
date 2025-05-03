@@ -399,6 +399,7 @@ void cleanup()
 	if (monitors) {
 		for (int i = 0; i < numMonitors; i++) {
 			free(monitors[i].masterFactors);
+			free(monitors[i].lastTiledClient);
 		}
 		free(monitors);
 	}
@@ -1070,8 +1071,13 @@ void handleMapRequest(XEvent *event)
 			}
 		}
 
-		if (client->workspace == monitor->currentWorkspace &&
-		    !hasFullscreenWindow) {
+		if (!client->isFloating &&
+		    monitor->currentLayout == LAYOUT_MONOCLE &&
+		    client->workspace == monitor->currentWorkspace) {
+			XMapWindow(display, ev->window);
+			focusClient(client);
+		} else if (client->workspace == monitor->currentWorkspace &&
+			   !hasFullscreenWindow) {
 			XMapWindow(display, ev->window);
 		} else {
 			XUnmapWindow(display, ev->window);
@@ -1292,6 +1298,15 @@ void focusClient(SClient *client)
 	}
 
 	focused = client;
+
+	if (!client->isFloating && !client->isFullscreen) {
+		SMonitor *monitor = &monitors[client->monitor];
+		monitor->lastTiledClient[client->workspace] = client->window;
+		fprintf(stderr,
+			"Updating last tiled client for workspace %d to "
+			"0x%lx\n",
+			client->workspace, client->window);
+	}
 
 	if ((windowMovement.active && windowMovement.client == client) ||
 	    (windowResize.active && windowResize.client == client)) {
@@ -1634,6 +1649,34 @@ void unmanageClient(Window window)
 		return;
 	}
 
+	if (!client->isFloating && !client->isFullscreen) {
+		SMonitor *mon = &monitors[client->monitor];
+		if (mon->lastTiledClient[client->workspace] == client->window) {
+			fprintf(stderr,
+				"Last tiled client for workspace %d is being "
+				"removed\n",
+				client->workspace);
+
+			Window newLastTiled = None;
+
+			for (SClient *c = clients; c; c = c->next) {
+				if (c != client && !c->isFloating &&
+				    !c->isFullscreen &&
+				    c->monitor == client->monitor &&
+				    c->workspace == client->workspace) {
+					newLastTiled = c->window;
+					break;
+				}
+			}
+
+			mon->lastTiledClient[client->workspace] = newLastTiled;
+			fprintf(stderr,
+				"New last tiled client for workspace %d: "
+				"0x%lx\n",
+				client->workspace, newLastTiled);
+		}
+	}
+
 	if (client == focused) {
 		SMonitor *currentMonitor   = &monitors[client->monitor];
 		int	  currentWorkspace = client->workspace;
@@ -1726,12 +1769,17 @@ void configureClient(SClient *client)
 		return;
 	}
 
+	SMonitor *monitor = &monitors[client->monitor];
+	int	  noBorder =
+	    client->isFullscreen ||
+	    (monitor->currentLayout == LAYOUT_MONOCLE && !client->isFloating);
+
 	XWindowChanges wc;
 	wc.x		= client->x;
 	wc.y		= client->y;
 	wc.width	= client->width;
 	wc.height	= client->height;
-	wc.border_width = client->isFullscreen ? 0 : borderWidth;
+	wc.border_width = noBorder ? 0 : borderWidth;
 	wc.sibling	= None;
 	wc.stack_mode	= Above;
 
@@ -1739,21 +1787,21 @@ void configureClient(SClient *client)
 			 CWX | CWY | CWWidth | CWHeight | CWBorderWidth, &wc);
 
 	XEvent event;
-	event.type		      = ConfigureNotify;
-	event.xconfigure.display      = display;
-	event.xconfigure.event	      = client->window;
-	event.xconfigure.window	      = client->window;
-	event.xconfigure.x	      = client->x;
-	event.xconfigure.y	      = client->y;
-	event.xconfigure.width	      = client->width;
-	event.xconfigure.height	      = client->height;
-	event.xconfigure.border_width = client->isFullscreen ? 0 : borderWidth;
-	event.xconfigure.above	      = None;
+	event.type			   = ConfigureNotify;
+	event.xconfigure.display	   = display;
+	event.xconfigure.event		   = client->window;
+	event.xconfigure.window		   = client->window;
+	event.xconfigure.x		   = client->x;
+	event.xconfigure.y		   = client->y;
+	event.xconfigure.width		   = client->width;
+	event.xconfigure.height		   = client->height;
+	event.xconfigure.border_width	   = noBorder ? 0 : borderWidth;
+	event.xconfigure.above		   = None;
 	event.xconfigure.override_redirect = False;
 	XSendEvent(display, client->window, False, StructureNotifyMask, &event);
 
 	XSetWindowBorderWidth(display, client->window,
-			      client->isFullscreen ? 0 : borderWidth);
+			      noBorder ? 0 : borderWidth);
 
 	updateBorders();
 	XSync(display, False);
@@ -1815,9 +1863,14 @@ void updateBorders()
 
 	SClient *client = clients;
 	while (client) {
-		XSetWindowBorder(display, client->window,
-				 (client == focused) ? activeBorder
-						     : inactiveBorder);
+		SMonitor *monitor = &monitors[client->monitor];
+		if (!client->isFullscreen &&
+		    !(monitor->currentLayout == LAYOUT_MONOCLE &&
+		      !client->isFloating)) {
+			XSetWindowBorder(display, client->window,
+					 (client == focused) ? activeBorder
+							     : inactiveBorder);
+		}
 		client = client->next;
 	}
 }
@@ -1857,6 +1910,7 @@ void updateMonitors()
 	if (monitors) {
 		for (int i = 0; i < numMonitors; i++) {
 			free(monitors[i].masterFactors);
+			free(monitors[i].lastTiledClient);
 		}
 		free(monitors);
 	}
@@ -1885,8 +1939,11 @@ void updateMonitors()
 		monitors[0].masterCount	     = 1;
 		monitors[0].masterFactors =
 		    malloc(workspaceCount * sizeof(float));
+		monitors[0].lastTiledClient =
+		    malloc(workspaceCount * sizeof(Window));
 		for (int ws = 0; ws < workspaceCount; ws++) {
-			monitors[0].masterFactors[ws] = defaultMasterFactor;
+			monitors[0].masterFactors[ws]	= defaultMasterFactor;
+			monitors[0].lastTiledClient[ws] = None;
 		}
 	} else {
 		monitors = malloc(numMonitors * sizeof(SMonitor));
@@ -1901,9 +1958,12 @@ void updateMonitors()
 			monitors[i].masterCount	     = 1;
 			monitors[i].masterFactors =
 			    malloc(workspaceCount * sizeof(float));
+			monitors[i].lastTiledClient =
+			    malloc(workspaceCount * sizeof(Window));
 			for (int ws = 0; ws < workspaceCount; ws++) {
 				monitors[i].masterFactors[ws] =
 				    defaultMasterFactor;
+				monitors[i].lastTiledClient[ws] = None;
 			}
 		}
 		XFree(info);
@@ -2046,14 +2106,34 @@ void switchToWorkspace(const char *arg)
 	SClient *focusedClient = focusWindowUnderCursor(monitor);
 
 	if (!focusedClient) {
-		SClient *windowInWorkspace =
-		    findVisibleClientInWorkspace(monitor->num, workspace);
-		if (windowInWorkspace) {
+		SClient *windowToFocus = NULL;
+
+		if (monitor->currentLayout == LAYOUT_MONOCLE &&
+		    monitor->lastTiledClient[workspace] != None) {
+			SClient *lastTiled =
+			    findClient(monitor->lastTiledClient[workspace]);
+
+			if (lastTiled && lastTiled->monitor == monitor->num &&
+			    lastTiled->workspace == workspace &&
+			    !lastTiled->isFloating) {
+				windowToFocus = lastTiled;
+				fprintf(stderr,
+					"Using last tiled client 0x%lx for "
+					"workspace %d\n",
+					lastTiled->window, workspace);
+			}
+		}
+
+		if (!windowToFocus) {
+			windowToFocus = findVisibleClientInWorkspace(
+			    monitor->num, workspace);
+		}
+
+		if (windowToFocus) {
 			fprintf(stderr,
-				"No window under cursor, focusing available "
-				"window in workspace %d\n",
-				workspace);
-			focusClient(windowInWorkspace);
+				"Focusing window 0x%lx in workspace %d\n",
+				windowToFocus->window, workspace);
+			focusClient(windowToFocus);
 		} else {
 			currentWorkspace = workspace;
 			if (focused && focused->monitor != monitor->num) {
@@ -2136,9 +2216,24 @@ void updateClientVisibility()
 		} else {
 			SMonitor *m = &monitors[client->monitor];
 			if (client->workspace == m->currentWorkspace) {
-				if (client->isFullscreen ||
-				    !hasFullscreen[client->monitor]
-						  [client->workspace]) {
+				if (m->currentLayout == LAYOUT_MONOCLE &&
+				    !client->isFloating) {
+					if (client == focused ||
+					    (focused &&
+					     focused->monitor !=
+						 client->monitor &&
+					     m->lastTiledClient
+						     [m->currentWorkspace] ==
+						 client->window)) {
+						XMapWindow(display,
+							   client->window);
+					} else {
+						XUnmapWindow(display,
+							     client->window);
+					}
+				} else if (client->isFullscreen ||
+					   !hasFullscreen[client->monitor]
+							 [client->workspace]) {
 					XMapWindow(display, client->window);
 				} else {
 					XUnmapWindow(display, client->window);
@@ -2242,7 +2337,8 @@ void toggleFloating(const char *arg)
 	if (focused->isFloating) {
 		SMonitor *monitor = &monitors[focused->monitor];
 
-		if (monitor->currentLayout == LAYOUT_TILED) {
+		if (monitor->currentLayout == LAYOUT_TILED ||
+		    monitor->currentLayout == LAYOUT_MONOCLE) {
 			int oldWidth  = focused->width;
 			int oldHeight = focused->height;
 
@@ -2290,6 +2386,8 @@ void toggleFloating(const char *arg)
 				       RevertToPointerRoot, CurrentTime);
 		}
 
+		configureClient(focused);
+
 		arrangeClients(&monitors[focused->monitor]);
 	} else if (wasFloating) {
 		XUngrabButton(display, Button3, modkey, focused->window);
@@ -2310,6 +2408,17 @@ void toggleFloating(const char *arg)
 
 		XLowerWindow(display, focused->window);
 
+		if (!focused->isFloating && !focused->isFullscreen) {
+			SMonitor *monitor = &monitors[focused->monitor];
+			monitor->lastTiledClient[focused->workspace] =
+			    focused->window;
+			fprintf(stderr,
+				"Updating last tiled client for workspace %d "
+				"to 0x%lx "
+				"(toggle floating)\n",
+				focused->workspace, focused->window);
+		}
+
 		arrangeClients(&monitors[focused->monitor]);
 	}
 
@@ -2324,7 +2433,113 @@ void arrangeClients(SMonitor *monitor)
 		return;
 	}
 
-	tileClients(monitor);
+	if (strcasecmp(defaultLayout, "monocle") == 0) {
+		monitor->currentLayout = LAYOUT_MONOCLE;
+	} else {
+		monitor->currentLayout = LAYOUT_TILED;
+	}
+
+	if (monitor->currentLayout == LAYOUT_MONOCLE) {
+		monocleClients(monitor);
+	} else {
+		tileClients(monitor);
+	}
+}
+
+void monocleClients(SMonitor *monitor)
+{
+	if (!monitor) {
+		return;
+	}
+
+	SClient *visibleClients[MAX_CLIENTS] = {NULL};
+	int	 visibleCount		     = 0;
+	SClient *focusedClient		     = NULL;
+	SClient *lastTiledClient	     = NULL;
+
+	for (SClient *client = clients; client; client = client->next) {
+		if (client->monitor == monitor->num &&
+		    client->workspace == monitor->currentWorkspace &&
+		    !client->isFloating && !client->isFullscreen) {
+			visibleClients[visibleCount++] = client;
+			if (client == focused) {
+				focusedClient = client;
+			}
+			if (monitor->lastTiledClient[monitor->currentWorkspace] ==
+			    client->window) {
+				lastTiledClient = client;
+			}
+			if (visibleCount >= MAX_CLIENTS) {
+				break;
+			}
+		}
+	}
+
+	if (visibleCount == 0) {
+		return;
+	}
+
+	if (!focusedClient && visibleCount > 0) {
+		if (lastTiledClient) {
+			focusedClient = lastTiledClient;
+			fprintf(stderr,
+				"Using last tiled client 0x%lx for workspace "
+				"%d\n",
+				focusedClient->window,
+				monitor->currentWorkspace);
+		} else {
+			focusedClient = visibleClients[0];
+			monitor->lastTiledClient[monitor->currentWorkspace] =
+			    focusedClient->window;
+			fprintf(stderr,
+				"No last tiled client found, using first "
+				"client 0x%lx\n",
+				focusedClient->window);
+		}
+		focusClient(focusedClient);
+	}
+
+	int x		    = monitor->x;
+	int y		    = monitor->y;
+	int availableWidth  = monitor->width;
+	int availableHeight = monitor->height;
+
+	if (barVisible) {
+		if (bottomBar) {
+			availableHeight -=
+			    (barHeight + barBorderWidth * 2 + barStrutsTop);
+		} else {
+			int barBottom = monitor->y + barStrutsTop + barHeight +
+					barBorderWidth * 2;
+			availableHeight -=
+			    (barStrutsTop + barHeight + barBorderWidth * 2);
+			y = barBottom;
+		}
+	}
+
+	int width  = availableWidth;
+	int height = availableHeight;
+
+	for (int i = 0; i < visibleCount; i++) {
+		SClient *client = visibleClients[i];
+
+		client->x      = x;
+		client->y      = y;
+		client->width  = width;
+		client->height = height;
+
+		if (client == focusedClient) {
+			XMoveResizeWindow(display, client->window, client->x,
+					  client->y, client->width,
+					  client->height);
+			XSetWindowBorderWidth(display, client->window, 0);
+			configureClient(client);
+			XRaiseWindow(display, client->window);
+			XMapWindow(display, client->window);
+		} else {
+			XUnmapWindow(display, client->window);
+		}
+	}
 }
 
 void restackFloatingWindows()
@@ -2590,6 +2805,54 @@ void focusWindowInStack(const char *arg)
 
 	int	 workspace    = focused->workspace;
 	SClient *targetClient = NULL;
+	SClient *prevFocused  = focused;
+
+	if (monitor->currentLayout == LAYOUT_MONOCLE) {
+		SClient *monocleClients[MAX_CLIENTS] = {NULL};
+		int	 numMonocle		     = 0;
+		int	 focusedIndex		     = -1;
+
+		for (SClient *c = clients; c; c = c->next) {
+			if (c->monitor == focused->monitor &&
+			    c->workspace == workspace && !c->isFloating &&
+			    !c->isFullscreen) {
+				if (c == focused) {
+					focusedIndex = numMonocle;
+				}
+				monocleClients[numMonocle++] = c;
+				if (numMonocle >= MAX_CLIENTS) {
+					break;
+				}
+			}
+		}
+
+		if (numMonocle <= 1) {
+			return;
+		}
+
+		if (strcmp(arg, "up") == 0) {
+			focusedIndex =
+			    (focusedIndex - 1 + numMonocle) % numMonocle;
+		} else if (strcmp(arg, "down") == 0) {
+			focusedIndex = (focusedIndex + 1) % numMonocle;
+		}
+
+		targetClient = monocleClients[focusedIndex];
+
+		if (targetClient && targetClient != focused) {
+			fprintf(stderr,
+				"Cycling monocle window: 0x%lx (direction: "
+				"%s)\n",
+				targetClient->window, arg);
+
+			XUnmapWindow(display, prevFocused->window);
+
+			focusClient(targetClient);
+			XMapWindow(display, targetClient->window);
+			warpPointerToClientCenter(targetClient);
+		}
+		return;
+	}
 
 	SClient *tiledClients[MAX_CLIENTS];
 	SClient *floatingClients[MAX_CLIENTS];
@@ -2680,9 +2943,14 @@ void adjustMasterFactor(const char *arg)
 		return;
 	}
 
-	SMonitor *monitor   = getCurrentMonitor();
-	int	  workspace = monitor->currentWorkspace;
-	float	  delta	    = 0.05;
+	SMonitor *monitor = getCurrentMonitor();
+
+	if (monitor->currentLayout == LAYOUT_MONOCLE) {
+		return;
+	}
+
+	int   workspace = monitor->currentWorkspace;
+	float delta	= 0.05;
 
 	if (strcmp(arg, "decrease") == 0) {
 		delta = -delta;
@@ -3278,11 +3546,16 @@ void toggleBar(const char *arg)
 {
 	(void)arg;
 
-	showHideBars(!barVisible);
+	showBar = !showBar;
+	createBars();
+	showHideBars(showBar);
+	updateClientPositionsForBar();
 
 	for (int i = 0; i < numMonitors; i++) {
 		arrangeClients(&monitors[i]);
 	}
+
+	updateBars();
 }
 
 void updateMasterFactorsForAllMonitors(void)

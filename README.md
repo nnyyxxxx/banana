@@ -42,6 +42,14 @@ launching.
 When checking for config errors use `banana validate` it will validate your config file and
 print errors to stdout.
 
+## layouts
+
+Currently Banana only supports 2 layouts `master&stack` & `monocle`, layouts can be changed
+in the configuration file via editing the `layout` option in the `general` section. Some
+options are different between layouts, for instance `focus_window` will cycle between windows
+in the `monocle` layout while in the `master&stack` layout it will simply focus the next window
+in the direction.
+
 ## compositing
 
 By default banana doesn't have rounded corners, opacity, animations, and all of that junk

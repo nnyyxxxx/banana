@@ -205,6 +205,8 @@ extern char		 *errorBackgroundColor;
 extern char		 *errorTextColor;
 extern char		 *errorFont;
 
+extern char		 *defaultLayout;
+
 extern SKeyBinding	 *keys;
 extern size_t		  keysCount;
 extern SWindowRule	 *rules;
