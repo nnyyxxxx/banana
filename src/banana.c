@@ -2263,6 +2263,9 @@ void switchToWorkspace(const char *arg)
 	fprintf(stderr, "Switching from workspace %d to %d on monitor %d\n",
 		monitor->currentWorkspace, workspace, monitor->num);
 
+	focused = NULL;
+	XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
+
 	monitor->currentWorkspace = workspace;
 
 	long currentDesktop = workspace;
