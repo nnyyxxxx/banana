@@ -3833,6 +3833,42 @@ void handleClientMessage(XEvent *event)
 
 	SClient		    *client = findClient(cme->window);
 
+	if (cme->message_type == NET_CURRENT_DESKTOP && cme->window == root) {
+		int workspace = cme->data.l[0];
+		if (workspace >= 0 && workspace < workspaceCount) {
+			fprintf(stderr,
+				"Received _NET_CURRENT_DESKTOP message, "
+				"switching to workspace %d\n",
+				workspace);
+			SMonitor *currentMonitor	 = getCurrentMonitor();
+			currentMonitor->currentWorkspace = workspace;
+			currentWorkspace		 = workspace;
+
+			long currentDesktop = workspace;
+			XChangeProperty(display, root, NET_CURRENT_DESKTOP,
+					XA_CARDINAL, 32, PropModeReplace,
+					(unsigned char *)&currentDesktop, 1);
+
+			updateDesktopViewport();
+			updateClientVisibility();
+			updateBars();
+
+			SClient *clientToFocus = findVisibleClientInWorkspace(
+			    currentMonitor->num, workspace);
+			if (clientToFocus) {
+				focusClient(clientToFocus);
+			} else {
+				focused = NULL;
+				XSetInputFocus(display, root,
+					       RevertToPointerRoot,
+					       CurrentTime);
+				updateBorders();
+			}
+
+			return;
+		}
+	}
+
 	if (!client) {
 		return;
 	}
