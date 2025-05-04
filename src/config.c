@@ -538,6 +538,27 @@ int processLine(const char *line, char *section, int *inSection,
 	if (hasOpeningBrace) {
 		char sectionName[MAX_TOKEN_LENGTH] = "";
 		if (sscanf(line, "%s {", sectionName) == 1) {
+			if (strcasecmp(sectionName, SECTION_GENERAL) != 0 &&
+			    strcasecmp(sectionName, SECTION_BAR) != 0 &&
+			    strcasecmp(sectionName, SECTION_DECORATION) != 0 &&
+			    strcasecmp(sectionName, SECTION_BINDS) != 0 &&
+			    strcasecmp(sectionName, SECTION_RULES) != 0 &&
+			    strcasecmp(sectionName, SECTION_MASTER) != 0) {
+				if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+					char errMsg[MAX_LINE_LENGTH];
+					snprintf(errMsg, MAX_LINE_LENGTH,
+						 "Unknown section: %s",
+						 sectionName);
+					addError(ctx->errors, errMsg, lineNum,
+						 0);
+					ctx->hasErrors = 1;
+				} else {
+					fprintf(stderr,
+						"banana: Unknown section: %s\n",
+						sectionName);
+				}
+			}
+
 			strcpy(section, sectionName);
 			*inSection = 1;
 			(*braceDepth)++;
