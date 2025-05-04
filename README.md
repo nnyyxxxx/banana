@@ -8,7 +8,9 @@ A tiling window manager.
 
 </div>
 
-## building
+## installation
+
+### building
 
 This should be self explanatory but if you don't know how then run this to build & install.
 
@@ -18,13 +20,15 @@ make release; sudo make install
 
 Make sure you have the necessary dependencies installed.
 
-## releases
+### releases
 
 Releases / tags are currently not being pushed out as banana is not production ready, and/or
 reasonably complete. Releases will be pushed out when the project becomes more mature, and
 grows over time.
 
-## configuration
+## Q&A
+
+### configuration
 
 Configuration is done at `$HOME/.config/banana/banana.conf`, this file will be automatically
 created if it doesn't exist, all available configuration options exist in this file already.
@@ -42,7 +46,7 @@ launching.
 When checking for config errors use `banana validate` it will validate your config file and
 print errors to stdout.
 
-## layouts
+### layouts
 
 Currently Banana only supports 2 layouts `master&stack` & `monocle`, layouts can be changed
 in the configuration file via editing the `layout` option in the `general` section. Some
@@ -54,12 +58,12 @@ For cycling between layouts on the fly use `cycle_layouts` it will cycle between
 layouts, this will be overriden on config reload depending on if a different layout is specified
 in your config.
 
-## compositing
+### compositing
 
 By default banana doesn't have rounded corners, opacity, animations, and all of that junk
 baked in, you will have to use what is known as a compositor e.g. `picom`.
 
-## swallowing
+### swallowing
 
 Banana supports window swallowing, where a parent window hides when its child window opens.
 This relies on the `_NET_WM_PID` X11 property and parent-child process relationships. Windows
