@@ -1117,14 +1117,10 @@ void handleMapRequest(XEvent *event)
 			XRaiseWindow(display, ev->window);
 			fprintf(stderr, "Mapping dock window during map "
 					"request\n");
-		} else if (!client->isFloating &&
-			   monitor->currentLayout == LAYOUT_MONOCLE &&
-			   client->workspace == monitor->currentWorkspace) {
-			XMapWindow(display, ev->window);
-			focusClient(client);
 		} else if (client->workspace == monitor->currentWorkspace &&
 			   !hasFullscreenWindow) {
 			XMapWindow(display, ev->window);
+			focusClient(client);
 		} else {
 			XUnmapWindow(display, ev->window);
 		}
