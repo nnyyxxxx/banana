@@ -2825,10 +2825,12 @@ void monocleClients(SMonitor *monitor)
 		return;
 	}
 
-	SClient *visibleClients[MAX_CLIENTS] = {NULL};
-	int	 visibleCount		     = 0;
-	SClient *focusedClient		     = NULL;
-	SClient *lastTiledClient	     = NULL;
+	SClient	 *visibleClients[MAX_CLIENTS] = {NULL};
+	int	  visibleCount		      = 0;
+	SClient	 *focusedClient		      = NULL;
+	SClient	 *lastTiledClient	      = NULL;
+	SMonitor *currentMonitor	      = getCurrentMonitor();
+	int	  isActiveMonitor = (monitor->num == currentMonitor->num);
 
 	for (SClient *client = clients; client; client = client->next) {
 		if (client->monitor == monitor->num &&
@@ -2853,7 +2855,7 @@ void monocleClients(SMonitor *monitor)
 		return;
 	}
 
-	if (!focusedClient && visibleCount > 0) {
+	if (!focusedClient && visibleCount > 0 && isActiveMonitor) {
 		if (lastTiledClient) {
 			focusedClient = lastTiledClient;
 			fprintf(stderr,
