@@ -59,12 +59,6 @@ in your config.
 By default banana doesn't have rounded corners, opacity, animations, and all of that junk
 baked in, you will have to use what is known as a compositor e.g. `picom`.
 
-## ewmh docks
-
-As of right now there is no support for docks, only the built in bar is supported. In the
-future I would like to implement it, but for right now the baked in bar is enough, and plenty
-scriptable via xsetroot. Use something like `slstatus`.
-
 ## swallowing
 
 Banana supports window swallowing, where a parent window hides when its child window opens.
