@@ -1631,7 +1631,7 @@ int handleGeneralSection(STokenHandlerContext *ctx, const char *var,
 				fprintf(stderr, "banana: %s\n", errMsg);
 			}
 			freeTokens(tokens, tokenCount);
-			return 0;
+			return 1;
 		}
 
 		int count = atoi(val);
@@ -1666,7 +1666,7 @@ int handleGeneralSection(STokenHandlerContext *ctx, const char *var,
 				fprintf(stderr, "banana: %s\n", errMsg);
 			}
 			freeTokens(tokens, tokenCount);
-			return 0;
+			return 1;
 		}
 
 		int gap = atoi(val);
@@ -1713,7 +1713,7 @@ int handleGeneralSection(STokenHandlerContext *ctx, const char *var,
 				fprintf(stderr, "banana: %s\n", errMsg);
 			}
 			freeTokens(tokens, tokenCount);
-			return 0;
+			return 1;
 		}
 
 		int gap = atoi(val);
@@ -1761,7 +1761,7 @@ int handleGeneralSection(STokenHandlerContext *ctx, const char *var,
 				fprintf(stderr, "banana: %s\n", errMsg);
 			}
 			freeTokens(tokens, tokenCount);
-			return 0;
+			return 1;
 		}
 
 		int width = atoi(val);
@@ -1852,7 +1852,7 @@ int handleBarSection(STokenHandlerContext *ctx, const char *var,
 				fprintf(stderr, "banana: %s\n", errMsg);
 			}
 			freeTokens(tokens, tokenCount);
-			return 0;
+			return 1;
 		}
 
 		int height = atoi(val);
@@ -1990,7 +1990,7 @@ int handleBarSection(STokenHandlerContext *ctx, const char *var,
 				fprintf(stderr, "banana: %s\n", errMsg);
 			}
 			freeTokens(tokens, tokenCount);
-			return 0;
+			return 1;
 		}
 
 		int width = atoi(val);
@@ -2038,7 +2038,7 @@ int handleBarSection(STokenHandlerContext *ctx, const char *var,
 				fprintf(stderr, "banana: %s\n", errMsg);
 			}
 			freeTokens(tokens, tokenCount);
-			return 0;
+			return 1;
 		}
 
 		int strutsTop = atoi(val);
@@ -2086,7 +2086,7 @@ int handleBarSection(STokenHandlerContext *ctx, const char *var,
 				fprintf(stderr, "banana: %s\n", errMsg);
 			}
 			freeTokens(tokens, tokenCount);
-			return 0;
+			return 1;
 		}
 
 		int strutsLeft = atoi(val);
@@ -2134,7 +2134,7 @@ int handleBarSection(STokenHandlerContext *ctx, const char *var,
 				fprintf(stderr, "banana: %s\n", errMsg);
 			}
 			freeTokens(tokens, tokenCount);
-			return 0;
+			return 1;
 		}
 
 		int strutsRight = atoi(val);
