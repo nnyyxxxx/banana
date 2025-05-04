@@ -4131,6 +4131,8 @@ int main(int argc, char *argv[])
 	scanExistingWindows();
 	updateClientList();
 
+	runAutostart();
+
 	run();
 
 	cleanup();

@@ -12,6 +12,7 @@
 #define MAX_RULES	 50
 #define MAX_ERRORS	 100
 #define MAX_VARIABLES	 50
+#define MAX_AUTOSTARTS	 50
 
 #define SECTION_GENERAL	   "general"
 #define SECTION_BAR	   "bar"
@@ -83,6 +84,10 @@ typedef struct {
 	int  startLine;
 	int  lastContentLine;
 } SSectionInfo;
+
+typedef struct {
+	char *command;
+} SAutostart;
 
 void	     spawnProgram(const char *arg);
 void	     killClient(const char *arg);
@@ -172,9 +177,13 @@ void  cleanupConfigData(void);
 
 int   processConfigVariable(const char *name, const char *value, int lineNum,
 			    STokenHandlerContext *ctx);
+int   processExecCommand(const char *command, int lineNum,
+			 STokenHandlerContext *ctx);
 char *substituteVariables(const char *str);
 const char     *getVariableValue(const char *name);
 void		cleanupVariables(void);
+void		runAutostart(void);
+void		cleanupAutostart(void);
 
 extern Display *display;
 extern Window	root;
@@ -224,6 +233,8 @@ extern SKeyBinding	 *keys;
 extern size_t		  keysCount;
 extern SWindowRule	 *rules;
 extern size_t		  rulesCount;
+extern SAutostart	 *autostarts;
+extern size_t		  autostartsCount;
 
 extern const SFunctionMap functionMap[];
 extern const SModifierMap modifierMap[];

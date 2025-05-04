@@ -47,6 +47,9 @@ size_t		   rulesCount = 0;
 SVariable	  *variables	  = NULL;
 size_t		   variablesCount = 0;
 
+SAutostart	  *autostarts	   = NULL;
+size_t		   autostartsCount = 0;
+
 const SFunctionMap functionMap[] = {{"spawn", spawnProgram},
 				    {"kill", killClient},
 				    {"quit", quit},
@@ -692,15 +695,44 @@ int processLine(const char *line, char *section, int *inSection,
 			char **tokens	  = tokenizeLine(line, &tokenCount);
 
 			if (tokens && tokenCount >= 2) {
-				if (strcasecmp(tokens[0], SECTION_GENERAL) !=
-					0 &&
-				    strcasecmp(tokens[0], SECTION_BAR) != 0 &&
-				    strcasecmp(tokens[0], SECTION_DECORATION) !=
-					0 &&
-				    strcasecmp(tokens[0], SECTION_BINDS) != 0 &&
-				    strcasecmp(tokens[0], SECTION_RULES) != 0 &&
-				    strcasecmp(tokens[0], SECTION_MASTER) !=
-					0) {
+				if (strcasecmp(tokens[0], "exec") == 0) {
+					char command[MAX_LINE_LENGTH] = "";
+					for (int i = 1; i < tokenCount; i++) {
+						if (i > 1) {
+							strcat(command, " ");
+						}
+						strcat(command, tokens[i]);
+					}
+
+					if ((command[0] == '"' &&
+					     command[strlen(command) - 1] ==
+						 '"') ||
+					    (command[0] == '\'' &&
+					     command[strlen(command) - 1] ==
+						 '\'')) {
+						command[strlen(command) - 1] =
+						    '\0';
+						memmove(command, command + 1,
+							strlen(command));
+					}
+
+					processExecCommand(command, lineNum,
+							   ctx);
+					freeTokens(tokens, tokenCount);
+					return 1;
+				} else if (strcasecmp(tokens[0],
+						      SECTION_GENERAL) != 0 &&
+					   strcasecmp(tokens[0], SECTION_BAR) !=
+					       0 &&
+					   strcasecmp(tokens[0],
+						      SECTION_DECORATION) !=
+					       0 &&
+					   strcasecmp(tokens[0],
+						      SECTION_BINDS) != 0 &&
+					   strcasecmp(tokens[0],
+						      SECTION_RULES) != 0 &&
+					   strcasecmp(tokens[0],
+						      SECTION_MASTER) != 0) {
 					char value[MAX_LINE_LENGTH] = "";
 					for (int i = 1; i < tokenCount; i++) {
 						if (i > 1) {
@@ -1271,11 +1303,16 @@ void createDefaultConfig(void)
 		return;
 	}
 
+	fprintf(fp, "# Variables\n");
 	fprintf(fp, "mod \"alt\"\n");
 	fprintf(fp, "terminal \"alacritty\"\n");
 	fprintf(fp, "menu \"dmenu_run\"\n");
 	fprintf(fp, "screenshot \"maim -s | xclip -selection "
 		    "clipboard -t image/png\"\n");
+
+	fprintf(fp, "# Autostart programs\n");
+	fprintf(fp, "# exec \"picom\"\n");
+	fprintf(fp, "# exec \"dunst\"\n\n");
 
 	fprintf(fp, "# General settings\n");
 	fprintf(fp, "general {\n");
@@ -1411,6 +1448,9 @@ void reloadConfig(const char *arg)
 	SWindowRule *oldRules	   = rules;
 	size_t	     oldRulesCount = rulesCount;
 
+	SAutostart  *oldAutostarts	= autostarts;
+	size_t	     oldAutostartsCount = autostartsCount;
+
 	char	    *oldBarFont		     = barFont;
 	char	    *oldActiveBorderColor    = activeBorderColor;
 	char	    *oldInactiveBorderColor  = inactiveBorderColor;
@@ -1443,6 +1483,8 @@ void reloadConfig(const char *arg)
 	keysCount	     = 0;
 	rules		     = NULL;
 	rulesCount	     = 0;
+	autostarts	     = NULL;
+	autostartsCount	     = 0;
 	barFont		     = NULL;
 	activeBorderColor    = NULL;
 	inactiveBorderColor  = NULL;
@@ -1467,6 +1509,8 @@ void reloadConfig(const char *arg)
 		keysCount		 = oldKeysCount;
 		rules			 = oldRules;
 		rulesCount		 = oldRulesCount;
+		autostarts		 = oldAutostarts;
+		autostartsCount		 = oldAutostartsCount;
 		barFont			 = oldBarFont;
 		activeBorderColor	 = oldActiveBorderColor;
 		inactiveBorderColor	 = oldInactiveBorderColor;
@@ -1512,6 +1556,13 @@ void reloadConfig(const char *arg)
 		}
 		XSync(display, False);
 	}
+
+	for (size_t i = 0; i < oldAutostartsCount; i++) {
+		if (oldAutostarts[i].command) {
+			free(oldAutostarts[i].command);
+		}
+	}
+	free(oldAutostarts);
 
 	for (size_t i = 0; i < oldKeysCount; i++) {
 		free((void *)oldKeys[i].arg);
@@ -2951,6 +3002,7 @@ void cleanupConfigData(void)
 	rulesCount = 0;
 
 	cleanupVariables();
+	cleanupAutostart();
 }
 
 int processConfigVariable(const char *name, const char *value, int lineNum,
@@ -3138,4 +3190,78 @@ void cleanupVariables(void)
 	free(variables);
 	variables      = NULL;
 	variablesCount = 0;
+}
+
+int processExecCommand(const char *command, int lineNum,
+		       STokenHandlerContext *ctx)
+{
+	if (!command) {
+		return 0;
+	}
+
+	if (autostartsCount >= MAX_AUTOSTARTS) {
+		char errMsg[MAX_LINE_LENGTH];
+		snprintf(errMsg, MAX_LINE_LENGTH,
+			 "Too many autostart commands defined (max: %d)",
+			 MAX_AUTOSTARTS);
+
+		if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+			addError(ctx->errors, errMsg, lineNum, 0);
+			ctx->hasErrors = 1;
+		} else {
+			fprintf(stderr, "banana: %s\n", errMsg);
+		}
+		return 0;
+	}
+
+	if (!autostarts) {
+		autostarts = safeMalloc(MAX_AUTOSTARTS * sizeof(SAutostart));
+		if (!autostarts) {
+			return 0;
+		}
+		for (size_t i = 0; i < MAX_AUTOSTARTS; i++) {
+			autostarts[i].command = NULL;
+		}
+	}
+
+	autostarts[autostartsCount].command = safeStrdup(command);
+	autostartsCount++;
+
+	return 1;
+}
+
+void runAutostart(void)
+{
+	if (!autostarts || autostartsCount == 0) {
+		return;
+	}
+
+	for (size_t i = 0; i < autostartsCount; i++) {
+		if (autostarts[i].command) {
+			char *cmd = substituteVariables(autostarts[i].command);
+			if (cmd) {
+				fprintf(stderr,
+					"Running autostart command: %s\n", cmd);
+				spawnProgram(cmd);
+				free(cmd);
+			}
+		}
+	}
+}
+
+void cleanupAutostart(void)
+{
+	if (!autostarts) {
+		return;
+	}
+
+	for (size_t i = 0; i < autostartsCount; i++) {
+		if (autostarts[i].command) {
+			free(autostarts[i].command);
+		}
+	}
+
+	free(autostarts);
+	autostarts	= NULL;
+	autostartsCount = 0;
 }
