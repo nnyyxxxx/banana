@@ -1308,7 +1308,7 @@ void createDefaultConfig(void)
 	fprintf(fp, "terminal \"alacritty\"\n");
 	fprintf(fp, "menu \"dmenu_run\"\n");
 	fprintf(fp, "screenshot \"maim -s | xclip -selection "
-		    "clipboard -t image/png\"\n");
+		    "clipboard -t image/png\"\n\n");
 
 	fprintf(fp, "# Autostart programs\n");
 	fprintf(fp, "# exec \"picom\"\n");
