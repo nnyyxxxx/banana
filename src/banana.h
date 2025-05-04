@@ -4,7 +4,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
-#include <X11/extensions/Xinerama.h>
+#include <X11/extensions/Xrandr.h>
 #include <sys/time.h>
 
 #include "config.h"
@@ -123,6 +123,7 @@ void	  handleDestroyNotify(XEvent *event);
 void	  handleExpose(XEvent *event);
 void	  handlePropertyNotify(XEvent *event);
 void	  handleClientMessage(XEvent *event);
+void	  handleScreenChange(XEvent *event);
 
 void	  spawnProgram(const char *program);
 void	  killClient(const char *arg);

@@ -9,7 +9,7 @@
 #include <X11/Xproto.h>
 #include <X11/cursorfont.h>
 #include <X11/Xcursor/Xcursor.h>
-#include <X11/extensions/Xinerama.h>
+#include <X11/extensions/Xrandr.h>
 #include <sys/time.h>
 #include <limits.h>
 #include <fcntl.h>
@@ -96,6 +96,8 @@ void checkOtherWM()
 	XSelectInput(display, root, 0);
 	XSync(display, False);
 }
+
+static int rr_event_base;
 
 static void (*eventHandlers[LASTEvent])(XEvent *) = {
     [KeyPress]	       = handleKeyPress,
@@ -216,6 +218,15 @@ void setup()
 	if (!loadConfig()) {
 		fprintf(stderr, "banana: failed to load configuration\n");
 		exit(1);
+	}
+
+	int rr_error_base;
+	if (!XRRQueryExtension(display, &rr_event_base, &rr_error_base)) {
+		fprintf(stderr, "banana: RandR extension not available\n");
+	} else {
+		XRRSelectInput(display, root, RRScreenChangeNotifyMask);
+		fprintf(stderr, "RandR extension initialized, listening for "
+				"screen changes\n");
 	}
 
 	normalCursor   = XcursorLibraryLoadCursor(display, "left_ptr");
@@ -360,7 +371,11 @@ void run()
 	while (1) {
 		if (XPending(display)) {
 			XNextEvent(display, &event);
-			if (eventHandlers[event.type]) {
+
+			if (event.type ==
+			    rr_event_base + RRScreenChangeNotify) {
+				handleScreenChange(&event);
+			} else if (eventHandlers[event.type]) {
 				XErrorHandler oldHandler =
 				    XSetErrorHandler(xerrorHandler);
 				eventHandlers[event.type](&event);
@@ -1918,16 +1933,14 @@ void updateMonitors()
 		free(monitors);
 	}
 
-	XineramaScreenInfo *info = NULL;
-	monitors		 = NULL;
-	int oldNumMonitors	 = numMonitors;
-	numMonitors		 = 0;
+	XRRScreenResources *screenRes = NULL;
+	monitors		      = NULL;
+	int oldNumMonitors	      = numMonitors;
+	numMonitors		      = 0;
 
-	if (XineramaIsActive(display)) {
-		info = XineramaQueryScreens(display, &numMonitors);
-	}
+	screenRes = XRRGetScreenResources(display, root);
 
-	if (!info) {
+	if (!screenRes || screenRes->noutput == 0) {
 		numMonitors   = 1;
 		monitors      = malloc(sizeof(SMonitor));
 		monitors[0].x = 0;
@@ -1954,34 +1967,168 @@ void updateMonitors()
 				: LAYOUT_TILED;
 			monitors[0].lastTiledClient[ws] = None;
 		}
+
+		if (screenRes) {
+			XRRFreeScreenResources(screenRes);
+		}
 	} else {
-		monitors = malloc(numMonitors * sizeof(SMonitor));
-		for (int i = 0; i < numMonitors; i++) {
-			monitors[i].x		     = info[i].x_org;
-			monitors[i].y		     = info[i].y_org;
-			monitors[i].width	     = info[i].width;
-			monitors[i].height	     = info[i].height;
-			monitors[i].num		     = i;
-			monitors[i].currentWorkspace = 0;
-			monitors[i].currentLayout    = LAYOUT_TILED;
-			monitors[i].masterCount	     = 1;
-			monitors[i].masterFactors =
+		for (int i = 0; i < screenRes->noutput; i++) {
+			XRROutputInfo *outputInfo = XRRGetOutputInfo(
+			    display, screenRes, screenRes->outputs[i]);
+			if (outputInfo &&
+			    outputInfo->connection == RR_Connected &&
+			    outputInfo->crtc) {
+				numMonitors++;
+			}
+			if (outputInfo) {
+				XRRFreeOutputInfo(outputInfo);
+			}
+		}
+
+		if (numMonitors == 0) {
+			numMonitors   = 1;
+			monitors      = malloc(sizeof(SMonitor));
+			monitors[0].x = 0;
+			monitors[0].y = 0;
+			monitors[0].width =
+			    DisplayWidth(display, DefaultScreen(display));
+			monitors[0].height =
+			    DisplayHeight(display, DefaultScreen(display));
+			monitors[0].num		     = 0;
+			monitors[0].currentWorkspace = 0;
+			monitors[0].currentLayout    = LAYOUT_TILED;
+			monitors[0].masterCount	     = 1;
+			monitors[0].masterFactors =
 			    malloc(workspaceCount * sizeof(float));
-			monitors[i].workspaceLayouts =
+			monitors[0].workspaceLayouts =
 			    malloc(workspaceCount * sizeof(ELayout));
-			monitors[i].lastTiledClient =
+			monitors[0].lastTiledClient =
 			    malloc(workspaceCount * sizeof(Window));
 			for (int ws = 0; ws < workspaceCount; ws++) {
-				monitors[i].masterFactors[ws] =
+				monitors[0].masterFactors[ws] =
 				    defaultMasterFactor;
-				monitors[i].workspaceLayouts[ws] =
+				monitors[0].workspaceLayouts[ws] =
 				    strcasecmp(defaultLayout, "monocle") == 0
 					? LAYOUT_MONOCLE
 					: LAYOUT_TILED;
-				monitors[i].lastTiledClient[ws] = None;
+				monitors[0].lastTiledClient[ws] = None;
+			}
+		} else {
+			monitors = malloc(numMonitors * sizeof(SMonitor));
+			int monitorIndex = 0;
+
+			for (int i = 0; i < screenRes->noutput &&
+					monitorIndex < numMonitors;
+			     i++) {
+				XRROutputInfo *outputInfo = XRRGetOutputInfo(
+				    display, screenRes, screenRes->outputs[i]);
+
+				if (outputInfo &&
+				    outputInfo->connection == RR_Connected &&
+				    outputInfo->crtc) {
+					XRRCrtcInfo *crtcInfo =
+					    XRRGetCrtcInfo(display, screenRes,
+							   outputInfo->crtc);
+
+					if (crtcInfo) {
+						monitors[monitorIndex].x =
+						    crtcInfo->x;
+						monitors[monitorIndex].y =
+						    crtcInfo->y;
+						monitors[monitorIndex].width =
+						    crtcInfo->width;
+						monitors[monitorIndex].height =
+						    crtcInfo->height;
+						monitors[monitorIndex].num =
+						    monitorIndex;
+						monitors[monitorIndex]
+						    .currentWorkspace = 0;
+						monitors[monitorIndex]
+						    .currentLayout =
+						    LAYOUT_TILED;
+						monitors[monitorIndex]
+						    .masterCount = 1;
+						monitors[monitorIndex]
+						    .masterFactors =
+						    malloc(workspaceCount *
+							   sizeof(float));
+						monitors[monitorIndex]
+						    .workspaceLayouts =
+						    malloc(workspaceCount *
+							   sizeof(ELayout));
+						monitors[monitorIndex]
+						    .lastTiledClient =
+						    malloc(workspaceCount *
+							   sizeof(Window));
+
+						for (int ws = 0;
+						     ws < workspaceCount;
+						     ws++) {
+							monitors[monitorIndex]
+							    .masterFactors[ws] =
+							    defaultMasterFactor;
+							monitors[monitorIndex]
+							    .workspaceLayouts[ws] =
+							    strcasecmp(
+								defaultLayout,
+								"monocle") == 0
+								? LAYOUT_MONOCLE
+								: LAYOUT_TILED;
+							monitors[monitorIndex]
+							    .lastTiledClient[ws] =
+							    None;
+						}
+
+						monitorIndex++;
+						XRRFreeCrtcInfo(crtcInfo);
+					}
+				}
+
+				if (outputInfo) {
+					XRRFreeOutputInfo(outputInfo);
+				}
+			}
+
+			if (monitorIndex < numMonitors) {
+				numMonitors = monitorIndex > 0 ? monitorIndex
+							       : 1;
+
+				if (monitorIndex == 0) {
+					monitors[0].x	  = 0;
+					monitors[0].y	  = 0;
+					monitors[0].width = DisplayWidth(
+					    display, DefaultScreen(display));
+					monitors[0].height = DisplayHeight(
+					    display, DefaultScreen(display));
+					monitors[0].num		     = 0;
+					monitors[0].currentWorkspace = 0;
+					monitors[0].currentLayout =
+					    LAYOUT_TILED;
+					monitors[0].masterCount	  = 1;
+					monitors[0].masterFactors = malloc(
+					    workspaceCount * sizeof(float));
+					monitors[0].workspaceLayouts = malloc(
+					    workspaceCount * sizeof(ELayout));
+					monitors[0].lastTiledClient = malloc(
+					    workspaceCount * sizeof(Window));
+					for (int ws = 0; ws < workspaceCount;
+					     ws++) {
+						monitors[0].masterFactors[ws] =
+						    defaultMasterFactor;
+						monitors[0]
+						    .workspaceLayouts[ws] =
+						    strcasecmp(defaultLayout,
+							       "monocle") == 0
+							? LAYOUT_MONOCLE
+							: LAYOUT_TILED;
+						monitors[0].lastTiledClient[ws] =
+						    None;
+					}
+				}
 			}
 		}
-		XFree(info);
+
+		XRRFreeScreenResources(screenRes);
 	}
 
 	if (numMonitors != oldNumMonitors) {
@@ -4096,6 +4243,55 @@ void remapSwallowedClient(SClient *client)
 
 	arrangeClients(&monitors[parent->monitor]);
 	updateClientVisibility();
+}
+
+void handleScreenChange(XEvent *event)
+{
+	fprintf(stderr, "Screen configuration changed, updating monitors\n");
+
+	XRRUpdateConfiguration(event);
+
+	updateMonitors();
+
+	if (barWindows) {
+		for (int i = 0; i < numMonitors; i++) {
+			if (barWindows[i] != 0) {
+				XDestroyWindow(display, barWindows[i]);
+				barWindows[i] = 0;
+			}
+		}
+		free(barWindows);
+		barWindows = NULL;
+	}
+
+	createBars();
+	updateStatus();
+
+	for (SClient *c = clients; c; c = c->next) {
+		if (c->monitor >= numMonitors) {
+			c->monitor = 0;
+		}
+
+		SMonitor *mon = &monitors[c->monitor];
+		if (c->x < mon->x || c->x >= mon->x + mon->width ||
+		    c->y < mon->y || c->y >= mon->y + mon->height) {
+			c->x = mon->x + (mon->width - c->width) / 2;
+			c->y = mon->y + (mon->height - c->height) / 2;
+			if (c->y < mon->y + barHeight) {
+				c->y = mon->y + barHeight;
+			}
+			XMoveWindow(display, c->window, c->x, c->y);
+		}
+	}
+
+	updateClientPositionsForBar();
+
+	for (int i = 0; i < numMonitors; i++) {
+		arrangeClients(&monitors[i]);
+	}
+
+	updateClientVisibility();
+	updateBars();
 }
 
 int main(int argc, char *argv[])

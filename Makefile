@@ -1,6 +1,6 @@
 CC      ?= gcc
 CFLAGS  ?= -Wall -Wextra -O3 -Isrc
-LDFLAGS ?= -lX11 -lXinerama -lXcursor -lpango-1.0 -lpangocairo-1.0 -lcairo -lgobject-2.0 -lglib-2.0 -lm
+LDFLAGS ?= -lX11 -lXrandr -lXcursor -lpango-1.0 -lpangocairo-1.0 -lcairo -lgobject-2.0 -lglib-2.0 -lm
 FT_CFLAGS = $(shell pkg-config --cflags freetype2)
 PANGO_CFLAGS = $(shell pkg-config --cflags pangocairo)
 
