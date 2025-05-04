@@ -2680,19 +2680,6 @@ int handleRulesSection(STokenHandlerContext *ctx, int tokenCount, char **tokens,
 		} else if (strcasecmp(tokens[i], "workspace") == 0 &&
 			   i + 1 < tokenCount) {
 			if (!isValidInteger(tokens[i + 1])) {
-				char errMsg[MAX_LINE_LENGTH];
-				snprintf(errMsg, MAX_LINE_LENGTH,
-					 "Invalid workspace index: '%s' - must "
-					 "be an integer",
-					 tokens[i + 1]);
-
-				if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-					addError(ctx->errors, errMsg, lineNum,
-						 0);
-					ctx->hasErrors = 1;
-				} else {
-					fprintf(stderr, "banana: %s\n", errMsg);
-				}
 				i++;
 				continue;
 			}
@@ -2727,19 +2714,6 @@ int handleRulesSection(STokenHandlerContext *ctx, int tokenCount, char **tokens,
 		} else if (strcasecmp(tokens[i], "monitor") == 0 &&
 			   i + 1 < tokenCount) {
 			if (!isValidInteger(tokens[i + 1])) {
-				char errMsg[MAX_LINE_LENGTH];
-				snprintf(errMsg, MAX_LINE_LENGTH,
-					 "Invalid monitor index: '%s' - must "
-					 "be an integer",
-					 tokens[i + 1]);
-
-				if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-					addError(ctx->errors, errMsg, lineNum,
-						 0);
-					ctx->hasErrors = 1;
-				} else {
-					fprintf(stderr, "banana: %s\n", errMsg);
-				}
 				i++;
 				continue;
 			}
@@ -2748,37 +2722,11 @@ int handleRulesSection(STokenHandlerContext *ctx, int tokenCount, char **tokens,
 		} else if (strcasecmp(tokens[i], "size") == 0 &&
 			   i + 2 < tokenCount) {
 			if (!isValidInteger(tokens[i + 1])) {
-				char errMsg[MAX_LINE_LENGTH];
-				snprintf(errMsg, MAX_LINE_LENGTH,
-					 "Invalid width value: '%s' - must be "
-					 "an integer",
-					 tokens[i + 1]);
-
-				if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-					addError(ctx->errors, errMsg, lineNum,
-						 0);
-					ctx->hasErrors = 1;
-				} else {
-					fprintf(stderr, "banana: %s\n", errMsg);
-				}
 				i += 2;
 				continue;
 			}
 
 			if (!isValidInteger(tokens[i + 2])) {
-				char errMsg[MAX_LINE_LENGTH];
-				snprintf(errMsg, MAX_LINE_LENGTH,
-					 "Invalid height value: '%s' - must be "
-					 "an integer",
-					 tokens[i + 2]);
-
-				if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
-					addError(ctx->errors, errMsg, lineNum,
-						 0);
-					ctx->hasErrors = 1;
-				} else {
-					fprintf(stderr, "banana: %s\n", errMsg);
-				}
 				i += 2;
 				continue;
 			}
