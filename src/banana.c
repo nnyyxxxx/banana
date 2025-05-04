@@ -48,12 +48,16 @@ Atom		NET_SUPPORTING_WM_CHECK;
 Atom		NET_CLIENT_LIST;
 Atom		NET_NUMBER_OF_DESKTOPS;
 Atom		NET_CURRENT_DESKTOP;
+Atom		NET_DESKTOP_VIEWPORT;
 Atom		NET_WM_STATE;
 Atom		NET_WM_STATE_FULLSCREEN;
 Atom		NET_WM_WINDOW_TYPE;
 Atom		NET_WM_WINDOW_TYPE_DIALOG;
 Atom		NET_WM_WINDOW_TYPE_UTILITY;
+Atom		NET_WM_WINDOW_TYPE_DOCK;
 Atom		NET_ACTIVE_WINDOW;
+Atom		NET_WM_STRUT;
+Atom		NET_WM_STRUT_PARTIAL;
 Atom		UTF8_STRING;
 Window		wmcheckwin;
 
@@ -148,6 +152,8 @@ void setupEWMH()
 	    XInternAtom(display, "_NET_NUMBER_OF_DESKTOPS", False);
 	NET_CURRENT_DESKTOP =
 	    XInternAtom(display, "_NET_CURRENT_DESKTOP", False);
+	NET_DESKTOP_VIEWPORT =
+	    XInternAtom(display, "_NET_DESKTOP_VIEWPORT", False);
 	NET_WM_STATE = XInternAtom(display, "_NET_WM_STATE", False);
 	NET_WM_STATE_FULLSCREEN =
 	    XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", False);
@@ -156,8 +162,13 @@ void setupEWMH()
 	    XInternAtom(display, "_NET_WM_WINDOW_TYPE_DIALOG", False);
 	NET_WM_WINDOW_TYPE_UTILITY =
 	    XInternAtom(display, "_NET_WM_WINDOW_TYPE_UTILITY", False);
+	NET_WM_WINDOW_TYPE_DOCK =
+	    XInternAtom(display, "_NET_WM_WINDOW_TYPE_DOCK", False);
 	NET_ACTIVE_WINDOW = XInternAtom(display, "_NET_ACTIVE_WINDOW", False);
-	UTF8_STRING	  = XInternAtom(display, "UTF8_STRING", False);
+	NET_WM_STRUT	  = XInternAtom(display, "_NET_WM_STRUT", False);
+	NET_WM_STRUT_PARTIAL =
+	    XInternAtom(display, "_NET_WM_STRUT_PARTIAL", False);
+	UTF8_STRING = XInternAtom(display, "UTF8_STRING", False);
 
 	wmcheckwin = XCreateSimpleWindow(display, root, 0, 0, 1, 1, 0, 0, 0);
 	XChangeProperty(display, root, NET_SUPPORTING_WM_CHECK, XA_WINDOW, 32,
@@ -173,12 +184,16 @@ void setupEWMH()
 			    NET_CLIENT_LIST,
 			    NET_NUMBER_OF_DESKTOPS,
 			    NET_CURRENT_DESKTOP,
+			    NET_DESKTOP_VIEWPORT,
 			    NET_WM_STATE,
 			    NET_WM_STATE_FULLSCREEN,
 			    NET_WM_WINDOW_TYPE,
 			    NET_WM_WINDOW_TYPE_DIALOG,
 			    NET_WM_WINDOW_TYPE_UTILITY,
-			    NET_ACTIVE_WINDOW};
+			    NET_WM_WINDOW_TYPE_DOCK,
+			    NET_ACTIVE_WINDOW,
+			    NET_WM_STRUT,
+			    NET_WM_STRUT_PARTIAL};
 
 	XChangeProperty(display, root, NET_SUPPORTED, XA_ATOM, 32,
 			PropModeReplace, (unsigned char *)supported,
@@ -193,6 +208,7 @@ void setupEWMH()
 			PropModeReplace, (unsigned char *)&currentDesktop, 1);
 
 	updateClientList();
+	updateDesktopViewport();
 }
 
 void setup()
@@ -258,6 +274,18 @@ void setup()
 	createBars();
 
 	updateStatus();
+
+	for (int i = 0; i < numMonitors; i++) {
+		if (hasDocksOnMonitor(i) && barVisible) {
+			fprintf(stderr,
+				"Hiding bar because docks are detected on "
+				"monitor %d\n",
+				i);
+			barVisible = 0;
+			showHideBars(0);
+			break;
+		}
+	}
 
 	scanExistingWindows();
 
@@ -921,6 +949,10 @@ void moveWindow(SClient *client, int x, int y)
 		return;
 	}
 
+	if (client->isDock) {
+		return;
+	}
+
 	int prevMonitor = client->monitor;
 
 	client->x = x;
@@ -980,6 +1012,10 @@ void resizeWindow(SClient *client, int width, int height)
 		XMoveResizeWindow(display, client->window, client->x, client->y,
 				  client->width, client->height);
 		configureClient(client);
+		return;
+	}
+
+	if (client->isDock) {
 		return;
 	}
 
@@ -1076,9 +1112,14 @@ void handleMapRequest(XEvent *event)
 			}
 		}
 
-		if (!client->isFloating &&
-		    monitor->currentLayout == LAYOUT_MONOCLE &&
-		    client->workspace == monitor->currentWorkspace) {
+		if (client->isDock || client->workspace == DOCK_WORKSPACE) {
+			XMapWindow(display, ev->window);
+			XRaiseWindow(display, ev->window);
+			fprintf(stderr, "Mapping dock window during map "
+					"request\n");
+		} else if (!client->isFloating &&
+			   monitor->currentLayout == LAYOUT_MONOCLE &&
+			   client->workspace == monitor->currentWorkspace) {
 			XMapWindow(display, ev->window);
 			focusClient(client);
 		} else if (client->workspace == monitor->currentWorkspace &&
@@ -1393,6 +1434,7 @@ void manageClient(Window window)
 	client->window		= window;
 	client->isFloating	= 0;
 	client->isFullscreen	= 0;
+	client->isDock		= 0;
 	client->isUrgent	= 0;
 	client->neverfocus	= 0;
 	client->oldState	= 0;
@@ -1582,14 +1624,14 @@ void manageClient(Window window)
 	updateWindowType(client);
 	updateWMHints(client);
 
-	if (!client->isFullscreen) {
+	if (!client->isDock && !client->isFullscreen) {
 		XGrabButton(display, Button1, modkey, window, False,
 			    ButtonPressMask | ButtonReleaseMask |
 				ButtonMotionMask,
 			    GrabModeAsync, GrabModeAsync, None, moveCursor);
 	}
 
-	if (client->isFloating) {
+	if (client->isFloating && !client->isDock) {
 		XGrabButton(display, Button3, modkey, window, False,
 			    ButtonPressMask | ButtonReleaseMask |
 				ButtonMotionMask,
@@ -1613,7 +1655,22 @@ void manageClient(Window window)
 
 	configureClient(client);
 
-	if (wa.map_state == IsViewable) {
+	if (client->isDock) {
+		XMapWindow(display, client->window);
+		XRaiseWindow(display, client->window);
+		fprintf(stderr, "Mapping dock window 0x%lx immediately\n",
+			client->window);
+
+		if (barVisible) {
+			fprintf(stderr,
+				"Hiding bar because a dock was "
+				"detected on monitor %d\n",
+				client->monitor);
+			barVisible = 0;
+			showHideBars(0);
+			updateClientPositionsForBar();
+		}
+	} else if (wa.map_state == IsViewable) {
 		fprintf(stderr, "Window is viewable, focusing now\n");
 		focusClient(client);
 	} else {
@@ -1653,6 +1710,8 @@ void unmanageClient(Window window)
 	if (!client) {
 		return;
 	}
+
+	int wasClientDock = client->isDock;
 
 	if (!client->isFloating && !client->isFullscreen) {
 		SMonitor *mon = &monitors[client->monitor];
@@ -1771,9 +1830,38 @@ void unmanageClient(Window window)
 		}
 	}
 
+	int x	   = client->x;
+	int y	   = client->y;
+	int width  = client->width;
+	int height = client->height;
+
 	free(client);
 
 	arrangeClients(monitor);
+
+	if (wasClientDock) {
+		if (!hasDocksOnMonitor(monitor->num) && !barVisible &&
+		    showBar) {
+			fprintf(stderr, "Last dock closed, showing bar\n");
+			barVisible = 1;
+			showHideBars(1);
+			updateClientPositionsForBar();
+		}
+
+		for (int i = 0; i < numMonitors; i++) {
+			SMonitor *m = &monitors[i];
+			if (i != monitor->num && x < m->x + m->width &&
+			    x + width > m->x && y < m->y + m->height &&
+			    y + height > m->y) {
+				fprintf(stderr,
+					"Arranging monitor %d after dock "
+					"removal\n",
+					i);
+				arrangeClients(&monitors[i]);
+			}
+		}
+	}
+
 	updateClientVisibility();
 	updateBars();
 
@@ -1788,7 +1876,7 @@ void configureClient(SClient *client)
 
 	SMonitor *monitor = &monitors[client->monitor];
 	int	  noBorder =
-	    client->isFullscreen ||
+	    client->isFullscreen || client->isDock ||
 	    (monitor->currentLayout == LAYOUT_MONOCLE && !client->isFloating);
 
 	XWindowChanges wc;
@@ -1881,7 +1969,7 @@ void updateBorders()
 	SClient *client = clients;
 	while (client) {
 		SMonitor *monitor = &monitors[client->monitor];
-		if (!client->isFullscreen &&
+		if (!client->isFullscreen && !client->isDock &&
 		    !(monitor->currentLayout == LAYOUT_MONOCLE &&
 		      !client->isFloating)) {
 			XSetWindowBorder(display, client->window,
@@ -2150,6 +2238,8 @@ void updateMonitors()
 			}
 			client = client->next;
 		}
+
+		updateDesktopViewport();
 	}
 }
 
@@ -2272,6 +2362,8 @@ void switchToWorkspace(const char *arg)
 	XChangeProperty(display, root, NET_CURRENT_DESKTOP, XA_CARDINAL, 32,
 			PropModeReplace, (unsigned char *)&currentDesktop, 1);
 
+	updateDesktopViewport();
+
 	if (monitor->currentLayout == LAYOUT_MONOCLE &&
 	    monitor->lastTiledClient[workspace] == None) {
 		SClient *firstTiled = NULL;
@@ -2339,6 +2431,12 @@ void switchToWorkspace(const char *arg)
 				focused = NULL;
 				updateBorders();
 			}
+
+			XDeleteProperty(display, root, NET_ACTIVE_WINDOW);
+			fprintf(stderr,
+				"No windows in workspace %d, clearing "
+				"NET_ACTIVE_WINDOW\n",
+				workspace);
 		}
 	}
 }
@@ -2393,6 +2491,37 @@ void moveClientToWorkspace(const char *arg)
 	updateBars();
 }
 
+int hasDocks(void)
+{
+	for (SClient *c = clients; c; c = c->next) {
+		if (c->isDock) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+int hasDocksOnMonitor(int monitorNum)
+{
+	SMonitor *m = &monitors[monitorNum];
+
+	for (SClient *c = clients; c; c = c->next) {
+		if (c->isDock) {
+			if (c->x < m->x + m->width && c->x + c->width > m->x &&
+			    c->y < m->y + m->height &&
+			    c->y + c->height > m->y) {
+				fprintf(stderr,
+					"Found dock window 0x%lx overlapping "
+					"monitor %d\n",
+					c->window, monitorNum);
+				return 1;
+			}
+		}
+	}
+	fprintf(stderr, "No docks found on monitor %d\n", monitorNum);
+	return 0;
+}
+
 void updateClientVisibility()
 {
 	int hasFullscreen[MAX_MONITORS][100] = {0};
@@ -2444,6 +2573,11 @@ void updateClientVisibility()
 	for (SClient *client = clients; client; client = client->next) {
 		if (client->workspace == INT_MAX) {
 			XUnmapWindow(display, client->window);
+			continue;
+		}
+
+		if (client->isDock || client->workspace == DOCK_WORKSPACE) {
+			XMapWindow(display, client->window);
 			continue;
 		}
 
@@ -2552,6 +2686,10 @@ void toggleFloating(const char *arg)
 	}
 
 	if (focused->isFullscreen) {
+		return;
+	}
+
+	if (focused->isDock) {
 		return;
 	}
 
@@ -2665,6 +2803,8 @@ void arrangeClients(SMonitor *monitor)
 		return;
 	}
 
+	fprintf(stderr, "Arranging clients for monitor %d\n", monitor->num);
+
 	if (strcasecmp(defaultLayout, "monocle") == 0) {
 		monitor->currentLayout = LAYOUT_MONOCLE;
 	} else {
@@ -2697,7 +2837,8 @@ void monocleClients(SMonitor *monitor)
 	for (SClient *client = clients; client; client = client->next) {
 		if (client->monitor == monitor->num &&
 		    client->workspace == monitor->currentWorkspace &&
-		    !client->isFloating && !client->isFullscreen) {
+		    !client->isFloating && !client->isFullscreen &&
+		    !client->isDock) {
 			visibleClients[visibleCount++] = client;
 			if (client == focused) {
 				focusedClient = client;
@@ -2744,18 +2885,36 @@ void monocleClients(SMonitor *monitor)
 	int y		    = monitor->y;
 	int availableWidth  = monitor->width;
 	int availableHeight = monitor->height;
+	int dockHeight = getDockHeight(monitor->num, monitor->currentWorkspace);
+	int docksPresent = hasDocksOnMonitor(monitor->num);
 
-	if (barVisible) {
+	if (barVisible && !docksPresent) {
 		if (bottomBar) {
 			availableHeight -=
 			    (barHeight + barBorderWidth * 2 + barStrutsTop);
+			if (dockHeight > 0 && docksPresent) {
+				y += dockHeight;
+			}
 		} else {
 			int barBottom = monitor->y + barStrutsTop + barHeight +
 					barBorderWidth * 2;
 			availableHeight -=
 			    (barStrutsTop + barHeight + barBorderWidth * 2);
 			y = barBottom;
+			if (dockHeight > 0 && docksPresent) {
+				y += dockHeight;
+			}
 		}
+	} else if (dockHeight > 0 && docksPresent) {
+		y += dockHeight;
+	}
+
+	if (dockHeight > 0 && docksPresent) {
+		availableHeight -= dockHeight;
+		fprintf(stderr,
+			"Adjusting monocle window position for dock height: "
+			"%d on monitor %d\n",
+			dockHeight, monitor->num);
 	}
 
 	int width  = availableWidth;
@@ -2791,7 +2950,7 @@ void restackFloatingWindows()
 		for (SClient *c = clients; c; c = c->next) {
 			if (c->monitor == monitor->num &&
 			    c->workspace == monitor->currentWorkspace &&
-			    !c->isFloating) {
+			    c->isDock) {
 				XLowerWindow(display, c->window);
 			}
 		}
@@ -2799,7 +2958,15 @@ void restackFloatingWindows()
 		for (SClient *c = clients; c; c = c->next) {
 			if (c->monitor == monitor->num &&
 			    c->workspace == monitor->currentWorkspace &&
-			    c->isFloating) {
+			    !c->isFloating && !c->isDock) {
+				XLowerWindow(display, c->window);
+			}
+		}
+
+		for (SClient *c = clients; c; c = c->next) {
+			if (c->monitor == monitor->num &&
+			    c->workspace == monitor->currentWorkspace &&
+			    c->isFloating && !c->isDock) {
 				if (c == focused && (windowMovement.active ||
 						     windowResize.active)) {
 					XRaiseWindow(display, c->window);
@@ -2818,11 +2985,11 @@ void tileClients(SMonitor *monitor)
 	SClient *visibleClients[MAX_CLIENTS] = {NULL};
 	int	 visibleCount		     = 0;
 	int	 currentWorkspace	     = monitor->currentWorkspace;
-
 	for (SClient *client = clients; client; client = client->next) {
 		if (client->monitor == monitor->num &&
 		    client->workspace == monitor->currentWorkspace &&
-		    !client->isFloating && !client->isFullscreen) {
+		    !client->isFloating && !client->isFullscreen &&
+		    !client->isDock) {
 			visibleClients[visibleCount++] = client;
 			if (visibleCount >= MAX_CLIENTS) {
 				break;
@@ -2840,21 +3007,40 @@ void tileClients(SMonitor *monitor)
 	int   y;
 	int   availableWidth  = monitor->width - (2 * outerGap);
 	int   availableHeight = monitor->height - (2 * outerGap);
+	int   dockHeight      = getDockHeight(monitor->num, currentWorkspace);
+	int   docksPresent    = hasDocksOnMonitor(monitor->num);
 
-	if (barVisible) {
+	if (barVisible && !docksPresent) {
 		if (bottomBar) {
 			availableHeight -=
 			    (barHeight + barBorderWidth * 2 + barStrutsTop);
 			y = monitor->y + outerGap;
+			if (dockHeight > 0 && docksPresent) {
+				y += dockHeight;
+			}
 		} else {
 			int barBottom = monitor->y + barStrutsTop + barHeight +
 					barBorderWidth * 2;
 			availableHeight -=
 			    (barStrutsTop + barHeight + barBorderWidth * 2);
 			y = barBottom + outerGap;
+			if (dockHeight > 0 && docksPresent) {
+				y += dockHeight;
+			}
 		}
 	} else {
 		y = monitor->y + outerGap;
+		if (dockHeight > 0 && docksPresent) {
+			y += dockHeight;
+		}
+	}
+
+	if (dockHeight > 0 && docksPresent) {
+		availableHeight -= dockHeight;
+		fprintf(stderr,
+			"Adjusting tiled window positions for dock height: "
+			"%d on monitor %d\n",
+			dockHeight, monitor->num);
 	}
 
 	int masterArea = availableWidth * masterFactor;
@@ -3447,6 +3633,50 @@ void setFullscreen(SClient *client, int fullscreen)
 	updateBars();
 }
 
+int *getStrut(Window window)
+{
+	static unsigned long strut[12] = {0};
+	Atom		     actual_type;
+	int		     actual_format;
+	unsigned long	     nitems, bytes_after;
+	unsigned char	    *data = NULL;
+
+	if (XGetWindowProperty(display, window, NET_WM_STRUT_PARTIAL, 0, 12,
+			       False, XA_CARDINAL, &actual_type, &actual_format,
+			       &nitems, &bytes_after, &data) == Success &&
+	    data) {
+		if (nitems == 12) {
+			memcpy(strut, data, 12 * sizeof(unsigned long));
+			XFree(data);
+			fprintf(stderr,
+				"Found _NET_WM_STRUT_PARTIAL: left=%lu "
+				"right=%lu top=%lu bottom=%lu\n",
+				strut[0], strut[1], strut[2], strut[3]);
+			return (int *)strut;
+		}
+		XFree(data);
+	}
+
+	data = NULL;
+	if (XGetWindowProperty(display, window, NET_WM_STRUT, 0, 4, False,
+			       XA_CARDINAL, &actual_type, &actual_format,
+			       &nitems, &bytes_after, &data) == Success &&
+	    data) {
+		if (nitems == 4) {
+			memcpy(strut, data, 4 * sizeof(unsigned long));
+			XFree(data);
+			fprintf(stderr,
+				"Found _NET_WM_STRUT: left=%lu right=%lu "
+				"top=%lu bottom=%lu\n",
+				strut[0], strut[1], strut[2], strut[3]);
+			return (int *)strut;
+		}
+		XFree(data);
+	}
+
+	return NULL;
+}
+
 void updateWindowType(SClient *client)
 {
 	Atom state = getAtomProperty(client, NET_WM_STATE);
@@ -3496,6 +3726,84 @@ void updateWindowType(SClient *client)
 		fprintf(stderr, "Dialog or utility window detected, forcing "
 				"floating mode\n");
 		client->isFloating = 1;
+	}
+	if (wtype == NET_WM_WINDOW_TYPE_DOCK) {
+		fprintf(stderr, "Dock window detected, setting appropriate "
+				"properties\n");
+		client->isDock	   = 1;
+		client->isFloating = 1;
+		client->noswallow  = 1;
+
+		client->oldWorkspace = client->workspace;
+		client->workspace    = DOCK_WORKSPACE;
+
+		fprintf(stderr, "Dock window 0x%lx assigned to monitor %d\n",
+			client->window, client->monitor);
+
+		int	 *strut	  = getStrut(client->window);
+		SMonitor *monitor = &monitors[client->monitor];
+
+		if (strut) {
+			if (strut[2] > 0) {
+				client->y = monitor->y;
+				fprintf(stderr,
+					"Positioning dock at top edge: y=%d\n",
+					client->y);
+			} else if (strut[3] > 0) {
+				client->y = monitor->y + monitor->height -
+					    client->height;
+				fprintf(stderr,
+					"Positioning dock at bottom edge: "
+					"y=%d\n",
+					client->y);
+			} else if (strut[0] > 0) {
+				client->x = monitor->x;
+				fprintf(stderr,
+					"Positioning dock at left edge: x=%d\n",
+					client->x);
+			} else if (strut[1] > 0) {
+				client->x =
+				    monitor->x + monitor->width - client->width;
+				fprintf(stderr,
+					"Positioning dock at right edge: "
+					"x=%d\n",
+					client->x);
+			}
+		}
+
+		XSizeHints hints;
+		long	   supplied;
+
+		if (XGetWMNormalHints(display, client->window, &hints,
+				      &supplied)) {
+			if (supplied & PPosition) {
+				fprintf(stderr,
+					"Using position hints for dock: "
+					"%d,%d\n",
+					hints.x, hints.y);
+				client->x = hints.x;
+				client->y = hints.y;
+			}
+		}
+
+		XMoveWindow(display, client->window, client->x, client->y);
+		XUngrabButton(display, Button1, modkey, client->window);
+		XUngrabButton(display, Button3, modkey, client->window);
+		XSetWindowBorderWidth(display, client->window, 0);
+
+		for (int i = 0; i < numMonitors; i++) {
+			SMonitor *m = &monitors[i];
+			if (client->x < m->x + m->width &&
+			    client->x + client->width > m->x &&
+			    client->y < m->y + m->height &&
+			    client->y + client->height > m->y) {
+				fprintf(stderr,
+					"Dock affects monitor %d, will arrange "
+					"it\n",
+					i);
+				arrangeClients(&monitors[i]);
+			}
+		}
 	}
 }
 
@@ -3793,16 +4101,35 @@ void focusMonitor(const char *arg)
 	currentWorkspace = monitor->currentWorkspace;
 
 	updateBars();
+
+	long currentDesktop = currentWorkspace;
+	XChangeProperty(display, root, NET_CURRENT_DESKTOP, XA_CARDINAL, 32,
+			PropModeReplace, (unsigned char *)&currentDesktop, 1);
+	updateDesktopViewport();
 }
 
 void toggleBar(const char *arg)
 {
 	(void)arg;
+	SMonitor *currentMonitor = getCurrentMonitor();
+
+	if (hasDocksOnMonitor(currentMonitor->num)) {
+		fprintf(stderr, "Bar toggling disabled - docks are active on "
+				"this monitor\n");
+		if (barVisible) {
+			barVisible = 0;
+			showHideBars(0);
+			updateClientPositionsForBar();
+
+			arrangeClients(currentMonitor);
+		}
+		return;
+	}
 
 	barVisible = !barVisible;
 	showHideBars(barVisible);
 	updateClientPositionsForBar();
-	arrangeClients(getCurrentMonitor());
+	arrangeClients(currentMonitor);
 }
 
 void cycleLayouts(const char *arg)
@@ -4304,6 +4631,69 @@ void handleScreenChange(XEvent *event)
 
 	updateClientVisibility();
 	updateBars();
+	updateDesktopViewport();
+}
+
+int getDockHeight(int monitorNum, int workspace)
+{
+	int	  dockHeight = 0;
+	SMonitor *m	     = &monitors[monitorNum];
+
+	for (SClient *c = clients; c; c = c->next) {
+		if (c->isDock) {
+			if (c->x < m->x + m->width && c->x + c->width > m->x &&
+			    c->y < m->y + m->height &&
+			    c->y + c->height > m->y) {
+				dockHeight += c->height;
+				fprintf(stderr,
+					"Found dock %lx overlapping monitor "
+					"%d, height %d, total now %d\n",
+					c->window, monitorNum, c->height,
+					dockHeight);
+			}
+		}
+	}
+
+	fprintf(stderr, "Total dock height for monitor %d workspace %d: %d\n",
+		monitorNum, workspace, dockHeight);
+	return dockHeight;
+}
+
+void updateDesktopViewport()
+{
+	if (!monitors || numMonitors <= 0 || workspaceCount <= 0) {
+		fprintf(stderr, "Cannot update desktop viewport: no monitors "
+				"or invalid workspace count\n");
+		return;
+	}
+
+	long data[workspaceCount * 2];
+	int  idx = 0;
+
+	for (int ws = 0; ws < workspaceCount; ws++) {
+		int monitorFound = 0;
+
+		for (int m = 0; m < numMonitors; m++) {
+			if (monitors[m].currentWorkspace == ws) {
+				data[idx++]  = monitors[m].x;
+				data[idx++]  = monitors[m].y;
+				monitorFound = 1;
+				break;
+			}
+		}
+
+		if (!monitorFound) {
+			data[idx++] = monitors[0].x;
+			data[idx++] = monitors[0].y;
+		}
+	}
+
+	XChangeProperty(display, root, NET_DESKTOP_VIEWPORT, XA_CARDINAL, 32,
+			PropModeReplace, (unsigned char *)data, idx);
+
+	fprintf(stderr,
+		"Updated desktop viewport information for %d workspaces\n",
+		workspaceCount);
 }
 
 int main(int argc, char *argv[])

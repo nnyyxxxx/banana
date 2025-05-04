@@ -12,6 +12,13 @@
 #include "bar.h"
 #include "config.h"
 
+extern int		     getDockHeight(int monitorNum, int workspace);
+extern void		     arrangeClients(SMonitor *monitor);
+extern SMonitor		    *monitors;
+extern int		     numMonitors;
+
+extern Display		    *display;
+
 static char		    *workspaceNames[9];
 
 Window			    *barWindows = NULL;
@@ -30,8 +37,6 @@ static cairo_t		   **barCairos	     = NULL;
 static PangoLayout	   **barLayouts	     = NULL;
 
 static Atom		     WM_NAME;
-static Atom		     NET_WM_STRUT;
-static Atom		     NET_WM_STRUT_PARTIAL;
 
 static char		     statusText[MAX_STATUS_LENGTH] = "";
 
@@ -293,10 +298,7 @@ void createBars(void)
 			return;
 		}
 
-		WM_NAME	     = XInternAtom(display, "WM_NAME", False);
-		NET_WM_STRUT = XInternAtom(display, "_NET_WM_STRUT", False);
-		NET_WM_STRUT_PARTIAL =
-		    XInternAtom(display, "_NET_WM_STRUT_PARTIAL", False);
+		WM_NAME = XInternAtom(display, "WM_NAME", False);
 
 		initWorkspaceNames();
 
@@ -356,15 +358,11 @@ void createBars(void)
 			struts[5] = monitors[i].x + monitors[i].width - 1;
 		}
 
-		XChangeProperty(display, barWindows[i], NET_WM_STRUT,
-				XA_CARDINAL, 32, PropModeReplace,
-				(unsigned char *)&struts, 4);
-		XChangeProperty(display, barWindows[i], NET_WM_STRUT_PARTIAL,
-				XA_CARDINAL, 32, PropModeReplace,
-				(unsigned char *)&struts, 12);
-
 		if (barVisible) {
-			XMapWindow(display, barWindows[i]);
+			extern int hasDocks(void);
+			if (!hasDocks()) {
+				XMapWindow(display, barWindows[i]);
+			}
 		}
 	}
 
@@ -614,21 +612,30 @@ void handleBarClick(XEvent *event)
 
 void updateClientPositionsForBar(void)
 {
-	SClient *client = clients;
+	SClient	  *client = clients;
+	extern int hasDocks(void);
+	extern int hasDocksOnMonitor(int monitorNum);
 
 	while (client) {
-		if (client->isFloating || client->isFullscreen) {
+		if (client->isFloating || client->isFullscreen ||
+		    client->isDock) {
 			client = client->next;
 			continue;
 		}
 
 		SMonitor *m = &monitors[client->monitor];
+		int	  dockHeight =
+		    getDockHeight(client->monitor, client->workspace);
+		int docksPresent = hasDocksOnMonitor(client->monitor);
 
-		if (!barVisible) {
+		if (!barVisible || docksPresent) {
 			if (!bottomBar &&
 			    client->y == m->y + barStrutsTop + barHeight +
 					     barBorderWidth * 2 + outerGap) {
 				client->y = m->y + outerGap;
+				if (dockHeight > 0 && docksPresent) {
+					client->y += dockHeight;
+				}
 				XMoveWindow(display, client->window, client->x,
 					    client->y);
 			}
@@ -652,14 +659,37 @@ void updateClientPositionsForBar(void)
 		} else {
 			int barBottom = m->y + barStrutsTop + barHeight +
 					barBorderWidth * 2;
+			int yPos = barBottom + outerGap;
 
-			if (client->y < barBottom + outerGap) {
-				client->y = barBottom + outerGap;
+			if (dockHeight > 0 && docksPresent) {
+				yPos += dockHeight;
+			}
+
+			if (client->y < yPos) {
+				client->y = yPos;
 				XMoveWindow(display, client->window, client->x,
 					    client->y);
+			}
+
+			int maxHeight =
+			    m->height -
+			    (barHeight + barBorderWidth * 2 + barStrutsTop) -
+			    (2 * outerGap);
+			if (dockHeight > 0 && docksPresent) {
+				maxHeight -= dockHeight;
+			}
+
+			if (client->height > maxHeight) {
+				client->height = maxHeight;
+				XResizeWindow(display, client->window,
+					      client->width, client->height);
 			}
 		}
 
 		client = client->next;
+	}
+
+	for (int i = 0; i < numMonitors; i++) {
+		arrangeClients(&monitors[i]);
 	}
 }

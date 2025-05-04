@@ -1,15 +1,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <unistd.h>
+#include <signal.h>
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <X11/Xatom.h>
+#include <X11/cursorfont.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <ctype.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <errno.h>
-#include <X11/Xlib.h>
+#include <sys/wait.h>
 #include <X11/keysym.h>
 
+#include "banana.h"
 #include "config.h"
+#include "bar.h"
+
+extern int	   barVisible;
 
 int		   workspaceCount	    = 9;
 float		   defaultMasterFactor	    = 0.55;
@@ -1624,7 +1634,15 @@ void reloadConfig(const char *arg)
 		createBars();
 		XSync(display, False);
 
-		showHideBars(showBar);
+		extern int hasDocks(void);
+		if (hasDocks()) {
+			showHideBars(0);
+			barVisible = 0;
+			fprintf(stderr, "Bar hidden due to dock presence after "
+					"config reload\n");
+		} else {
+			showHideBars(showBar);
+		}
 		XSync(display, False);
 
 		updateClientPositionsForBar();
