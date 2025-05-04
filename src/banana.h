@@ -224,8 +224,10 @@ extern Atom	       NET_WM_WINDOW_TYPE_DOCK;
 extern Atom	       NET_ACTIVE_WINDOW;
 extern Atom	       NET_WM_STRUT;
 extern Atom	       NET_WM_STRUT_PARTIAL;
+extern Atom	       NET_WM_DESKTOP;
 extern Atom	       UTF8_STRING;
 
 SClient		      *focusWindowUnderCursor(SMonitor *monitor);
+void		       updateClientDesktop(SClient *client);
 
 #endif // BANANA_H

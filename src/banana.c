@@ -58,6 +58,7 @@ Atom		NET_WM_WINDOW_TYPE_DOCK;
 Atom		NET_ACTIVE_WINDOW;
 Atom		NET_WM_STRUT;
 Atom		NET_WM_STRUT_PARTIAL;
+Atom		NET_WM_DESKTOP;
 Atom		UTF8_STRING;
 Window		wmcheckwin;
 
@@ -168,7 +169,8 @@ void setupEWMH()
 	NET_WM_STRUT	  = XInternAtom(display, "_NET_WM_STRUT", False);
 	NET_WM_STRUT_PARTIAL =
 	    XInternAtom(display, "_NET_WM_STRUT_PARTIAL", False);
-	UTF8_STRING = XInternAtom(display, "UTF8_STRING", False);
+	NET_WM_DESKTOP = XInternAtom(display, "_NET_WM_DESKTOP", False);
+	UTF8_STRING    = XInternAtom(display, "UTF8_STRING", False);
 
 	wmcheckwin = XCreateSimpleWindow(display, root, 0, 0, 1, 1, 0, 0, 0);
 	XChangeProperty(display, root, NET_SUPPORTING_WM_CHECK, XA_WINDOW, 32,
@@ -193,7 +195,8 @@ void setupEWMH()
 			    NET_WM_WINDOW_TYPE_DOCK,
 			    NET_ACTIVE_WINDOW,
 			    NET_WM_STRUT,
-			    NET_WM_STRUT_PARTIAL};
+			    NET_WM_STRUT_PARTIAL,
+			    NET_WM_DESKTOP};
 
 	XChangeProperty(display, root, NET_SUPPORTED, XA_ATOM, 32,
 			PropModeReplace, (unsigned char *)supported,
@@ -1620,6 +1623,30 @@ void manageClient(Window window)
 	updateWindowType(client);
 	updateWMHints(client);
 
+	Atom	       actual_type;
+	int	       actual_format;
+	unsigned long  nitems, bytes_after;
+	unsigned char *data = NULL;
+
+	if (XGetWindowProperty(display, window, NET_WM_DESKTOP, 0, 1, False,
+			       XA_CARDINAL, &actual_type, &actual_format,
+			       &nitems, &bytes_after, &data) == Success &&
+	    data) {
+		if (actual_type == XA_CARDINAL && actual_format == 32 &&
+		    nitems == 1) {
+			long desktop = *(long *)data;
+
+			if (desktop >= 0 && desktop < workspaceCount) {
+				fprintf(stderr,
+					"Window 0x%lx has existing "
+					"_NET_WM_DESKTOP = %ld\n",
+					window, desktop);
+				client->workspace = desktop;
+			}
+		}
+		XFree(data);
+	}
+
 	if (!client->isDock && !client->isFullscreen) {
 		XGrabButton(display, Button1, modkey, window, False,
 			    ButtonPressMask | ButtonReleaseMask |
@@ -1650,6 +1677,7 @@ void manageClient(Window window)
 	setClientState(client, NormalState);
 
 	configureClient(client);
+	updateClientDesktop(client);
 
 	if (client->isDock) {
 		XMapWindow(display, client->window);
@@ -2455,6 +2483,7 @@ void moveClientToWorkspace(const char *arg)
 	movedClient->workspace	  = workspace;
 
 	moveClientToEnd(movedClient);
+	updateClientDesktop(movedClient);
 
 	if (workspace != currentMon->currentWorkspace) {
 		XUnmapWindow(display, movedClient->window);
@@ -3893,6 +3922,30 @@ void handleClientMessage(XEvent *event)
 				focusClient(client);
 			}
 		}
+	} else if (cme->message_type == NET_WM_DESKTOP) {
+		long workspace = cme->data.l[0];
+
+		if (workspace >= 0 && workspace < workspaceCount) {
+			fprintf(stderr,
+				"Received _NET_WM_DESKTOP message, moving "
+				"window 0x%lx to workspace %ld\n",
+				client->window, workspace);
+
+			client->oldWorkspace = client->workspace;
+			client->workspace    = workspace;
+			updateClientDesktop(client);
+
+			if (workspace !=
+			    monitors[client->monitor].currentWorkspace) {
+				XUnmapWindow(display, client->window);
+			} else {
+				XMapWindow(display, client->window);
+				focusClient(client);
+			}
+
+			arrangeClients(&monitors[client->monitor]);
+			updateBars();
+		}
 	}
 
 	restackFloatingWindows();
@@ -4576,6 +4629,7 @@ void unmapSwallowedClient(SClient *swallowed)
 	int monitor = swallowed->monitor;
 
 	swallowed->workspace = INT_MAX;
+	updateClientDesktop(swallowed);
 
 	updateClientVisibility();
 
@@ -4597,6 +4651,7 @@ void remapSwallowedClient(SClient *client)
 	client->swallowedBy = NULL;
 
 	parent->workspace = parent->oldWorkspace;
+	updateClientDesktop(parent);
 
 	XWindowAttributes wa;
 	if (XGetWindowAttributes(display, parent->window, &wa)) {
@@ -4728,6 +4783,25 @@ void updateDesktopViewport()
 	fprintf(stderr,
 		"Updated desktop viewport information for %d workspaces\n",
 		workspaceCount);
+}
+
+void updateClientDesktop(SClient *client)
+{
+	if (!client) {
+		return;
+	}
+
+	long desktop = client->workspace;
+
+	if (desktop == DOCK_WORKSPACE || desktop == INT_MAX) {
+		desktop = 0;
+	}
+
+	XChangeProperty(display, client->window, NET_WM_DESKTOP, XA_CARDINAL,
+			32, PropModeReplace, (unsigned char *)&desktop, 1);
+
+	fprintf(stderr, "Updated NET_WM_DESKTOP to %ld for window 0x%lx\n",
+		desktop, client->window);
 }
 
 int main(int argc, char *argv[])
