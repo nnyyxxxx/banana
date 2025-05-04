@@ -2204,13 +2204,22 @@ SClient *focusWindowUnderCursor(SMonitor *monitor)
 	unsigned int mask;
 	Window	     root_return, child_return;
 
+	if (focused && (focused->monitor != monitor->num ||
+			focused->workspace != monitor->currentWorkspace)) {
+		focused = NULL;
+		XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
+		updateBorders();
+	}
+
 	if (XQueryPointer(display, root, &root_return, &child_return, &x, &y,
 			  &x, &y, &mask)) {
 		if (x >= monitor->x && x < monitor->x + monitor->width &&
 		    y >= monitor->y && y < monitor->y + monitor->height) {
 			SClient *windowUnderCursor = clientAtPoint(x, y);
 
-			if (windowUnderCursor) {
+			if (windowUnderCursor &&
+			    windowUnderCursor->workspace ==
+				monitor->currentWorkspace) {
 				focusClient(windowUnderCursor);
 				updateBars();
 				return windowUnderCursor;
