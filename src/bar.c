@@ -344,20 +344,6 @@ void createBars(void)
 		barLayouts[i] = pango_cairo_create_layout(barCairos[i]);
 		pango_layout_set_font_description(barLayouts[i], barFontDesc);
 
-		long struts[12] = {0};
-
-		if (bottomBar) {
-			struts[3] = barHeight + barBorderWidth * 2;
-
-			struts[10] = monitors[i].x;
-			struts[11] = monitors[i].x + monitors[i].width - 1;
-		} else {
-			struts[2] = barY + barHeight + barBorderWidth * 2;
-
-			struts[4] = monitors[i].x;
-			struts[5] = monitors[i].x + monitors[i].width - 1;
-		}
-
 		if (barVisible) {
 			extern int hasDocks(void);
 			if (!hasDocks()) {
