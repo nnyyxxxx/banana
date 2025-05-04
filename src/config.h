@@ -11,6 +11,7 @@
 #define MAX_KEYS	 100
 #define MAX_RULES	 50
 #define MAX_ERRORS	 100
+#define MAX_VARIABLES	 50
 
 #define SECTION_GENERAL	   "general"
 #define SECTION_BAR	   "bar"
@@ -38,6 +39,11 @@ typedef struct {
 	int	    swallowing;
 	int	    noswallow;
 } SWindowRule;
+
+typedef struct {
+	char *name;
+	char *value;
+} SVariable;
 
 typedef struct {
 	const char *name;
@@ -164,6 +170,12 @@ int   finalizeConfigParser(STokenHandlerContext *ctx, SKeyBinding *oldKeys,
 			   char		*potentialSectionName);
 void  cleanupConfigData(void);
 
+int   processConfigVariable(const char *name, const char *value, int lineNum,
+			    STokenHandlerContext *ctx);
+char *substituteVariables(const char *str);
+const char     *getVariableValue(const char *name);
+void		cleanupVariables(void);
+
 extern Display *display;
 extern Window	root;
 
@@ -215,6 +227,9 @@ extern size_t		  rulesCount;
 
 extern const SFunctionMap functionMap[];
 extern const SModifierMap modifierMap[];
+
+extern SVariable	 *variables;
+extern size_t		  variablesCount;
 
 int			  parseConfigFile(STokenHandlerContext *ctx);
 int			  loadConfig(void);

@@ -44,6 +44,9 @@ size_t		   keysCount  = 0;
 SWindowRule	  *rules      = NULL;
 size_t		   rulesCount = 0;
 
+SVariable	  *variables	  = NULL;
+size_t		   variablesCount = 0;
+
 const SFunctionMap functionMap[] = {{"spawn", spawnProgram},
 				    {"kill", killClient},
 				    {"quit", quit},
@@ -238,8 +241,21 @@ char **tokenizeLine(const char *line, int *tokenCount)
 					*(p - 1) = '\0';
 				}
 
-				tokens[(*tokenCount)++] =
-				    safeStrdup(tokenStart);
+				if (strchr(tokenStart, '$') != NULL &&
+				    variables != NULL && variablesCount > 0) {
+					char *substituted =
+					    substituteVariables(tokenStart);
+					if (substituted) {
+						tokens[(*tokenCount)++] =
+						    substituted;
+					} else {
+						tokens[(*tokenCount)++] =
+						    safeStrdup(tokenStart);
+					}
+				} else {
+					tokens[(*tokenCount)++] =
+					    safeStrdup(tokenStart);
+				}
 			}
 			tokenStart = p + 1;
 		}
@@ -272,7 +288,18 @@ char **tokenizeLine(const char *line, int *tokenCount)
 			*(p - 1) = '\0';
 		}
 
-		tokens[(*tokenCount)++] = safeStrdup(tokenStart);
+		if (strchr(tokenStart, '$') != NULL && variables != NULL &&
+		    variablesCount > 0) {
+			char *substituted = substituteVariables(tokenStart);
+			if (substituted) {
+				tokens[(*tokenCount)++] = substituted;
+			} else {
+				tokens[(*tokenCount)++] =
+				    safeStrdup(tokenStart);
+			}
+		} else {
+			tokens[(*tokenCount)++] = safeStrdup(tokenStart);
+		}
 	}
 
 	if (inDoubleQuote || inSingleQuote) {
@@ -518,6 +545,7 @@ int processLine(const char *line, char *section, int *inSection,
 		int *sectionDepth, int lineNum, STokenHandlerContext *ctx)
 {
 	int hasOpeningBrace = 0;
+
 	{
 		int inDoubleQuote = 0;
 		int inSingleQuote = 0;
@@ -659,6 +687,37 @@ int processLine(const char *line, char *section, int *inSection,
 	}
 
 	if (!*inSection) {
+		if (!hasOpeningBrace && !hasClosingBrace) {
+			int    tokenCount = 0;
+			char **tokens	  = tokenizeLine(line, &tokenCount);
+
+			if (tokens && tokenCount >= 2) {
+				if (strcasecmp(tokens[0], SECTION_GENERAL) !=
+					0 &&
+				    strcasecmp(tokens[0], SECTION_BAR) != 0 &&
+				    strcasecmp(tokens[0], SECTION_DECORATION) !=
+					0 &&
+				    strcasecmp(tokens[0], SECTION_BINDS) != 0 &&
+				    strcasecmp(tokens[0], SECTION_RULES) != 0 &&
+				    strcasecmp(tokens[0], SECTION_MASTER) !=
+					0) {
+					char value[MAX_LINE_LENGTH] = "";
+					for (int i = 1; i < tokenCount; i++) {
+						if (i > 1) {
+							strcat(value, " ");
+						}
+						strcat(value, tokens[i]);
+					}
+
+					processConfigVariable(tokens[0], value,
+							      lineNum, ctx);
+					freeTokens(tokens, tokenCount);
+					return 1;
+				}
+				freeTokens(tokens, tokenCount);
+			}
+		}
+
 		int hasSpace	 = 0;
 		int hasOpenBrace = 0;
 		{
@@ -1212,6 +1271,12 @@ void createDefaultConfig(void)
 		return;
 	}
 
+	fprintf(fp, "mod \"alt\"\n");
+	fprintf(fp, "terminal \"alacritty\"\n");
+	fprintf(fp, "menu \"dmenu_run\"\n");
+	fprintf(fp, "screenshot \"maim -s | xclip -selection "
+		    "clipboard -t image/png\"\n");
+
 	fprintf(fp, "# General settings\n");
 	fprintf(fp, "general {\n");
 	fprintf(fp, "    workspace_count 9\n");
@@ -1257,50 +1322,49 @@ void createDefaultConfig(void)
 
 	fprintf(fp, "# Key bindings\n");
 	fprintf(fp, "binds {\n");
-	fprintf(fp, "    alt q spawn \"alacritty\"\n");
-	fprintf(fp, "    alt e spawn \"dmenu_run\"\n");
-	fprintf(fp, "    alt a spawn \"pocky\"\n");
-	fprintf(fp, "    alt escape spawn \"maim -s | xclip -selection "
-		    "clipboard -t image/png\"\n");
-	fprintf(fp, "    alt c kill\n");
-	fprintf(fp, "    alt w quit\n");
-	fprintf(fp, "    alt space toggle_floating\n");
-	fprintf(fp, "    alt f toggle_fullscreen\n");
-	fprintf(fp, "    alt b toggle_bar\n");
-	fprintf(fp, "    alt r reload_config\n");
-	fprintf(fp, "    alt t cycle_layouts\n\n");
+	fprintf(fp, "    $mod q spawn \"$terminal\"\n");
+	fprintf(fp, "    $mod e spawn \"$menu\"\n");
+	fprintf(fp, "    $mod a spawn \"pocky\"\n");
+	fprintf(fp, "    $mod escape spawn \"$screenshot\"\n");
+	fprintf(fp, "    $mod c kill\n");
+	fprintf(fp, "    $mod w quit\n");
+	fprintf(fp, "    $mod space toggle_floating\n");
+	fprintf(fp, "    $mod f toggle_fullscreen\n");
+	fprintf(fp, "    $mod b toggle_bar\n");
+	fprintf(fp, "    $mod r reload_config\n");
+	fprintf(fp, "    $mod t cycle_layouts\n\n");
 
-	fprintf(fp, "    alt h adjust_master \"decrease\"\n");
-	fprintf(fp, "    alt l adjust_master \"increase\"\n\n");
+	fprintf(fp, "    $mod h adjust_master \"decrease\"\n");
+	fprintf(fp, "    $mod l adjust_master \"increase\"\n\n");
 
-	fprintf(fp, "    alt+shift j move_window \"down\"\n");
-	fprintf(fp, "    alt+shift k move_window \"up\"\n\n");
+	fprintf(fp, "    $mod+shift j move_window \"down\"\n");
+	fprintf(fp, "    $mod+shift k move_window \"up\"\n\n");
 
-	fprintf(fp, "    alt j focus_window \"down\"\n");
-	fprintf(fp, "    alt k focus_window \"up\"\n\n");
+	fprintf(fp, "    $mod j focus_window \"down\"\n");
+	fprintf(fp, "    $mod k focus_window \"up\"\n\n");
 
-	fprintf(fp, "    alt comma focus_monitor \"left\"\n");
-	fprintf(fp, "    alt period focus_monitor \"right\"\n\n");
+	fprintf(fp, "    $mod comma focus_monitor \"left\"\n");
+	fprintf(fp, "    $mod period focus_monitor \"right\"\n\n");
 
-	fprintf(fp, "    alt 1 switch_workspace \"0\"\n");
-	fprintf(fp, "    alt 2 switch_workspace \"1\"\n");
-	fprintf(fp, "    alt 3 switch_workspace \"2\"\n");
-	fprintf(fp, "    alt 4 switch_workspace \"3\"\n");
-	fprintf(fp, "    alt 5 switch_workspace \"4\"\n");
-	fprintf(fp, "    alt 6 switch_workspace \"5\"\n");
-	fprintf(fp, "    alt 7 switch_workspace \"6\"\n");
-	fprintf(fp, "    alt 8 switch_workspace \"7\"\n");
-	fprintf(fp, "    alt 9 switch_workspace \"8\"\n\n");
+	fprintf(fp, "    $mod 1 switch_workspace \"0\"\n");
+	fprintf(fp, "    $mod 2 switch_workspace \"1\"\n");
+	fprintf(fp, "    $mod 3 switch_workspace \"2\"\n");
+	fprintf(fp, "    $mod 4 switch_workspace \"3\"\n");
+	fprintf(fp, "    $mod 5 switch_workspace \"4\"\n");
+	fprintf(fp, "    $mod 6 switch_workspace \"5\"\n");
+	fprintf(fp, "    $mod 7 switch_workspace \"6\"\n");
+	fprintf(fp, "    $mod 8 switch_workspace \"7\"\n");
+	fprintf(fp, "    $mod 9 switch_workspace \"8\"\n\n");
 
-	fprintf(fp, "    alt+shift 1 move_to_workspace \"0\"\n");
-	fprintf(fp, "    alt+shift 2 move_to_workspace \"1\"\n");
-	fprintf(fp, "    alt+shift 3 move_to_workspace \"2\"\n");
-	fprintf(fp, "    alt+shift 4 move_to_workspace \"3\"\n");
-	fprintf(fp, "    alt+shift 5 move_to_workspace \"4\"\n");
-	fprintf(fp, "    alt+shift 6 move_to_workspace \"5\"\n");
-	fprintf(fp, "    alt+shift 7 move_to_workspace \"6\"\n");
-	fprintf(fp, "    alt+shift 8 move_to_workspace \"7\"\n");
-	fprintf(fp, "    alt+shift 9 move_to_workspace \"8\"\n");
+	fprintf(fp, "    $mod+shift 1 move_to_workspace \"0\"\n");
+	fprintf(fp, "    $mod+shift 2 move_to_workspace \"1\"\n");
+	fprintf(fp, "    $mod+shift 3 move_to_workspace \"2\"\n");
+	fprintf(fp, "    $mod+shift 4 move_to_workspace \"3\"\n");
+	fprintf(fp, "    $mod+shift 5 move_to_workspace \"4\"\n");
+	fprintf(fp, "    $mod+shift 6 move_to_workspace \"5\"\n");
+	fprintf(fp, "    $mod+shift 7 move_to_workspace \"6\"\n");
+	fprintf(fp, "    $mod+shift 8 move_to_workspace \"7\"\n");
+	fprintf(fp, "    $mod+shift 9 move_to_workspace \"8\"\n");
 	fprintf(fp, "}\n\n");
 
 	fprintf(fp, "# Window rules\n");
@@ -2885,4 +2949,193 @@ void cleanupConfigData(void)
 	free(rules);
 	rules	   = NULL;
 	rulesCount = 0;
+
+	cleanupVariables();
+}
+
+int processConfigVariable(const char *name, const char *value, int lineNum,
+			  STokenHandlerContext *ctx)
+{
+	if (!name || !value) {
+		return 0;
+	}
+
+	if (variablesCount >= MAX_VARIABLES) {
+		char errMsg[MAX_LINE_LENGTH];
+		snprintf(errMsg, MAX_LINE_LENGTH,
+			 "Too many variables defined (max: %d)", MAX_VARIABLES);
+
+		if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+			addError(ctx->errors, errMsg, lineNum, 0);
+			ctx->hasErrors = 1;
+		} else {
+			fprintf(stderr, "banana: %s\n", errMsg);
+		}
+		return 0;
+	}
+
+	for (size_t i = 0; i < variablesCount; i++) {
+		if (variables[i].name && strcmp(variables[i].name, name) == 0) {
+			free(variables[i].value);
+			variables[i].value = safeStrdup(value);
+			return 1;
+		}
+	}
+
+	if (!variables) {
+		variables = safeMalloc(MAX_VARIABLES * sizeof(SVariable));
+		if (!variables) {
+			return 0;
+		}
+		for (size_t i = 0; i < MAX_VARIABLES; i++) {
+			variables[i].name  = NULL;
+			variables[i].value = NULL;
+		}
+	}
+
+	variables[variablesCount].name	= safeStrdup(name);
+	variables[variablesCount].value = safeStrdup(value);
+	variablesCount++;
+
+	return 1;
+}
+
+const char *getVariableValue(const char *name)
+{
+	if (!name || !variables || name[0] != '$') {
+		return NULL;
+	}
+
+	name++;
+
+	for (size_t i = 0; i < variablesCount; i++) {
+		if (variables[i].name && strcmp(variables[i].name, name) == 0) {
+			return variables[i].value;
+		}
+	}
+
+	return NULL;
+}
+
+char *substituteVariables(const char *str)
+{
+	if (!str || !variables || variablesCount == 0) {
+		return safeStrdup(str);
+	}
+
+	size_t	    outputLen = 0;
+	const char *p	      = str;
+
+	while (*p) {
+		if (*p == '$') {
+			const char *varStart = p;
+			p++;
+
+			char   varName[MAX_TOKEN_LENGTH] = {0};
+			size_t varNameLen		 = 0;
+
+			while (*p &&
+			       (isalnum((unsigned char)*p) || *p == '_') &&
+			       varNameLen < MAX_TOKEN_LENGTH - 1) {
+				varName[varNameLen++] = *p++;
+			}
+			varName[varNameLen] = '\0';
+
+			if (varNameLen > 0) {
+				const char *value = NULL;
+				for (size_t i = 0; i < variablesCount; i++) {
+					if (variables[i].name &&
+					    strcmp(variables[i].name,
+						   varName) == 0) {
+						value = variables[i].value;
+						break;
+					}
+				}
+
+				if (value) {
+					outputLen += strlen(value);
+				} else {
+					outputLen += (p - varStart);
+				}
+			} else {
+				outputLen++;
+			}
+		} else {
+			outputLen++;
+			p++;
+		}
+	}
+
+	char *output = safeMalloc(outputLen + 1);
+	if (!output) {
+		return NULL;
+	}
+
+	p	  = str;
+	char *out = output;
+
+	while (*p) {
+		if (*p == '$') {
+			const char *varStart = p;
+			p++;
+
+			char   varName[MAX_TOKEN_LENGTH] = {0};
+			size_t varNameLen		 = 0;
+
+			while (*p &&
+			       (isalnum((unsigned char)*p) || *p == '_') &&
+			       varNameLen < MAX_TOKEN_LENGTH - 1) {
+				varName[varNameLen++] = *p++;
+			}
+			varName[varNameLen] = '\0';
+
+			if (varNameLen > 0) {
+				const char *value = NULL;
+				for (size_t i = 0; i < variablesCount; i++) {
+					if (variables[i].name &&
+					    strcmp(variables[i].name,
+						   varName) == 0) {
+						value = variables[i].value;
+						break;
+					}
+				}
+
+				if (value) {
+					strcpy(out, value);
+					out += strlen(value);
+				} else {
+					size_t len = p - varStart;
+					strncpy(out, varStart, len);
+					out += len;
+				}
+			} else {
+				*out++ = '$';
+			}
+		} else {
+			*out++ = *p++;
+		}
+	}
+
+	*out = '\0';
+	return output;
+}
+
+void cleanupVariables(void)
+{
+	if (!variables) {
+		return;
+	}
+
+	for (size_t i = 0; i < variablesCount; i++) {
+		if (variables[i].name) {
+			free(variables[i].name);
+		}
+		if (variables[i].value) {
+			free(variables[i].value);
+		}
+	}
+
+	free(variables);
+	variables      = NULL;
+	variablesCount = 0;
 }
