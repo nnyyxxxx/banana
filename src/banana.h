@@ -227,7 +227,27 @@ extern Atom	       NET_WM_STRUT_PARTIAL;
 extern Atom	       NET_WM_DESKTOP;
 extern Atom	       UTF8_STRING;
 
+extern Atom	       NET_CLIENT_LIST_STACKING;
+extern Atom	       NET_DESKTOP_NAMES;
+extern Atom	       NET_CLOSE_WINDOW;
+extern Atom	       NET_MOVERESIZE_WINDOW;
+extern Atom	       NET_WM_MOVERESIZE;
+extern Atom	       NET_REQUEST_FRAME_EXTENTS;
+extern Atom	       NET_FRAME_EXTENTS;
+extern Atom	       NET_WM_ALLOWED_ACTIONS;
+
+extern Atom	       NET_WM_ACTION_CLOSE;
+extern Atom	       NET_WM_ACTION_MAXIMIZE_HORZ;
+extern Atom	       NET_WM_ACTION_MAXIMIZE_VERT;
+extern Atom	       NET_WM_ACTION_FULLSCREEN;
+extern Atom	       NET_WM_ACTION_CHANGE_DESKTOP;
+extern Atom	       NET_WM_ACTION_MOVE;
+extern Atom	       NET_WM_ACTION_RESIZE;
+
 SClient		      *focusWindowUnderCursor(SMonitor *monitor);
 void		       updateClientDesktop(SClient *client);
+void		       updateClientListStacking(void);
+void		       updateDesktopNames(void);
+void		       updateClientAllowedActions(SClient *client);
 
 #endif // BANANA_H

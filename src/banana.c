@@ -62,6 +62,23 @@ Atom		NET_WM_DESKTOP;
 Atom		UTF8_STRING;
 Window		wmcheckwin;
 
+Atom		NET_CLIENT_LIST_STACKING;
+Atom		NET_DESKTOP_NAMES;
+Atom		NET_CLOSE_WINDOW;
+Atom		NET_MOVERESIZE_WINDOW;
+Atom		NET_WM_MOVERESIZE;
+Atom		NET_REQUEST_FRAME_EXTENTS;
+Atom		NET_FRAME_EXTENTS;
+Atom		NET_WM_ALLOWED_ACTIONS;
+
+Atom		NET_WM_ACTION_CLOSE;
+Atom		NET_WM_ACTION_MAXIMIZE_HORZ;
+Atom		NET_WM_ACTION_MAXIMIZE_VERT;
+Atom		NET_WM_ACTION_FULLSCREEN;
+Atom		NET_WM_ACTION_CHANGE_DESKTOP;
+Atom		NET_WM_ACTION_MOVE;
+Atom		NET_WM_ACTION_RESIZE;
+
 int		xerrorHandler(Display *dpy, XErrorEvent *ee)
 {
 	if (ee->error_code == BadWindow ||
@@ -171,6 +188,31 @@ void setupEWMH()
 	    XInternAtom(display, "_NET_WM_STRUT_PARTIAL", False);
 	NET_WM_DESKTOP = XInternAtom(display, "_NET_WM_DESKTOP", False);
 	UTF8_STRING    = XInternAtom(display, "UTF8_STRING", False);
+	NET_CLIENT_LIST_STACKING =
+	    XInternAtom(display, "_NET_CLIENT_LIST_STACKING", False);
+	NET_DESKTOP_NAMES = XInternAtom(display, "_NET_DESKTOP_NAMES", False);
+	NET_CLOSE_WINDOW  = XInternAtom(display, "_NET_CLOSE_WINDOW", False);
+	NET_MOVERESIZE_WINDOW =
+	    XInternAtom(display, "_NET_MOVERESIZE_WINDOW", False);
+	NET_WM_MOVERESIZE = XInternAtom(display, "_NET_WM_MOVERESIZE", False);
+	NET_REQUEST_FRAME_EXTENTS =
+	    XInternAtom(display, "_NET_REQUEST_FRAME_EXTENTS", False);
+	NET_FRAME_EXTENTS = XInternAtom(display, "_NET_FRAME_EXTENTS", False);
+	NET_WM_ALLOWED_ACTIONS =
+	    XInternAtom(display, "_NET_WM_ALLOWED_ACTIONS", False);
+	NET_WM_ACTION_CLOSE =
+	    XInternAtom(display, "_NET_WM_ACTION_CLOSE", False);
+	NET_WM_ACTION_MAXIMIZE_HORZ =
+	    XInternAtom(display, "_NET_WM_ACTION_MAXIMIZE_HORZ", False);
+	NET_WM_ACTION_MAXIMIZE_VERT =
+	    XInternAtom(display, "_NET_WM_ACTION_MAXIMIZE_VERT", False);
+	NET_WM_ACTION_FULLSCREEN =
+	    XInternAtom(display, "_NET_WM_ACTION_FULLSCREEN", False);
+	NET_WM_ACTION_CHANGE_DESKTOP =
+	    XInternAtom(display, "_NET_WM_ACTION_CHANGE_DESKTOP", False);
+	NET_WM_ACTION_MOVE = XInternAtom(display, "_NET_WM_ACTION_MOVE", False);
+	NET_WM_ACTION_RESIZE =
+	    XInternAtom(display, "_NET_WM_ACTION_RESIZE", False);
 
 	wmcheckwin = XCreateSimpleWindow(display, root, 0, 0, 1, 1, 0, 0, 0);
 	XChangeProperty(display, root, NET_SUPPORTING_WM_CHECK, XA_WINDOW, 32,
@@ -196,7 +238,15 @@ void setupEWMH()
 			    NET_ACTIVE_WINDOW,
 			    NET_WM_STRUT,
 			    NET_WM_STRUT_PARTIAL,
-			    NET_WM_DESKTOP};
+			    NET_WM_DESKTOP,
+			    NET_CLIENT_LIST_STACKING,
+			    NET_DESKTOP_NAMES,
+			    NET_CLOSE_WINDOW,
+			    NET_MOVERESIZE_WINDOW,
+			    NET_WM_MOVERESIZE,
+			    NET_REQUEST_FRAME_EXTENTS,
+			    NET_FRAME_EXTENTS,
+			    NET_WM_ALLOWED_ACTIONS};
 
 	XChangeProperty(display, root, NET_SUPPORTED, XA_ATOM, 32,
 			PropModeReplace, (unsigned char *)supported,
@@ -211,7 +261,9 @@ void setupEWMH()
 			PropModeReplace, (unsigned char *)&currentDesktop, 1);
 
 	updateClientList();
+	updateClientListStacking();
 	updateDesktopViewport();
+	updateDesktopNames();
 }
 
 void setup()
@@ -1678,6 +1730,7 @@ void manageClient(Window window)
 
 	configureClient(client);
 	updateClientDesktop(client);
+	updateClientAllowedActions(client);
 
 	if (client->isDock) {
 		XMapWindow(display, client->window);
@@ -1715,6 +1768,9 @@ void manageClient(Window window)
 	updateBars();
 
 	updateClientList();
+	updateClientListStacking();
+	updateClientDesktop(client);
+	updateClientAllowedActions(client);
 
 	if (client->pid > 0) {
 		trySwallowClient(client);
@@ -1890,6 +1946,7 @@ void unmanageClient(Window window)
 	updateBars();
 
 	updateClientList();
+	updateClientListStacking();
 }
 
 void configureClient(SClient *client)
@@ -2204,7 +2261,6 @@ void updateMonitors()
 			if (monitorIndex < numMonitors) {
 				numMonitors = monitorIndex > 0 ? monitorIndex
 							       : 1;
-
 				if (monitorIndex == 0) {
 					monitors[0].x	  = 0;
 					monitors[0].y	  = 0;
@@ -3518,6 +3574,32 @@ void updateClientList()
 			PropModeReplace, (unsigned char *)windowList, count);
 }
 
+void updateClientListStacking()
+{
+	Window windowList[MAX_CLIENTS];
+	int    count = 0;
+
+	for (SClient *client = clients; client && count < MAX_CLIENTS;
+	     client	     = client->next) {
+		if (client->isFloating || client->isFullscreen) {
+			windowList[count++] = client->window;
+		}
+	}
+
+	for (SClient *client = clients; client && count < MAX_CLIENTS;
+	     client	     = client->next) {
+		if (!client->isFloating && !client->isFullscreen) {
+			windowList[count++] = client->window;
+		}
+	}
+
+	XChangeProperty(display, root, NET_CLIENT_LIST_STACKING, XA_WINDOW, 32,
+			PropModeReplace, (unsigned char *)windowList, count);
+
+	fprintf(stderr, "Updated _NET_CLIENT_LIST_STACKING with %d windows\n",
+		count);
+}
+
 Atom getAtomProperty(SClient *client, Atom prop)
 {
 	int	       di;
@@ -3657,6 +3739,8 @@ void setFullscreen(SClient *client, int fullscreen)
 	SMonitor *monitor = &monitors[client->monitor];
 	arrangeClients(monitor);
 	updateClientVisibility();
+	updateClientAllowedActions(client);
+	updateClientListStacking();
 	updateBars();
 }
 
@@ -3945,6 +4029,99 @@ void handleClientMessage(XEvent *event)
 
 			arrangeClients(&monitors[client->monitor]);
 			updateBars();
+		}
+	} else if (cme->message_type == NET_CLOSE_WINDOW) {
+		if (client) {
+			fprintf(stderr,
+				"Received _NET_CLOSE_WINDOW for 0x%lx\n",
+				client->window);
+			if (!sendEvent(client, WM_DELETE_WINDOW)) {
+				XKillClient(display, client->window);
+			}
+		}
+	} else if (cme->message_type == NET_WM_MOVERESIZE) {
+		if (client && client->isFloating) {
+			int x_root    = cme->data.l[0];
+			int y_root    = cme->data.l[1];
+			int direction = cme->data.l[2];
+
+			fprintf(stderr,
+				"Received _NET_WM_MOVERESIZE for 0x%lx, "
+				"direction: %d\n",
+				client->window, direction);
+
+			if (direction == 8) {
+				windowMovement.active	= 1;
+				windowMovement.client	= client;
+				windowMovement.x	= x_root;
+				windowMovement.y	= y_root;
+				windowMovement.wasTiled = 0;
+
+				XRaiseWindow(display, client->window);
+				XGrabPointer(display, root, False,
+					     ButtonReleaseMask |
+						 PointerMotionMask,
+					     GrabModeAsync, GrabModeAsync, None,
+					     moveCursor, CurrentTime);
+			} else if (direction >= 0 && direction <= 7) {
+				windowResize.active	= 1;
+				windowResize.client	= client;
+				windowResize.x		= x_root;
+				windowResize.y		= y_root;
+				windowResize.resizeType = direction;
+
+				XRaiseWindow(display, client->window);
+				XGrabPointer(display, root, False,
+					     ButtonReleaseMask |
+						 PointerMotionMask,
+					     GrabModeAsync, GrabModeAsync, None,
+					     resizeSECursor, CurrentTime);
+			}
+		}
+	} else if (cme->message_type == NET_MOVERESIZE_WINDOW) {
+		if (client) {
+			fprintf(stderr,
+				"Received _NET_MOVERESIZE_WINDOW for 0x%lx\n",
+				client->window);
+
+			int flags  = cme->data.l[0] & 0xFF;
+			int x	   = cme->data.l[1];
+			int y	   = cme->data.l[2];
+			int width  = cme->data.l[3];
+			int height = cme->data.l[4];
+
+			if (flags & (1 << 0)) {
+				client->x = x;
+			}
+			if (flags & (1 << 1)) {
+				client->y = y;
+			}
+			if (flags & (1 << 2)) {
+				client->width = width;
+			}
+			if (flags & (1 << 3)) {
+				client->height = height;
+			}
+
+			XMoveResizeWindow(display, client->window, client->x,
+					  client->y, client->width,
+					  client->height);
+			configureClient(client);
+		}
+	} else if (cme->message_type == NET_REQUEST_FRAME_EXTENTS) {
+		if (client) {
+			fprintf(stderr,
+				"Received _NET_REQUEST_FRAME_EXTENTS for "
+				"0x%lx\n",
+				client->window);
+
+			long extents[4] = {borderWidth, borderWidth,
+					   borderWidth, borderWidth};
+
+			XChangeProperty(display, client->window,
+					NET_FRAME_EXTENTS, XA_CARDINAL, 32,
+					PropModeReplace,
+					(unsigned char *)extents, 4);
 		}
 	}
 
@@ -4802,6 +4979,80 @@ void updateClientDesktop(SClient *client)
 
 	fprintf(stderr, "Updated NET_WM_DESKTOP to %ld for window 0x%lx\n",
 		desktop, client->window);
+}
+
+void updateClientAllowedActions(SClient *client)
+{
+	if (!client) {
+		return;
+	}
+
+	Atom actions[10];
+	int  count = 0;
+
+	actions[count++] = NET_WM_ACTION_CLOSE;
+	actions[count++] = NET_WM_ACTION_MOVE;
+	actions[count++] = NET_WM_ACTION_CHANGE_DESKTOP;
+
+	if (!client->isFullscreen) {
+		actions[count++] = NET_WM_ACTION_FULLSCREEN;
+	}
+
+	if (!client->isDock) {
+		actions[count++] = NET_WM_ACTION_RESIZE;
+
+		if (!client->isFullscreen) {
+			actions[count++] = NET_WM_ACTION_MAXIMIZE_VERT;
+			actions[count++] = NET_WM_ACTION_MAXIMIZE_HORZ;
+		}
+	}
+
+	XChangeProperty(display, client->window, NET_WM_ALLOWED_ACTIONS,
+			XA_ATOM, 32, PropModeReplace, (unsigned char *)actions,
+			count);
+
+	fprintf(stderr,
+		"Updated _NET_WM_ALLOWED_ACTIONS for window 0x%lx with %d "
+		"actions\n",
+		client->window, count);
+}
+
+void updateDesktopNames()
+{
+	if (workspaceCount <= 0) {
+		return;
+	}
+
+	char *names[workspaceCount];
+	char  buffer[workspaceCount][32];
+	int   totalSize = 0;
+
+	for (int i = 0; i < workspaceCount; i++) {
+		snprintf(buffer[i], sizeof(buffer[i]), "%d", i + 1);
+		names[i] = buffer[i];
+		totalSize += strlen(names[i]) + 1;
+	}
+
+	char *nameBuffer = malloc(totalSize);
+	if (!nameBuffer) {
+		fprintf(stderr, "Failed to allocate memory for desktop "
+				"names\n");
+		return;
+	}
+
+	char *ptr = nameBuffer;
+	for (int i = 0; i < workspaceCount; i++) {
+		strcpy(ptr, names[i]);
+		ptr += strlen(names[i]) + 1;
+	}
+
+	XChangeProperty(display, root, NET_DESKTOP_NAMES, UTF8_STRING, 8,
+			PropModeReplace, (unsigned char *)nameBuffer,
+			totalSize);
+
+	free(nameBuffer);
+	fprintf(stderr, "Updated _NET_DESKTOP_NAMES with %d workspaces\n",
+		workspaceCount);
 }
 
 int main(int argc, char *argv[])
