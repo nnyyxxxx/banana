@@ -704,6 +704,24 @@ int processLine(const char *line, char *section, int *inSection,
 			int    tokenCount = 0;
 			char **tokens	  = tokenizeLine(line, &tokenCount);
 
+			if (tokens && tokenCount == 1) {
+				char errMsg[MAX_LINE_LENGTH];
+				snprintf(errMsg, MAX_LINE_LENGTH,
+					 "Stray text not assigned to anything: "
+					 "'%s'",
+					 tokens[0]);
+
+				if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+					addError(ctx->errors, errMsg, lineNum,
+						 0);
+					ctx->hasErrors = 1;
+				} else {
+					fprintf(stderr, "banana: %s\n", errMsg);
+				}
+				freeTokens(tokens, tokenCount);
+				return 0;
+			}
+
 			if (tokens && tokenCount >= 2) {
 				if (strcasecmp(tokens[0], "exec") == 0) {
 					char command[MAX_LINE_LENGTH] = "";
