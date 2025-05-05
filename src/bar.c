@@ -601,6 +601,7 @@ void updateClientPositionsForBar(void)
 	SClient	  *client = clients;
 	extern int hasDocks(void);
 	extern int hasDocksOnMonitor(int monitorNum);
+	extern int getDockPosition(int monitorNum);
 
 	while (client) {
 		if (client->isFloating || client->isFullscreen ||
@@ -613,13 +614,15 @@ void updateClientPositionsForBar(void)
 		int	  dockHeight =
 		    getDockHeight(client->monitor, client->workspace);
 		int docksPresent = hasDocksOnMonitor(client->monitor);
+		int dockPosition = getDockPosition(client->monitor);
 
 		if (!barVisible || docksPresent) {
 			if (!bottomBar &&
 			    client->y == m->y + barStrutsTop + barHeight +
 					     barBorderWidth * 2 + outerGap) {
 				client->y = m->y + outerGap;
-				if (dockHeight > 0 && docksPresent) {
+				if (dockHeight > 0 && docksPresent &&
+				    dockPosition == 0) {
 					client->y += dockHeight;
 				}
 				XMoveWindow(display, client->window, client->x,
@@ -647,7 +650,8 @@ void updateClientPositionsForBar(void)
 					barBorderWidth * 2;
 			int yPos = barBottom + outerGap;
 
-			if (dockHeight > 0 && docksPresent) {
+			if (dockHeight > 0 && docksPresent &&
+			    dockPosition == 0) {
 				yPos += dockHeight;
 			}
 

@@ -2970,34 +2970,36 @@ void monocleClients(SMonitor *monitor)
 	int availableHeight = monitor->height;
 	int dockHeight = getDockHeight(monitor->num, monitor->currentWorkspace);
 	int docksPresent = hasDocksOnMonitor(monitor->num);
+	int dockPosition = getDockPosition(monitor->num);
 
 	if (barVisible && !docksPresent) {
 		if (bottomBar) {
 			availableHeight -=
 			    (barHeight + barBorderWidth * 2 + barStrutsTop);
-			if (dockHeight > 0 && docksPresent) {
-				y += dockHeight;
-			}
 		} else {
 			int barBottom = monitor->y + barStrutsTop + barHeight +
 					barBorderWidth * 2;
 			availableHeight -=
 			    (barStrutsTop + barHeight + barBorderWidth * 2);
 			y = barBottom;
-			if (dockHeight > 0 && docksPresent) {
-				y += dockHeight;
-			}
 		}
-	} else if (dockHeight > 0 && docksPresent) {
-		y += dockHeight;
 	}
 
 	if (dockHeight > 0 && docksPresent) {
 		availableHeight -= dockHeight;
-		fprintf(stderr,
-			"Adjusting monocle window position for dock height: "
-			"%d on monitor %d\n",
-			dockHeight, monitor->num);
+
+		if (dockPosition == 1) {
+			fprintf(stderr,
+				"Adjusting monocle window position for bottom "
+				"dock: %d on monitor %d\n",
+				dockHeight, monitor->num);
+		} else {
+			y += dockHeight;
+			fprintf(stderr,
+				"Adjusting monocle window position for top "
+				"dock: %d on monitor %d\n",
+				dockHeight, monitor->num);
+		}
 	}
 
 	int width  = availableWidth;
@@ -3086,44 +3088,42 @@ void tileClients(SMonitor *monitor)
 
 	float masterFactor = monitor->masterFactors[currentWorkspace];
 
-	int   x = monitor->x + outerGap;
-	int   y;
+	int   x		      = monitor->x + outerGap;
+	int   y		      = monitor->y + outerGap;
 	int   availableWidth  = monitor->width - (2 * outerGap);
 	int   availableHeight = monitor->height - (2 * outerGap);
 	int   dockHeight      = getDockHeight(monitor->num, currentWorkspace);
 	int   docksPresent    = hasDocksOnMonitor(monitor->num);
+	int   dockPosition    = getDockPosition(monitor->num);
 
 	if (barVisible && !docksPresent) {
 		if (bottomBar) {
 			availableHeight -=
 			    (barHeight + barBorderWidth * 2 + barStrutsTop);
-			y = monitor->y + outerGap;
-			if (dockHeight > 0 && docksPresent) {
-				y += dockHeight;
-			}
 		} else {
 			int barBottom = monitor->y + barStrutsTop + barHeight +
 					barBorderWidth * 2;
 			availableHeight -=
 			    (barStrutsTop + barHeight + barBorderWidth * 2);
 			y = barBottom + outerGap;
-			if (dockHeight > 0 && docksPresent) {
-				y += dockHeight;
-			}
-		}
-	} else {
-		y = monitor->y + outerGap;
-		if (dockHeight > 0 && docksPresent) {
-			y += dockHeight;
 		}
 	}
 
 	if (dockHeight > 0 && docksPresent) {
 		availableHeight -= dockHeight;
-		fprintf(stderr,
-			"Adjusting tiled window positions for dock height: "
-			"%d on monitor %d\n",
-			dockHeight, monitor->num);
+
+		if (dockPosition == 1) {
+			fprintf(stderr,
+				"Adjusting tiled window positions for bottom "
+				"dock: %d on monitor %d\n",
+				dockHeight, monitor->num);
+		} else {
+			y += dockHeight;
+			fprintf(stderr,
+				"Adjusting tiled window positions for top "
+				"dock: %d on monitor %d\n",
+				dockHeight, monitor->num);
+		}
 	}
 
 	int masterArea = availableWidth * masterFactor;
@@ -4923,6 +4923,34 @@ int getDockHeight(int monitorNum, int workspace)
 	fprintf(stderr, "Total dock height for monitor %d workspace %d: %d\n",
 		monitorNum, workspace, dockHeight);
 	return dockHeight;
+}
+
+int getDockPosition(int monitorNum)
+{
+	SMonitor *m = &monitors[monitorNum];
+
+	for (SClient *c = clients; c; c = c->next) {
+		if (c->isDock) {
+			if (c->x < m->x + m->width && c->x + c->width > m->x &&
+			    c->y < m->y + m->height &&
+			    c->y + c->height > m->y) {
+				int *strut = getStrut(c->window);
+				if (strut) {
+					if (strut[3] > 0) {
+						return 1;
+					} else if (strut[2] > 0) {
+						return 0;
+					}
+				}
+
+				if (c->y > m->y + m->height / 2) {
+					return 1;
+				}
+			}
+		}
+	}
+
+	return 0;
 }
 
 void updateDesktopViewport()

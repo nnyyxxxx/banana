@@ -181,6 +181,7 @@ void	  swapClients(SClient *a, SClient *b);
 void	  tileAllMonitors(void);
 void	  updateMasterFactorsForAllMonitors(void);
 int	  getDockHeight(int monitorNum, int workspace);
+int	  getDockPosition(int monitorNum);
 int	  hasDocks(void);
 int	  hasDocksOnMonitor(int monitorNum);
 
