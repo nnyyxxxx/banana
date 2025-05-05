@@ -370,6 +370,9 @@ void updateStatus(void)
 		}
 
 		XFree(textProp.value);
+	} else {
+		strncpy(statusText, "banana", sizeof(statusText) - 1);
+		statusText[sizeof(statusText) - 1] = '\0';
 	}
 
 	updateBars();
