@@ -218,6 +218,7 @@ extern Atom	       NET_CURRENT_DESKTOP;
 extern Atom	       NET_DESKTOP_VIEWPORT;
 extern Atom	       NET_WM_STATE;
 extern Atom	       NET_WM_STATE_FULLSCREEN;
+extern Atom	       NET_WM_STATE_DEMANDS_ATTENTION;
 extern Atom	       NET_WM_WINDOW_TYPE;
 extern Atom	       NET_WM_WINDOW_TYPE_DIALOG;
 extern Atom	       NET_WM_WINDOW_TYPE_UTILITY;
@@ -250,5 +251,6 @@ void		       updateClientDesktop(SClient *client);
 void		       updateClientListStacking(void);
 void		       updateDesktopNames(void);
 void		       updateClientAllowedActions(SClient *client);
+void		       updateClientUrgency(SClient *client);
 
 #endif // BANANA_H

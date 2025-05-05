@@ -51,6 +51,7 @@ Atom		NET_CURRENT_DESKTOP;
 Atom		NET_DESKTOP_VIEWPORT;
 Atom		NET_WM_STATE;
 Atom		NET_WM_STATE_FULLSCREEN;
+Atom		NET_WM_STATE_DEMANDS_ATTENTION;
 Atom		NET_WM_WINDOW_TYPE;
 Atom		NET_WM_WINDOW_TYPE_DIALOG;
 Atom		NET_WM_WINDOW_TYPE_UTILITY;
@@ -175,6 +176,8 @@ void setupEWMH()
 	NET_WM_STATE = XInternAtom(display, "_NET_WM_STATE", False);
 	NET_WM_STATE_FULLSCREEN =
 	    XInternAtom(display, "_NET_WM_STATE_FULLSCREEN", False);
+	NET_WM_STATE_DEMANDS_ATTENTION =
+	    XInternAtom(display, "_NET_WM_STATE_DEMANDS_ATTENTION", False);
 	NET_WM_WINDOW_TYPE = XInternAtom(display, "_NET_WM_WINDOW_TYPE", False);
 	NET_WM_WINDOW_TYPE_DIALOG =
 	    XInternAtom(display, "_NET_WM_WINDOW_TYPE_DIALOG", False);
@@ -231,6 +234,7 @@ void setupEWMH()
 			    NET_DESKTOP_VIEWPORT,
 			    NET_WM_STATE,
 			    NET_WM_STATE_FULLSCREEN,
+			    NET_WM_STATE_DEMANDS_ATTENTION,
 			    NET_WM_WINDOW_TYPE,
 			    NET_WM_WINDOW_TYPE_DIALOG,
 			    NET_WM_WINDOW_TYPE_UTILITY,
@@ -1420,6 +1424,7 @@ void focusClient(SClient *client)
 
 	sendEvent(client, WM_TAKE_FOCUS);
 	client->isUrgent = 0;
+	updateClientUrgency(client);
 
 	updateBorders();
 	restackFloatingWindows();
@@ -3926,8 +3931,15 @@ void updateWMHints(SClient *client)
 		if (client == focused && wmh->flags & XUrgencyHint) {
 			wmh->flags &= ~XUrgencyHint;
 			XSetWMHints(display, client->window, wmh);
+			client->isUrgent = 0;
+			updateClientUrgency(client);
 		} else {
+			int wasUrgent	 = client->isUrgent;
 			client->isUrgent = (wmh->flags & XUrgencyHint) ? 1 : 0;
+
+			if (wasUrgent != client->isUrgent) {
+				updateClientUrgency(client);
+			}
 		}
 
 		if (wmh->flags & InputHint) {
@@ -4000,8 +4012,14 @@ void handleClientMessage(XEvent *event)
 			if (client->workspace !=
 			    monitors[client->monitor].currentWorkspace) {
 				client->isUrgent = 1;
+				updateClientUrgency(client);
 				updateBorders();
 				updateBars();
+
+				XChangeProperty(
+				    display, root, NET_ACTIVE_WINDOW, XA_WINDOW,
+				    32, PropModeReplace,
+				    (unsigned char *)&client->window, 1);
 			} else {
 				focusClient(client);
 			}
@@ -5081,6 +5099,67 @@ void updateDesktopNames()
 	free(nameBuffer);
 	fprintf(stderr, "Updated _NET_DESKTOP_NAMES with %d workspaces\n",
 		workspaceCount);
+}
+
+void updateClientUrgency(SClient *client)
+{
+	if (!client) {
+		return;
+	}
+
+	Atom	       atoms[32];
+	int	       count = 0;
+
+	Atom	       actual_type;
+	int	       actual_format;
+	unsigned long  nitems, bytes_after;
+	unsigned char *data = NULL;
+
+	if (XGetWindowProperty(display, client->window, NET_WM_STATE, 0, 1024,
+			       False, XA_ATOM, &actual_type, &actual_format,
+			       &nitems, &bytes_after, &data) == Success &&
+	    data) {
+		if (actual_type == XA_ATOM && actual_format == 32) {
+			Atom *states = (Atom *)data;
+			for (unsigned long i = 0; i < nitems; i++) {
+				if (states[i] !=
+				    NET_WM_STATE_DEMANDS_ATTENTION) {
+					atoms[count++] = states[i];
+				}
+			}
+		}
+		XFree(data);
+	}
+
+	if (client->isUrgent) {
+		atoms[count++] = NET_WM_STATE_DEMANDS_ATTENTION;
+	}
+
+	XChangeProperty(display, client->window, NET_WM_STATE, XA_ATOM, 32,
+			PropModeReplace, (unsigned char *)atoms, count);
+
+	XWMHints *wmh = XGetWMHints(display, client->window);
+	if (wmh) {
+		if (client->isUrgent) {
+			wmh->flags |= XUrgencyHint;
+		} else {
+			wmh->flags &= ~XUrgencyHint;
+		}
+		XSetWMHints(display, client->window, wmh);
+		XFree(wmh);
+	} else if (client->isUrgent) {
+		wmh = XAllocWMHints();
+		if (wmh) {
+			wmh->flags = XUrgencyHint;
+			XSetWMHints(display, client->window, wmh);
+			XFree(wmh);
+		}
+	}
+
+	fprintf(stderr, "Updated urgency state for window 0x%lx: urgent=%d\n",
+		client->window, client->isUrgent);
+
+	updateClientListStacking();
 }
 
 int main(int argc, char *argv[])
