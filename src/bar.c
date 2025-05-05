@@ -94,34 +94,37 @@ static void initColors(void)
 
 	if (XAllocNamedColor(display, cmap, barBackgroundColor, &color,
 			     &color)) {
-		barBgColor = color.pixel;
+		barBgColor = color.pixel | 0xFF000000;
 	} else {
-		barBgColor = BlackPixel(display, DefaultScreen(display));
+		barBgColor = BlackPixel(display, DefaultScreen(display)) |
+			     0xFF000000;
 	}
 
 	if (XAllocNamedColor(display, cmap, barForegroundColor, &color,
 			     &color)) {
-		barFgColor = color.pixel;
+		barFgColor = color.pixel | 0xFF000000;
 	} else {
-		barFgColor = WhitePixel(display, DefaultScreen(display));
+		barFgColor = WhitePixel(display, DefaultScreen(display)) |
+			     0xFF000000;
 	}
 
 	if (XAllocNamedColor(display, cmap, barBorderColor, &color, &color)) {
-		barBorderPixel = color.pixel;
+		barBorderPixel = color.pixel | 0xFF000000;
 	} else {
-		barBorderPixel = BlackPixel(display, DefaultScreen(display));
+		barBorderPixel = BlackPixel(display, DefaultScreen(display)) |
+				 0xFF000000;
 	}
 
 	if (XAllocNamedColor(display, cmap, barActiveWsColor, &color, &color)) {
-		barActiveWsPixel = color.pixel;
+		barActiveWsPixel = color.pixel | 0xFF000000;
 	} else {
-		barActiveWsPixel = barFgColor;
+		barActiveWsPixel = barFgColor | 0xFF000000;
 	}
 
 	if (XAllocNamedColor(display, cmap, barUrgentWsColor, &color, &color)) {
-		barUrgentWsPixel = color.pixel;
+		barUrgentWsPixel = color.pixel | 0xFF000000;
 	} else {
-		barUrgentWsPixel = 0xFF0000;
+		barUrgentWsPixel = 0xFF0000 | 0xFF000000;
 	}
 
 	stringToSBarColor(barActiveTextColor, &sBarActiveTextColor);

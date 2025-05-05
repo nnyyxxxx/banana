@@ -2032,18 +2032,20 @@ void updateBorders()
 
 		if (XAllocNamedColor(display, cmap, activeBorderColor, &color,
 				     &color)) {
-			activeBorder = color.pixel;
+			activeBorder = color.pixel | 0xFF000000;
 		} else {
 			activeBorder =
-			    BlackPixel(display, DefaultScreen(display));
+			    BlackPixel(display, DefaultScreen(display)) |
+			    0xFF000000;
 		}
 
 		if (XAllocNamedColor(display, cmap, inactiveBorderColor, &color,
 				     &color)) {
-			inactiveBorder = color.pixel;
+			inactiveBorder = color.pixel | 0xFF000000;
 		} else {
 			inactiveBorder =
-			    BlackPixel(display, DefaultScreen(display));
+			    BlackPixel(display, DefaultScreen(display)) |
+			    0xFF000000;
 		}
 
 		lastActiveBorderColor	= safeStrdup(activeBorderColor);
