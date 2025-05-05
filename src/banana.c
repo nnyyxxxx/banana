@@ -361,6 +361,9 @@ void setup()
 void checkCursorPosition(struct timeval *lastCheck, int *lastCursorX,
 			 int *lastCursorY, Window *lastWindow)
 {
+	if (windowMovement.active || windowResize.active) {
+		return;
+	}
 	struct timeval now;
 	gettimeofday(&now, NULL);
 
