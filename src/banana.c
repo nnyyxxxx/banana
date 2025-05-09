@@ -1833,40 +1833,44 @@ void unmanageClient(Window window)
 		SMonitor *currentMonitor   = &monitors[client->monitor];
 		int	  currentWorkspace = client->workspace;
 
-		SClient	 *nextClient = client->next;
-		while (nextClient &&
-		       (nextClient->monitor != client->monitor ||
-			nextClient->workspace != currentWorkspace)) {
-			nextClient = nextClient->next;
+		SClient	 *clientToFocus = NULL;
+
+		if (newAsMaster) {
+			for (SClient *c = clients; c; c = c->next) {
+				if (c != client &&
+				    c->monitor == client->monitor &&
+				    c->workspace == currentWorkspace) {
+					clientToFocus = c;
+					break;
+				}
+			}
+		} else {
+			for (SClient *c = clients; c; c = c->next) {
+				if (c != client &&
+				    c->monitor == client->monitor &&
+				    c->workspace == currentWorkspace) {
+					clientToFocus = c;
+				}
+			}
 		}
 
-		if (!nextClient) {
-			nextClient = clients;
-			while (nextClient && nextClient != client &&
-			       (nextClient->monitor != client->monitor ||
-				nextClient->workspace != currentWorkspace)) {
-				nextClient = nextClient->next;
-			}
-			if (nextClient == client) {
-				nextClient = NULL;
-			}
-		}
-
-		if (nextClient) {
-			fprintf(stderr, "Window closed, focusing next client "
-					"in workspace\n");
-			focused = nextClient;
+		if (clientToFocus) {
+			fprintf(stderr,
+				"Window closed, focusing %s client "
+				"in workspace\n",
+				newAsMaster ? "master" : "last");
+			focused = clientToFocus;
 
 			if (currentMonitor->currentLayout == LAYOUT_MONOCLE &&
-			    !nextClient->isFloating &&
-			    !nextClient->isFullscreen) {
+			    !clientToFocus->isFloating &&
+			    !clientToFocus->isFullscreen) {
 				currentMonitor
 				    ->lastTiledClient[currentWorkspace] =
-				    nextClient->window;
+				    clientToFocus->window;
 				fprintf(stderr,
 					"Setting new last tiled client for "
 					"monocle: 0x%lx\n",
-					nextClient->window);
+					clientToFocus->window);
 			}
 		} else {
 			fprintf(stderr,
