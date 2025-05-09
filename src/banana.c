@@ -32,10 +32,11 @@ Cursor		resizeSECursor;
 Cursor		resizeSWCursor;
 Cursor		resizeNECursor;
 Cursor		resizeNWCursor;
-SWindowMovement windowMovement	 = {0, 0, NULL, 0, 0};
-SWindowResize	windowResize	 = {0, 0, NULL, 0, 0};
-int		currentWorkspace = 0;
-Window		lastMappedWindow = 0;
+SWindowMovement windowMovement	    = {0, 0, NULL, 0, 0};
+SWindowResize	windowResize	    = {0, 0, NULL, 0, 0};
+int		currentWorkspace    = 0;
+Window		lastMappedWindow    = 0;
+struct timeval	lastWindowOperation = {0, 0};
 
 Atom		WM_PROTOCOLS;
 Atom		WM_DELETE_WINDOW;
@@ -374,6 +375,11 @@ void checkCursorPosition(struct timeval *lastCheck, int *lastCursorX,
 		return;
 	}
 
+	int time_since_window_op =
+	    ((now.tv_sec - lastWindowOperation.tv_sec) * 1000) +
+	    ((now.tv_usec - lastWindowOperation.tv_usec) / 1000);
+	int window_op_cooldown = (time_since_window_op < 200);
+
 	memcpy(lastCheck, &now, sizeof(struct timeval));
 
 	Window	     root_return, child_return;
@@ -406,7 +412,7 @@ void checkCursorPosition(struct timeval *lastCheck, int *lastCursorX,
 		windowUnderCursor = findClient(child_return);
 	}
 
-	if (windowUnderCursor) {
+	if (windowUnderCursor && !window_op_cooldown) {
 		if (windowUnderCursor == focused) {
 			return;
 		}
@@ -1132,6 +1138,9 @@ void handleMapRequest(XEvent *event)
 {
 	XMapRequestEvent *ev = &event->xmaprequest;
 
+	gettimeofday(&lastWindowOperation, NULL);
+	lastMappedWindow = ev->window;
+
 	manageClient(ev->window);
 
 	SClient *client = findClient(ev->window);
@@ -1244,6 +1253,8 @@ void handleUnmapNotify(XEvent *event)
 {
 	XUnmapEvent *ev = &event->xunmap;
 
+	gettimeofday(&lastWindowOperation, NULL);
+
 	if (ev->send_event) {
 		SClient *client = findClient(ev->window);
 		if (client) {
@@ -1254,8 +1265,11 @@ void handleUnmapNotify(XEvent *event)
 
 void handleDestroyNotify(XEvent *event)
 {
-	XDestroyWindowEvent *ev	    = &event->xdestroywindow;
-	SClient		    *client = findClient(ev->window);
+	XDestroyWindowEvent *ev = &event->xdestroywindow;
+
+	gettimeofday(&lastWindowOperation, NULL);
+
+	SClient *client = findClient(ev->window);
 
 	if (client) {
 		unmanageClient(ev->window);
