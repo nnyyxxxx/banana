@@ -229,6 +229,7 @@ extern char		 *launcher;
 extern char		 *wall;
 extern char		 *screenshot;
 extern int		  newAsMaster;
+extern int		  centeredMaster;
 
 extern int		  showErrorNotifications;
 extern char		 *errorBorderColor;

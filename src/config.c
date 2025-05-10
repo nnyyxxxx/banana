@@ -47,6 +47,7 @@ char		  *barInactiveTextColor	    = NULL;
 char		  *barStatusTextColor	    = NULL;
 int		   borderWidth		    = 2;
 int		   newAsMaster		    = 0;
+int		   centeredMaster	    = 0;
 char		  *defaultLayout	    = NULL;
 int		   no_warps		    = 0;
 int		   forcedMonitor	    = -1;
@@ -1485,6 +1486,7 @@ void createDefaultConfig(void)
 	fprintf(fp, "# Master layout\n");
 	fprintf(fp, "master {\n");
 	fprintf(fp, "    new_as_master false\n");
+	fprintf(fp, "    centered_master false\n");
 	fprintf(fp, "    factor 0.55\n");
 	fprintf(fp, "}\n\n");
 
@@ -3091,6 +3093,23 @@ int handleMasterSection(STokenHandlerContext *ctx, const char *var,
 		} else {
 			addError(ctx->errors,
 				 "Invalid value for new_as_master (expected "
+				 "'true' or 'false')",
+				 lineNum, 0);
+			ctx->hasErrors = 1;
+			return 0;
+		}
+	} else if (strcmp(var, "centered_master") == 0) {
+		if (strcmp(val, "true") == 0) {
+			if (ctx->mode == TOKEN_HANDLER_LOAD) {
+				centeredMaster = 1;
+			}
+		} else if (strcmp(val, "false") == 0) {
+			if (ctx->mode == TOKEN_HANDLER_LOAD) {
+				centeredMaster = 0;
+			}
+		} else {
+			addError(ctx->errors,
+				 "Invalid value for centered_master (expected "
 				 "'true' or 'false')",
 				 lineNum, 0);
 			ctx->hasErrors = 1;

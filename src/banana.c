@@ -2834,7 +2834,6 @@ void updateClientVisibility()
 			continue;
 		}
 
-		// Normal monocle layout handling (no fullscreen windows)
 		if (m->currentLayout == LAYOUT_MONOCLE && !client->isFloating &&
 		    !client->isFullscreen) {
 			if (client == focused ||
@@ -3363,9 +3362,6 @@ void tileClients(SMonitor *monitor)
 		}
 	}
 
-	int masterArea = availableWidth * masterFactor;
-	int stackArea  = availableWidth - masterArea;
-
 	if (visibleCount == 0) {
 		return;
 	}
@@ -3391,89 +3387,215 @@ void tileClients(SMonitor *monitor)
 		return;
 	}
 
+	int masterArea = availableWidth * masterFactor;
+	int stackArea  = availableWidth - masterArea;
+
 	int masterCount = MIN(monitor->masterCount, visibleCount);
 	int stackCount	= visibleCount - masterCount;
 
-	int masterHeight = 0;
-	if (masterCount > 0) {
-		masterHeight = availableHeight / masterCount;
-	}
-
-	int stackHeight = 0;
-	if (stackCount > 0) {
-		stackHeight = availableHeight / stackCount;
-	}
-
-	int masterRemainder = availableHeight % masterCount;
-	int stackRemainder  = availableHeight % stackCount;
-
-	int masterY = y;
-	int stackY  = y;
-
-	int masterWidth = masterArea - innerGap / 2 - 2 * borderWidth;
-	int stackWidth	= stackArea - innerGap / 2 - 2 * borderWidth;
-	int stackX	= x + masterArea + innerGap / 2;
-
 	int madeFloat = 0;
 
-	for (int i = 0; i < masterCount; i++) {
-		SClient *client		  = visibleClients[i];
-		int	 heightAdjustment = (i < masterRemainder) ? 1 : 0;
-		int	 currentHeight	  = masterHeight + heightAdjustment;
+	if (centeredMaster && stackCount > 0) {
+		int mw = masterCount ? availableWidth * masterFactor : 0;
+		int mx = x;
+		int my = y;
+		int tw = availableWidth;
 
-		if (i > 0) {
-			masterY += innerGap;
-			currentHeight -= innerGap;
+		if (stackCount > 1) {
+			mx = x + (availableWidth - mw) / 2;
+			tw = (availableWidth - mw - 2 * innerGap) / 2;
+		} else {
+			mw = availableWidth * masterFactor - innerGap / 2;
+			tw = availableWidth - mw - innerGap;
 		}
 
-		int width  = masterWidth;
-		int height = currentHeight - 2 * borderWidth;
+		int leftY  = y;
+		int rightY = y;
 
-		if (makeWindowFloatIfNeeded(client, monitor, width, height)) {
-			madeFloat = 1;
-			continue;
+		for (int i = 0; i < masterCount; i++) {
+			SClient *client = visibleClients[i];
+			int	 height;
+
+			if (masterCount == 1) {
+				height = availableHeight - 2 * borderWidth;
+			} else {
+				int totalGaps = (masterCount - 1) * innerGap;
+				height	      = (availableHeight - totalGaps) /
+					     masterCount -
+					 2 * borderWidth;
+			}
+
+			int width = mw - 2 * borderWidth;
+
+			if (makeWindowFloatIfNeeded(client, monitor, width,
+						    height)) {
+				madeFloat = 1;
+				continue;
+			}
+
+			client->x      = mx;
+			client->y      = my;
+			client->width  = width;
+			client->height = height;
+
+			XMoveResizeWindow(display, client->window, client->x,
+					  client->y, client->width,
+					  client->height);
+			configureClient(client);
+
+			my += height + innerGap + 2 * borderWidth;
 		}
 
-		client->x      = x;
-		client->y      = masterY;
-		client->width  = width;
-		client->height = height;
+		int leftX = x;
+		int rightX;
 
-		XMoveResizeWindow(display, client->window, client->x, client->y,
-				  client->width, client->height);
-		configureClient(client);
-
-		masterY += currentHeight;
-	}
-
-	for (int i = 0; i < stackCount; i++) {
-		SClient *client		  = visibleClients[i + masterCount];
-		int	 heightAdjustment = (i < stackRemainder) ? 1 : 0;
-		int	 currentHeight	  = stackHeight + heightAdjustment;
-
-		if (i > 0) {
-			stackY += innerGap;
-			currentHeight -= innerGap;
+		if (stackCount > 1) {
+			rightX = x + availableWidth - tw;
+		} else {
+			leftX  = mx + mw + innerGap;
+			rightX = leftX;
 		}
 
-		int width  = stackWidth;
-		int height = currentHeight - 2 * borderWidth;
+		for (int i = 0; i < stackCount; i++) {
+			SClient *client = visibleClients[i + masterCount];
+			int	 height;
+			int	 width = tw - 2 * borderWidth;
 
-		if (makeWindowFloatIfNeeded(client, monitor, width, height)) {
-			madeFloat = 1;
-			continue;
+			if (stackCount == 1) {
+				height = availableHeight - 2 * borderWidth;
+			} else if (stackCount == 2) {
+				height = availableHeight - 2 * borderWidth;
+			} else {
+				int leftCount =
+				    (stackCount + 1) / 2;
+				int rightCount =
+				    stackCount / 2;
+				if ((i + masterCount) % 2) {
+					int totalGaps =
+					    (leftCount - 1) * innerGap;
+					height = (availableHeight - totalGaps) /
+						     leftCount -
+						 2 * borderWidth;
+				} else {
+					int totalGaps =
+					    (rightCount - 1) * innerGap;
+					height = (availableHeight - totalGaps) /
+						     rightCount -
+						 2 * borderWidth;
+				}
+			}
+
+			if (makeWindowFloatIfNeeded(client, monitor, width,
+						    height)) {
+				madeFloat = 1;
+				continue;
+			}
+
+			if ((i + masterCount) % 2 || stackCount == 1) {
+				client->x      = leftX;
+				client->y      = leftY;
+				client->width  = width;
+				client->height = height;
+
+				leftY += height + innerGap + 2 * borderWidth;
+			} else {
+				client->x      = rightX;
+				client->y      = rightY;
+				client->width  = width;
+				client->height = height;
+
+				rightY += height + innerGap + 2 * borderWidth;
+			}
+
+			XMoveResizeWindow(display, client->window, client->x,
+					  client->y, client->width,
+					  client->height);
+			configureClient(client);
+		}
+	} else {
+		int masterHeight = 0;
+		if (masterCount > 0) {
+			masterHeight = availableHeight / masterCount;
 		}
 
-		client->x      = stackX;
-		client->y      = stackY;
-		client->width  = width;
-		client->height = height;
+		int stackHeight = 0;
+		if (stackCount > 0) {
+			stackHeight = availableHeight / stackCount;
+		}
 
-		XMoveResizeWindow(display, client->window, client->x, client->y,
-				  client->width, client->height);
-		configureClient(client);
+		int masterRemainder = availableHeight % masterCount;
+		int stackRemainder  = availableHeight % stackCount;
 
-		stackY += currentHeight;
+		int masterY = y;
+		int stackY  = y;
+
+		int masterWidth = masterArea - innerGap / 2 - 2 * borderWidth;
+		int stackWidth	= stackArea - innerGap / 2 - 2 * borderWidth;
+		int stackX	= x + masterArea + innerGap / 2;
+
+		for (int i = 0; i < masterCount; i++) {
+			SClient *client	     = visibleClients[i];
+			int heightAdjustment = (i < masterRemainder) ? 1 : 0;
+			int currentHeight    = masterHeight + heightAdjustment;
+
+			if (i > 0) {
+				masterY += innerGap;
+				currentHeight -= innerGap;
+			}
+
+			int width  = masterWidth;
+			int height = currentHeight - 2 * borderWidth;
+
+			if (makeWindowFloatIfNeeded(client, monitor, width,
+						    height)) {
+				madeFloat = 1;
+				continue;
+			}
+
+			client->x      = x;
+			client->y      = masterY;
+			client->width  = width;
+			client->height = height;
+
+			XMoveResizeWindow(display, client->window, client->x,
+					  client->y, client->width,
+					  client->height);
+			configureClient(client);
+
+			masterY += currentHeight;
+		}
+
+		for (int i = 0; i < stackCount; i++) {
+			SClient *client	     = visibleClients[i + masterCount];
+			int heightAdjustment = (i < stackRemainder) ? 1 : 0;
+			int currentHeight    = stackHeight + heightAdjustment;
+
+			if (i > 0) {
+				stackY += innerGap;
+				currentHeight -= innerGap;
+			}
+
+			int width  = stackWidth;
+			int height = currentHeight - 2 * borderWidth;
+
+			if (makeWindowFloatIfNeeded(client, monitor, width,
+						    height)) {
+				madeFloat = 1;
+				continue;
+			}
+
+			client->x      = stackX;
+			client->y      = stackY;
+			client->width  = width;
+			client->height = height;
+
+			XMoveResizeWindow(display, client->window, client->x,
+					  client->y, client->width,
+					  client->height);
+			configureClient(client);
+
+			stackY += currentHeight;
+		}
 	}
 
 	if (madeFloat) {
