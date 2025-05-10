@@ -1205,13 +1205,15 @@ void handleMapRequest(XEvent *event)
 			XRaiseWindow(display, client->window);
 		}
 
-		int hasFullscreenWindow = 0;
+		int	 hasFullscreenWindow = 0;
+		SClient *fullscreenClient    = NULL;
 		if (!client->isFullscreen) {
 			for (SClient *c = clients; c; c = c->next) {
 				if (c->monitor == client->monitor &&
 				    c->workspace == client->workspace &&
 				    c->isFullscreen) {
 					hasFullscreenWindow = 1;
+					fullscreenClient    = c;
 					break;
 				}
 			}
@@ -1228,6 +1230,10 @@ void handleMapRequest(XEvent *event)
 			focusClient(client);
 		} else {
 			XUnmapWindow(display, ev->window);
+
+			if (hasFullscreenWindow && fullscreenClient) {
+				focusClient(fullscreenClient);
+			}
 		}
 
 		if (!client->isFloating && !client->isFullscreen) {
@@ -2726,13 +2732,16 @@ int hasDocksOnMonitor(int monitorNum)
 
 void updateClientVisibility()
 {
-	int hasFullscreen[MAX_MONITORS][100] = {0};
+	int	 hasFullscreen[MAX_MONITORS][100]     = {0};
+	SClient *fullscreenClients[MAX_MONITORS][100] = {NULL};
+
 	for (SClient *c = clients; c; c = c->next) {
 		if (!c->isFullscreen || c->monitor >= MAX_MONITORS ||
 		    c->workspace >= workspaceCount) {
 			continue;
 		}
-		hasFullscreen[c->monitor][c->workspace] = 1;
+		hasFullscreen[c->monitor][c->workspace]	    = 1;
+		fullscreenClients[c->monitor][c->workspace] = c;
 	}
 
 	for (int i = 0; i < numMonitors; i++) {
@@ -2789,6 +2798,24 @@ void updateClientVisibility()
 			continue;
 		}
 
+		if (hasFullscreen[client->monitor][client->workspace]) {
+			if (client->isFullscreen) {
+				XMapWindow(display, client->window);
+				XRaiseWindow(display, client->window);
+
+				if (client != focused &&
+				    client->workspace == m->currentWorkspace &&
+				    client->monitor ==
+					getCurrentMonitor()->num) {
+					focusClient(client);
+				}
+			} else {
+				XUnmapWindow(display, client->window);
+			}
+			continue;
+		}
+
+		// Normal monocle layout handling (no fullscreen windows)
 		if (m->currentLayout == LAYOUT_MONOCLE && !client->isFloating &&
 		    !client->isFullscreen) {
 			if (client == focused ||
@@ -2807,12 +2834,7 @@ void updateClientVisibility()
 			continue;
 		}
 
-		if (client->isFullscreen ||
-		    !hasFullscreen[client->monitor][client->workspace]) {
-			XMapWindow(display, client->window);
-		} else {
-			XUnmapWindow(display, client->window);
-		}
+		XMapWindow(display, client->window);
 	}
 }
 
