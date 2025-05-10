@@ -827,14 +827,20 @@ void handleButtonRelease(XEvent *event)
 
 SClient *clientAtPoint(int x, int y)
 {
-	SClient *client = clients;
-
-	while (client) {
-		if (x >= client->x && x < client->x + client->width &&
-		    y >= client->y && y < client->y + client->height) {
+	for (SClient *client = clients; client; client = client->next) {
+		if (client->isFloating && x >= client->x &&
+		    x < client->x + client->width && y >= client->y &&
+		    y < client->y + client->height) {
 			return client;
 		}
-		client = client->next;
+	}
+
+	for (SClient *client = clients; client; client = client->next) {
+		if (!client->isFloating && x >= client->x &&
+		    x < client->x + client->width && y >= client->y &&
+		    y < client->y + client->height) {
+			return client;
+		}
 	}
 
 	return NULL;
