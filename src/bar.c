@@ -12,23 +12,31 @@
 #include "bar.h"
 #include "config.h"
 
-extern int		     getDockHeight(int monitorNum, int workspace);
-extern void		     arrangeClients(SMonitor *monitor);
-extern SMonitor		    *monitors;
-extern int		     numMonitors;
+extern int	     getDockHeight(int monitorNum, int workspace);
+extern void	     arrangeClients(SMonitor *monitor);
+extern SMonitor	    *monitors;
+extern int	     numMonitors;
+extern int	     currentWorkspace;
+extern Display	    *display;
+extern Atom	     NET_CURRENT_DESKTOP;
+extern void	     updateDesktopViewport(void);
+extern SClient	    *findClient(Window window);
+extern SClient	    *findVisibleClientInWorkspace(int monitor, int workspace);
+extern void	     focusClient(SClient *client);
+extern SClient	    *clients;
+extern Window	     root;
+extern SClient	    *focused;
 
-extern Display		    *display;
+static char	    *workspaceNames[9];
 
-static char		    *workspaceNames[9];
+Window		    *barWindows = NULL;
+int		     barVisible = 1;
 
-Window			    *barWindows = NULL;
-int			     barVisible = 1;
-
-static unsigned long	     barBgColor;
-static unsigned long	     barFgColor;
-static unsigned long	     barBorderPixel;
-static unsigned long	     barActiveWsPixel;
-static unsigned long	     barUrgentWsPixel;
+static unsigned long barBgColor;
+static unsigned long barFgColor;
+static unsigned long barBorderPixel;
+static unsigned long barActiveWsPixel;
+static unsigned long barUrgentWsPixel;
 
 static PangoFontDescription *barFontDesc     = NULL;
 static PangoContext	    *barPangoContext = NULL;
@@ -566,7 +574,9 @@ void handleBarClick(XEvent *event)
 			}
 		}
 
-		int wsWidth = maxTextWidth + 16;
+		int wsWidth	     = maxTextWidth + 16;
+		int workspaceChanged = 0;
+		int newWorkspace     = 0;
 
 		if (showOnlyActiveWorkspaces) {
 			int clickPos = 0;
@@ -579,9 +589,12 @@ void handleBarClick(XEvent *event)
 
 				if (ev->x >= clickPos &&
 				    ev->x < clickPos + wsWidth) {
-					monitors[i].currentWorkspace = w;
-					updateClientVisibility();
-					updateBars();
+					if (monitors[i].currentWorkspace != w) {
+						monitors[i].currentWorkspace =
+						    w;
+						workspaceChanged = 1;
+						newWorkspace	 = w;
+					}
 					break;
 				}
 				clickPos += wsWidth;
@@ -590,14 +603,64 @@ void handleBarClick(XEvent *event)
 			int x = 0;
 			for (int w = 0; w < workspaceCount; w++) {
 				if (ev->x >= x && ev->x < x + wsWidth) {
-					monitors[i].currentWorkspace = w;
-					updateClientVisibility();
-					updateBars();
+					if (monitors[i].currentWorkspace != w) {
+						monitors[i].currentWorkspace =
+						    w;
+						workspaceChanged = 1;
+						newWorkspace	 = w;
+					}
 					break;
 				}
 				x += wsWidth;
 			}
 		}
+
+		if (workspaceChanged) {
+			currentWorkspace = monitors[i].currentWorkspace;
+
+			long currentDesktop = currentWorkspace;
+			XChangeProperty(display, root, NET_CURRENT_DESKTOP,
+					XA_CARDINAL, 32, PropModeReplace,
+					(unsigned char *)&currentDesktop, 1);
+
+			updateDesktopViewport();
+			updateClientVisibility();
+
+			SClient *windowToFocus = NULL;
+
+			if (monitors[i].currentLayout == LAYOUT_MONOCLE &&
+			    monitors[i].lastTiledClient[newWorkspace] != None) {
+				SClient *lastTiled = findClient(
+				    monitors[i].lastTiledClient[newWorkspace]);
+
+				if (lastTiled && lastTiled->monitor == i &&
+				    lastTiled->workspace == newWorkspace &&
+				    !lastTiled->isFloating) {
+					windowToFocus = lastTiled;
+				}
+			}
+
+			if (!windowToFocus) {
+				windowToFocus = findVisibleClientInWorkspace(
+				    i, newWorkspace);
+			}
+
+			if (windowToFocus) {
+				focusClient(windowToFocus);
+			} else {
+				focused = NULL;
+				XSetInputFocus(display, root,
+					       RevertToPointerRoot,
+					       CurrentTime);
+				updateBorders();
+				XDeleteProperty(display, root,
+						NET_ACTIVE_WINDOW);
+			}
+
+			arrangeClients(&monitors[i]);
+		}
+
+		updateBars();
 		break;
 	}
 }
