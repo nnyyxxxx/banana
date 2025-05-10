@@ -3161,6 +3161,54 @@ void restackFloatingWindows()
 	}
 }
 
+int makeWindowFloatIfNeeded(SClient *client, SMonitor *monitor, int width,
+			    int height)
+{
+	if ((width <= 0 || height <= 0 || width < 10 || height < 10) &&
+	    (lastMappedWindow == client->window)) {
+		fprintf(stderr,
+			"New window 0x%lx is too smol in tiled layout, "
+			"making it float\n",
+			client->window);
+
+		client->isFloating = 1;
+
+		client->width  = MIN(500, monitor->width * 0.6);
+		client->height = MIN(400, monitor->height * 0.6);
+
+		if (client->sizeHints.valid) {
+			if (client->sizeHints.minWidth > 0 &&
+			    client->width < client->sizeHints.minWidth) {
+				client->width = client->sizeHints.minWidth;
+			}
+			if (client->sizeHints.minHeight > 0 &&
+			    client->height < client->sizeHints.minHeight) {
+				client->height = client->sizeHints.minHeight;
+			}
+		}
+
+		client->x = monitor->x + (monitor->width - client->width) / 2;
+		client->y = monitor->y + (monitor->height - client->height) / 2;
+
+		if (client->y < monitor->y + barHeight) {
+			client->y = monitor->y + barHeight;
+		}
+
+		XMoveResizeWindow(display, client->window, client->x, client->y,
+				  client->width, client->height);
+		configureClient(client);
+
+		XGrabButton(display, Button3, modkey, client->window, False,
+			    ButtonPressMask | ButtonReleaseMask |
+				ButtonMotionMask,
+			    GrabModeAsync, GrabModeAsync, None, resizeSECursor);
+
+		return 1;
+	}
+
+	return 0;
+}
+
 void tileClients(SMonitor *monitor)
 {
 	if (!monitor) {
@@ -3277,6 +3325,8 @@ void tileClients(SMonitor *monitor)
 	int stackWidth	= stackArea - innerGap / 2 - 2 * borderWidth;
 	int stackX	= x + masterArea + innerGap / 2;
 
+	int madeFloat = 0;
+
 	for (int i = 0; i < masterCount; i++) {
 		SClient *client		  = visibleClients[i];
 		int	 heightAdjustment = (i < masterRemainder) ? 1 : 0;
@@ -3289,6 +3339,11 @@ void tileClients(SMonitor *monitor)
 
 		int width  = masterWidth;
 		int height = currentHeight - 2 * borderWidth;
+
+		if (makeWindowFloatIfNeeded(client, monitor, width, height)) {
+			madeFloat = 1;
+			continue;
+		}
 
 		client->x      = x;
 		client->y      = masterY;
@@ -3315,6 +3370,11 @@ void tileClients(SMonitor *monitor)
 		int width  = stackWidth;
 		int height = currentHeight - 2 * borderWidth;
 
+		if (makeWindowFloatIfNeeded(client, monitor, width, height)) {
+			madeFloat = 1;
+			continue;
+		}
+
 		client->x      = stackX;
 		client->y      = stackY;
 		client->width  = width;
@@ -3325,6 +3385,10 @@ void tileClients(SMonitor *monitor)
 		configureClient(client);
 
 		stackY += currentHeight;
+	}
+
+	if (madeFloat) {
+		arrangeClients(monitor);
 	}
 }
 
