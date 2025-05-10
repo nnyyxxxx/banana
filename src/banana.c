@@ -1086,6 +1086,12 @@ void moveWindow(SClient *client, int x, int y)
 		updateBars();
 	}
 
+	if (windowMovement.active && windowMovement.client == client &&
+	    monitor->currentLayout == LAYOUT_MONOCLE) {
+		focusClient(client);
+		XRaiseWindow(display, client->window);
+	}
+
 	if (windowMovement.active && windowMovement.client == client) {
 		XRaiseWindow(display, client->window);
 	}
