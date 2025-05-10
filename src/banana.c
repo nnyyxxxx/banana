@@ -3668,6 +3668,10 @@ void moveWindowInStack(const char *arg)
 			warpPointerToClientCenter(focused);
 		}
 
+		if (no_warps) {
+			gettimeofday(&lastWindowOperation, NULL);
+		}
+
 		return;
 	}
 
@@ -3721,8 +3725,14 @@ void moveWindowInStack(const char *arg)
 		arrangeClients(monitor);
 		restackFloatingWindows();
 
-		warpPointerToClientCenter(focused);
-		gettimeofday(&lastWindowOperation, NULL);
+		if (!no_warps) {
+			warpPointerToClientCenter(focused);
+		}
+
+		if (no_warps) {
+			gettimeofday(&lastWindowOperation, NULL);
+		}
+
 		updateBorders();
 	}
 }
@@ -5821,7 +5831,9 @@ void resizeWindowKeyboard(const char *arg)
 		warpPointerToClientCenter(focused);
 	}
 
-	gettimeofday(&lastWindowOperation, NULL);
+	if (no_warps) {
+		gettimeofday(&lastWindowOperation, NULL);
+	}
 }
 
 int main(int argc, char *argv[])
