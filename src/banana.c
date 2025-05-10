@@ -2818,7 +2818,22 @@ void updateClientVisibility()
 
 SClient *findVisibleClientInWorkspace(int monitor, int workspace)
 {
-	SClient *client = clients;
+	SClient	    *client = clients;
+	int	     x, y;
+	unsigned int mask;
+	Window	     root_return, child_return;
+
+	if (XQueryPointer(display, root, &root_return, &child_return, &x, &y,
+			  &x, &y, &mask)) {
+		for (SClient *c = clients; c; c = c->next) {
+			if (c->monitor == monitor &&
+			    c->workspace == workspace && x >= c->x &&
+			    x < c->x + c->width && y >= c->y &&
+			    y < c->y + c->height) {
+				return c;
+			}
+		}
+	}
 
 	while (client) {
 		if (client->monitor == monitor &&
