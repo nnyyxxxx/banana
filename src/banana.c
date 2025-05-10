@@ -1972,6 +1972,12 @@ void unmanageClient(Window window)
 					"Setting new last tiled client for "
 					"monocle: 0x%lx\n",
 					clientToFocus->window);
+
+				focusClient(clientToFocus);
+				XMapWindow(display, clientToFocus->window);
+				XRaiseWindow(display, clientToFocus->window);
+			} else {
+				focusClient(clientToFocus);
 			}
 		} else {
 			fprintf(stderr,
