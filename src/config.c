@@ -226,11 +226,28 @@ char **tokenizeLine(const char *line, int *tokenCount)
 		return NULL;
 	}
 
-	char *p			= lineClone;
-	int   inDoubleQuote	= 0;
-	int   inSingleQuote	= 0;
-	char *tokenStart	= p;
-	int   hasUnmatchedQuote = 0;
+	char	   *p		      = lineClone;
+	int	    inDoubleQuote     = 0;
+	int	    inSingleQuote     = 0;
+	char	   *tokenStart	      = p;
+	int	    hasUnmatchedQuote = 0;
+
+	const char *check	= line;
+	int	    dquoteCount = 0;
+	int	    squoteCount = 0;
+
+	while (*check) {
+		if (*check == '\"') {
+			dquoteCount++;
+		} else if (*check == '\'') {
+			squoteCount++;
+		}
+		check++;
+	}
+
+	if (dquoteCount % 2 != 0 || squoteCount % 2 != 0) {
+		hasUnmatchedQuote = 1;
+	}
 
 	while (*p) {
 		if (*p == '\"' && !inSingleQuote) {
@@ -796,6 +813,33 @@ int processLine(const char *line, char *section, int *inSection,
 			int    tokenCount = 0;
 			char **tokens	  = tokenizeLine(line, &tokenCount);
 
+			if (tokens && tokenCount > 0) {
+				char *lastToken = tokens[tokenCount - 1];
+				if (strstr(lastToken, "__UNMATCHED_QUOTE__") !=
+				    NULL) {
+					if (ctx->mode ==
+					    TOKEN_HANDLER_VALIDATE) {
+						char errMsg[MAX_LINE_LENGTH];
+						snprintf(errMsg,
+							 MAX_LINE_LENGTH,
+							 "Unmatched quotes in "
+							 "line");
+						addError(ctx->errors, errMsg,
+							 lineNum, 0);
+						ctx->hasErrors = 1;
+					}
+
+					char *marker = strstr(lastToken, "__"
+									 "UNMAT"
+									 "CHED_"
+									 "QUOTE"
+									 "__");
+					if (marker) {
+						*marker = '\0';
+					}
+				}
+			}
+
 			if (tokens && tokenCount == 1) {
 				char errMsg[MAX_LINE_LENGTH];
 				snprintf(errMsg, MAX_LINE_LENGTH,
@@ -867,6 +911,8 @@ int processLine(const char *line, char *section, int *inSection,
 					return 1;
 				}
 				freeTokens(tokens, tokenCount);
+			} else if (tokens) {
+				freeTokens(tokens, tokenCount);
 			}
 		}
 
@@ -915,6 +961,26 @@ int processLine(const char *line, char *section, int *inSection,
 			}
 		} else if (!hasSpace && !hasOpenBrace) {
 			if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+				int dquoteCount = 0;
+				int squoteCount = 0;
+				for (int i = 0; line[i]; i++) {
+					if (line[i] == '\"') {
+						dquoteCount++;
+					} else if (line[i] == '\'') {
+						squoteCount++;
+					}
+				}
+
+				if (dquoteCount % 2 != 0 ||
+				    squoteCount % 2 != 0) {
+					char errMsg[MAX_LINE_LENGTH];
+					snprintf(errMsg, MAX_LINE_LENGTH,
+						 "Unmatched quotes in line");
+					addError(ctx->errors, errMsg, lineNum,
+						 0);
+					ctx->hasErrors = 1;
+				}
+
 				strncpy(potentialSectionName, line,
 					MAX_TOKEN_LENGTH - 1);
 				potentialSectionName[MAX_TOKEN_LENGTH - 1] =
