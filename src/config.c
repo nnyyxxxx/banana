@@ -48,6 +48,8 @@ char		  *barStatusTextColor	    = NULL;
 int		   borderWidth		    = 2;
 int		   newAsMaster		    = 0;
 char		  *defaultLayout	    = NULL;
+int		   no_warps		    = 0;
+int		   forcedMonitor	    = -1;
 
 SKeyBinding	  *keys	      = NULL;
 size_t		   keysCount  = 0;
@@ -1349,6 +1351,7 @@ void createDefaultConfig(void)
 	fprintf(fp, "    outer_gap 0\n");
 	fprintf(fp, "    border_width 1\n");
 	fprintf(fp, "    layout master\n");
+	fprintf(fp, "    no_warps false\n");
 	fprintf(fp, "}\n\n");
 
 	fprintf(fp, "# Bar settings\n");
@@ -1988,6 +1991,34 @@ int handleGeneralSection(STokenHandlerContext *ctx, const char *var,
 		if (ctx->mode == TOKEN_HANDLER_LOAD) {
 			free(defaultLayout);
 			defaultLayout = safeStrdup(val);
+		}
+	} else if (strcmp(var, "no_warps") == 0) {
+		if (strcasecmp(val, "true") == 0) {
+			no_warps = 1;
+		} else if (strcasecmp(val, "false") == 0) {
+			no_warps = 0;
+		} else if (isValidInteger(val)) {
+			int noWarpsValue = atoi(val);
+			if (noWarpsValue != 0 && noWarpsValue != 1) {
+				char errMsg[MAX_LINE_LENGTH];
+				snprintf(errMsg, MAX_LINE_LENGTH,
+					 "Invalid no_warps value: '%s' - must "
+					 "be true, false, 0, or 1",
+					 val);
+				addError(ctx->errors, errMsg, lineNum, 0);
+				ctx->hasErrors = 1;
+				return 0;
+			}
+			no_warps = noWarpsValue;
+		} else {
+			char errMsg[MAX_LINE_LENGTH];
+			snprintf(errMsg, MAX_LINE_LENGTH,
+				 "Invalid no_warps value: '%s' - must be true, "
+				 "false, 0, or 1",
+				 val);
+			addError(ctx->errors, errMsg, lineNum, 0);
+			ctx->hasErrors = 1;
+			return 0;
 		}
 	} else {
 		char errMsg[MAX_LINE_LENGTH];

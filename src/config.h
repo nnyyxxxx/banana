@@ -228,6 +228,8 @@ extern char		 *errorTextColor;
 extern char		 *errorFont;
 
 extern char		 *defaultLayout;
+extern int		  no_warps;
+extern int		  forcedMonitor;
 
 extern SKeyBinding	 *keys;
 extern size_t		  keysCount;

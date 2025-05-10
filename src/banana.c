@@ -831,6 +831,10 @@ void handleMotionNotify(XEvent *event)
 	static int    lastMonitor    = -1;
 	SMonitor     *currentMonitor = monitorAtPoint(ev->x_root, ev->y_root);
 
+	if (no_warps) {
+		forcedMonitor = currentMonitor->num;
+	}
+
 	if (lastMonitor != currentMonitor->num) {
 		lastMonitor = currentMonitor->num;
 		updateBars();
@@ -1434,6 +1438,10 @@ void focusClient(SClient *client)
 
 	focused = client;
 
+	if (no_warps) {
+		forcedMonitor = client->monitor;
+	}
+
 	if (!client->isFloating && !client->isFullscreen) {
 		SMonitor *monitor = &monitors[client->monitor];
 		monitor->lastTiledClient[client->workspace] = client->window;
@@ -1522,14 +1530,11 @@ void manageClient(Window window)
 	int	     rootX, rootY;
 	unsigned int mask;
 	Window	     root_return, child_return;
-	Bool	     pointerQuerySuccess = False;
 
-	if (XQueryPointer(display, root, &root_return, &child_return, &rootX,
-			  &rootY, &cursorX, &cursorY, &mask)) {
-		pointerQuerySuccess = True;
-	}
-
-	if (pointerQuerySuccess) {
+	if (no_warps && forcedMonitor >= 0 && forcedMonitor < numMonitors) {
+		monitorNum = forcedMonitor;
+	} else if (XQueryPointer(display, root, &root_return, &child_return,
+				 &rootX, &rootY, &cursorX, &cursorY, &mask)) {
 		monitorNum = monitorAtPoint(rootX, rootY)->num;
 		fprintf(stderr,
 			"Using monitor %d at cursor position for new window\n",
@@ -1918,6 +1923,10 @@ void unmanageClient(Window window)
 				"in workspace\n",
 				newAsMaster ? "master" : "last");
 			focused = clientToFocus;
+
+			if (no_warps) {
+				forcedMonitor = client->monitor;
+			}
 
 			if (currentMonitor->currentLayout == LAYOUT_MONOCLE &&
 			    !clientToFocus->isFloating &&
@@ -2521,6 +2530,10 @@ void switchToWorkspace(const char *arg)
 
 	monitor->currentWorkspace = workspace;
 
+	if (no_warps) {
+		forcedMonitor = monitor->num;
+	}
+
 	long currentDesktop = workspace;
 	XChangeProperty(display, root, NET_CURRENT_DESKTOP, XA_CARDINAL, 32,
 			PropModeReplace, (unsigned char *)&currentDesktop, 1);
@@ -2795,6 +2808,10 @@ SClient *findVisibleClientInWorkspace(int monitor, int workspace)
 
 SMonitor *getCurrentMonitor()
 {
+	if (no_warps && forcedMonitor >= 0 && forcedMonitor < numMonitors) {
+		return &monitors[forcedMonitor];
+	}
+
 	int	     x, y;
 	unsigned int mask;
 	Window	     root_return, child_return;
@@ -3314,6 +3331,10 @@ void tileClients(SMonitor *monitor)
 void warpPointerToClientCenter(SClient *client)
 {
 	if (!client) {
+		return;
+	}
+
+	if (no_warps) {
 		return;
 	}
 
@@ -4443,7 +4464,11 @@ void focusMonitor(const char *arg)
 	int	  centerX = monitor->x + monitor->width / 2;
 	int	  centerY = monitor->y + monitor->height / 2;
 
-	XWarpPointer(display, None, root, 0, 0, 0, 0, centerX, centerY);
+	if (!no_warps) {
+		XWarpPointer(display, None, root, 0, 0, 0, 0, centerX, centerY);
+	} else {
+		forcedMonitor = targetMonitor;
+	}
 
 	SClient *clientToFocus = findVisibleClientInWorkspace(
 	    targetMonitor, monitor->currentWorkspace);
