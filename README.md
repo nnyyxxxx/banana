@@ -55,6 +55,10 @@ in the `monocle` layout while in the `master&stack` layout it will simply focus 
 in the direction. Additionally `move_window` will cycle focus between the floating and existing
 monocle window.
 
+There is an additional "layout", I wouldn't really call it a new layout since it's still master
+and stack basically. But it's called `centered_master` if set to true windows are arranged right
+to left and the master window is in the center instead of being exclusively on the left.
+
 For cycling between layouts on the fly use `cycle_layouts` it will cycle between the available
 layouts, this will be overriden on config reload depending on if a different layout is specified
 in your config.
