@@ -3663,6 +3663,11 @@ void moveWindowInStack(const char *arg)
 		}
 
 		XRaiseWindow(display, focused->window);
+
+		if (!no_warps) {
+			warpPointerToClientCenter(focused);
+		}
+
 		return;
 	}
 
@@ -5811,6 +5816,10 @@ void resizeWindowKeyboard(const char *arg)
 
 	XRaiseWindow(display, focused->window);
 	configureClient(focused);
+
+	if (!no_warps) {
+		warpPointerToClientCenter(focused);
+	}
 
 	gettimeofday(&lastWindowOperation, NULL);
 }
