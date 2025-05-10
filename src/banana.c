@@ -2732,16 +2732,14 @@ int hasDocksOnMonitor(int monitorNum)
 
 void updateClientVisibility()
 {
-	int	 hasFullscreen[MAX_MONITORS][100]     = {0};
-	SClient *fullscreenClients[MAX_MONITORS][100] = {NULL};
+	int hasFullscreen[MAX_MONITORS][100] = {0};
 
 	for (SClient *c = clients; c; c = c->next) {
 		if (!c->isFullscreen || c->monitor >= MAX_MONITORS ||
 		    c->workspace >= workspaceCount) {
 			continue;
 		}
-		hasFullscreen[c->monitor][c->workspace]	    = 1;
-		fullscreenClients[c->monitor][c->workspace] = c;
+		hasFullscreen[c->monitor][c->workspace] = 1;
 	}
 
 	for (int i = 0; i < numMonitors; i++) {
