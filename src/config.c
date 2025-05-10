@@ -63,23 +63,24 @@ size_t		   variablesCount = 0;
 SAutostart	  *autostarts	   = NULL;
 size_t		   autostartsCount = 0;
 
-const SFunctionMap functionMap[] = {{"spawn", spawnProgram},
-				    {"kill", killClient},
-				    {"quit", quit},
-				    {"switch_workspace", switchToWorkspace},
-				    {"move_to_workspace",
-				     moveClientToWorkspace},
-				    {"toggle_floating", toggleFloating},
-				    {"toggle_fullscreen", toggleFullscreen},
-				    {"move_window", moveWindowInStack},
-				    {"resize_window", resizeWindowKeyboard},
-				    {"focus_window", focusWindowInStack},
-				    {"adjust_master", adjustMasterFactor},
-				    {"focus_monitor", focusMonitor},
-				    {"toggle_bar", toggleBar},
-				    {"reload_config", reloadConfig},
-				    {"cycle_layouts", cycleLayouts},
-				    {NULL, NULL}};
+const SFunctionMap functionMap[] = {
+    {"spawn", spawnProgram},
+    {"kill", killClient},
+    {"quit", quit},
+    {"switch_workspace", switchToWorkspace},
+    {"move_to_workspace", moveClientToWorkspace},
+    {"toggle_floating", toggleFloating},
+    {"toggle_fullscreen", toggleFullscreen},
+    {"move_window", moveWindowInStack},
+    {"resize_window", resizeWindowKeyboard},
+    {"focus_window", focusWindowInStack},
+    {"cycle_focus", cycleFocusBetweenFloatingAndMonocle},
+    {"adjust_master", adjustMasterFactor},
+    {"focus_monitor", focusMonitor},
+    {"toggle_bar", toggleBar},
+    {"reload_config", reloadConfig},
+    {"cycle_layouts", cycleLayouts},
+    {NULL, NULL}};
 
 const SModifierMap modifierMap[] = {{"alt", Mod1Mask},
 				    {"shift", ShiftMask},
@@ -109,6 +110,11 @@ int isValidMoveWindowArg(const char *arg)
 }
 
 int isValidFocusWindowArg(const char *arg)
+{
+	return (strcmp(arg, "up") == 0 || strcmp(arg, "down") == 0);
+}
+
+int isValidCycleFocusArg(const char *arg)
 {
 	return (strcmp(arg, "up") == 0 || strcmp(arg, "down") == 0);
 }
@@ -1513,6 +1519,7 @@ void createDefaultConfig(void)
 
 	fprintf(fp, "# Variables\n");
 	fprintf(fp, "mod \"alt\"\n");
+	fprintf(fp, "mod2 \"super\"\n");
 	fprintf(fp, "terminal \"alacritty\"\n");
 	fprintf(fp, "menu \"dmenu_run\"\n");
 	fprintf(fp, "screenshot \"maim -s | xclip -selection "
@@ -1604,8 +1611,15 @@ void createDefaultConfig(void)
 	fprintf(fp, "    $mod+control+shift l resize_window "
 		    "\"grow_right\"\n\n");
 
+	fprintf(fp, "    # Focus window in stack, or cycle between monocle "
+		    "windows\n");
 	fprintf(fp, "    $mod j focus_window \"down\"\n");
 	fprintf(fp, "    $mod k focus_window \"up\"\n\n");
+
+	fprintf(fp, "    # Cycle focus between floating and a monocle "
+		    "window\n");
+	fprintf(fp, "    $mod2 j cycle_focus \"down\"\n");
+	fprintf(fp, "    $mod2 k cycle_focus \"up\"\n\n");
 
 	fprintf(fp, "    $mod comma focus_monitor \"left\"\n");
 	fprintf(fp, "    $mod period focus_monitor \"right\"\n\n");
@@ -2973,6 +2987,14 @@ int handleBindsSection(STokenHandlerContext *ctx, const char *modStr,
 			if (!isValidFocusWindowArg(argStr)) {
 				snprintf(errMsg, MAX_LINE_LENGTH,
 					 "Invalid focus_window argument: '%s' "
+					 "- must be 'up' or 'down'",
+					 argStr);
+				argValid = 0;
+			}
+		} else if (strcasecmp(funcStr, "cycle_focus") == 0) {
+			if (!isValidCycleFocusArg(argStr)) {
+				snprintf(errMsg, MAX_LINE_LENGTH,
+					 "Invalid cycle_focus argument: '%s' "
 					 "- must be 'up' or 'down'",
 					 argStr);
 				argValid = 0;

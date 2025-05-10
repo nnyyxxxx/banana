@@ -108,6 +108,7 @@ void	     toggleFloating(const char *arg);
 void	     toggleFullscreen(const char *arg);
 void	     moveWindowInStack(const char *arg);
 void	     focusWindowInStack(const char *arg);
+void	     cycleFocusBetweenFloatingAndMonocle(const char *arg);
 void	     adjustMasterFactor(const char *arg);
 void	     focusMonitor(const char *arg);
 void	     toggleBar(const char *arg);
@@ -135,6 +136,7 @@ int    isValidWorkspaceIndex(const char *arg);
 int    isValidAdjustMasterArg(const char *arg);
 int    isValidMoveWindowArg(const char *arg);
 int    isValidFocusWindowArg(const char *arg);
+int    isValidCycleFocusArg(const char *arg);
 int    isValidFocusMonitorArg(const char *arg);
 int    isValidHexColor(const char *str);
 

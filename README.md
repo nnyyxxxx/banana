@@ -52,8 +52,8 @@ Currently Banana only supports 2 layouts `master&stack` & `monocle`, layouts can
 in the configuration file via editing the `layout` option in the `general` section. Some
 options are different between layouts, for instance `focus_window` will cycle between windows
 in the `monocle` layout while in the `master&stack` layout it will simply focus the next window
-in the direction. Additionally `move_window` will cycle focus between the floating and existing
-monocle window.
+in the direction. Additionally `cycle_focus` can be used to cycle focus between floating and
+a monocle window.
 
 There is an additional "layout", I wouldn't really call it a new layout since it's still master
 and stack basically. But it's called `centered_master` if set to true windows are arranged right

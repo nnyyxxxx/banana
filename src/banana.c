@@ -3667,85 +3667,6 @@ void moveWindowInStack(const char *arg)
 	}
 
 	if (monitor->currentLayout == LAYOUT_MONOCLE) {
-		int	 workspace    = monitor->currentWorkspace;
-		SClient *targetClient = NULL;
-		SClient *prevFocused  = focused;
-
-		SClient *tiledClients[MAX_CLIENTS]    = {NULL};
-		SClient *floatingClients[MAX_CLIENTS] = {NULL};
-		int	 numTiled		      = 0;
-		int	 numFloating		      = 0;
-
-		for (SClient *c = clients; c; c = c->next) {
-			if (c->monitor == monitor->num &&
-			    c->workspace == workspace && !c->isFullscreen) {
-				if (c->isFloating) {
-					floatingClients[numFloating++] = c;
-				} else {
-					tiledClients[numTiled++] = c;
-				}
-				if (numTiled + numFloating >= MAX_CLIENTS) {
-					break;
-				}
-			}
-		}
-
-		if (numTiled == 0 || numFloating == 0) {
-			return;
-		}
-
-		if (focused->isFloating) {
-			for (int i = 0; i < numTiled; i++) {
-				SClient *c = tiledClients[i];
-				if (c && (c == focused ||
-					  monitor->lastTiledClient[workspace] ==
-					      c->window)) {
-					targetClient = c;
-					break;
-				}
-			}
-
-			if (!targetClient && numTiled > 0) {
-				targetClient = tiledClients[0];
-			}
-		} else {
-			if (numFloating > 0) {
-				if (strcmp(arg, "up") == 0) {
-					targetClient =
-					    floatingClients[numFloating - 1];
-				} else if (strcmp(arg, "down") == 0) {
-					targetClient = floatingClients[0];
-				}
-			}
-		}
-
-		if (targetClient && targetClient != focused) {
-			fprintf(stderr,
-				"Switching focus between monocle and floating: "
-				"0x%lx (direction: %s)\n",
-				targetClient->window, arg);
-
-			if (!targetClient->isFloating) {
-				monitor->lastTiledClient[workspace] =
-				    targetClient->window;
-				XMapWindow(display, targetClient->window);
-				XRaiseWindow(display, targetClient->window);
-
-				if (prevFocused && !prevFocused->isFloating) {
-					XUnmapWindow(display,
-						     prevFocused->window);
-				}
-			} else {
-				XMapWindow(display, targetClient->window);
-				XRaiseWindow(display, targetClient->window);
-			}
-
-			XSync(display, False);
-			focusClient(targetClient);
-			warpPointerToClientCenter(targetClient);
-			gettimeofday(&lastWindowOperation, NULL);
-		}
-
 		return;
 	}
 
@@ -3798,6 +3719,100 @@ void moveWindowInStack(const char *arg)
 		warpPointerToClientCenter(focused);
 		gettimeofday(&lastWindowOperation, NULL);
 		updateBorders();
+	}
+}
+
+void cycleFocusBetweenFloatingAndMonocle(const char *arg)
+{
+	if (!focused || !arg) {
+		return;
+	}
+
+	if (focused->isFullscreen) {
+		return;
+	}
+
+	SMonitor *monitor = getCurrentMonitor();
+
+	if (monitor->currentLayout != LAYOUT_MONOCLE) {
+		return;
+	}
+
+	int	 workspace    = monitor->currentWorkspace;
+	SClient *targetClient = NULL;
+	SClient *prevFocused  = focused;
+
+	SClient *tiledClients[MAX_CLIENTS]    = {NULL};
+	SClient *floatingClients[MAX_CLIENTS] = {NULL};
+	int	 numTiled		      = 0;
+	int	 numFloating		      = 0;
+
+	for (SClient *c = clients; c; c = c->next) {
+		if (c->monitor == monitor->num && c->workspace == workspace &&
+		    !c->isFullscreen) {
+			if (c->isFloating) {
+				floatingClients[numFloating++] = c;
+			} else {
+				tiledClients[numTiled++] = c;
+			}
+			if (numTiled + numFloating >= MAX_CLIENTS) {
+				break;
+			}
+		}
+	}
+
+	if (numTiled == 0 || numFloating == 0) {
+		return;
+	}
+
+	if (focused->isFloating) {
+		for (int i = 0; i < numTiled; i++) {
+			SClient *c = tiledClients[i];
+			if (c && (c == focused ||
+				  monitor->lastTiledClient[workspace] ==
+				      c->window)) {
+				targetClient = c;
+				break;
+			}
+		}
+
+		if (!targetClient && numTiled > 0) {
+			targetClient = tiledClients[0];
+		}
+	} else {
+		if (numFloating > 0) {
+			if (strcmp(arg, "up") == 0) {
+				targetClient = floatingClients[numFloating - 1];
+			} else if (strcmp(arg, "down") == 0) {
+				targetClient = floatingClients[0];
+			}
+		}
+	}
+
+	if (targetClient && targetClient != focused) {
+		fprintf(stderr,
+			"Cycling focus between monocle and floating: "
+			"0x%lx (direction: %s)\n",
+			targetClient->window, arg);
+
+		if (!targetClient->isFloating) {
+			monitor->lastTiledClient[workspace] =
+			    targetClient->window;
+			XMapWindow(display, targetClient->window);
+			XRaiseWindow(display, targetClient->window);
+
+			if (prevFocused && !prevFocused->isFloating) {
+				XUnmapWindow(display, prevFocused->window);
+			}
+		} else {
+			XMapWindow(display, targetClient->window);
+			XRaiseWindow(display, targetClient->window);
+		}
+
+		XSync(display, False);
+		focusClient(targetClient);
+		warpPointerToClientCenter(targetClient);
+		gettimeofday(&lastWindowOperation, NULL);
 	}
 }
 
