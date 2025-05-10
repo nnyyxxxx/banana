@@ -1913,32 +1913,34 @@ void unmanageClient(Window window)
 		SMonitor *currentMonitor   = &monitors[client->monitor];
 		int	  currentWorkspace = client->workspace;
 
-		SClient	 *clientToFocus = NULL;
+		SClient	 *clientToFocus	 = NULL;
+		SClient	 *tiledClient	 = NULL;
+		SClient	 *floatingClient = NULL;
 
-		if (newAsMaster) {
-			for (SClient *c = clients; c; c = c->next) {
-				if (c != client &&
-				    c->monitor == client->monitor &&
-				    c->workspace == currentWorkspace) {
-					clientToFocus = c;
-					break;
-				}
-			}
-		} else {
-			for (SClient *c = clients; c; c = c->next) {
-				if (c != client &&
-				    c->monitor == client->monitor &&
-				    c->workspace == currentWorkspace) {
-					clientToFocus = c;
+		for (SClient *c = clients; c; c = c->next) {
+			if (c != client && c->monitor == client->monitor &&
+			    c->workspace == currentWorkspace) {
+				if (!c->isFloating && !c->isFullscreen) {
+					if (newAsMaster) {
+						tiledClient = c;
+						break;
+					} else {
+						tiledClient = c;
+					}
+				} else if (!floatingClient) {
+					floatingClient = c;
 				}
 			}
 		}
 
+		clientToFocus = tiledClient ? tiledClient : floatingClient;
+
 		if (clientToFocus) {
 			fprintf(stderr,
 				"Window closed, focusing %s client "
-				"in workspace\n",
-				newAsMaster ? "master" : "last");
+				"in workspace (tiled: %d)\n",
+				newAsMaster ? "master" : "last",
+				clientToFocus && !clientToFocus->isFloating);
 			focused = clientToFocus;
 
 			if (no_warps) {
