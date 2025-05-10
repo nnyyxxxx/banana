@@ -5781,16 +5781,44 @@ void resizeWindowKeyboard(const char *arg)
 	int newX      = focused->x + dx;
 	int newY      = focused->y + dy;
 
-	if (newWidth < 50) {
-		newWidth = 50;
+	if (newWidth < 15) {
+		newWidth = 15;
 		if (dx != 0) {
 			newX = focused->x + focused->width - newWidth;
 		}
 	}
-	if (newHeight < 50) {
-		newHeight = 50;
+	if (newHeight < 15) {
+		newHeight = 15;
 		if (dy != 0) {
 			newY = focused->y + focused->height - newHeight;
+		}
+	}
+
+	if (focused->sizeHints.valid) {
+		if (focused->sizeHints.minWidth > 0 &&
+		    newWidth < focused->sizeHints.minWidth) {
+			newWidth = focused->sizeHints.minWidth;
+			if (dx != 0) {
+				newX = focused->x + focused->width - newWidth;
+			}
+		}
+
+		if (focused->sizeHints.minHeight > 0 &&
+		    newHeight < focused->sizeHints.minHeight) {
+			newHeight = focused->sizeHints.minHeight;
+			if (dy != 0) {
+				newY = focused->y + focused->height - newHeight;
+			}
+		}
+
+		if (focused->sizeHints.maxWidth > 0 &&
+		    newWidth > focused->sizeHints.maxWidth) {
+			newWidth = focused->sizeHints.maxWidth;
+		}
+
+		if (focused->sizeHints.maxHeight > 0 &&
+		    newHeight > focused->sizeHints.maxHeight) {
+			newHeight = focused->sizeHints.maxHeight;
 		}
 	}
 
