@@ -135,6 +135,7 @@ void	  moveClientToWorkspace(const char *arg);
 void	  toggleFloating(const char *arg);
 void	  toggleFullscreen(const char *arg);
 void	  moveWindowInStack(const char *arg);
+void	  resizeWindowKeyboard(const char *arg);
 void	  focusWindowInStack(const char *arg);
 void	  adjustMasterFactor(const char *arg);
 void	  focusMonitor(const char *arg);

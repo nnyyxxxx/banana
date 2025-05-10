@@ -72,6 +72,7 @@ const SFunctionMap functionMap[] = {{"spawn", spawnProgram},
 				    {"toggle_floating", toggleFloating},
 				    {"toggle_fullscreen", toggleFullscreen},
 				    {"move_window", moveWindowInStack},
+				    {"resize_window", resizeWindowKeyboard},
 				    {"focus_window", focusWindowInStack},
 				    {"adjust_master", adjustMasterFactor},
 				    {"focus_monitor", focusMonitor},
@@ -197,6 +198,15 @@ int isValidHexColor(const char *str)
 	}
 
 	return 1;
+}
+
+int isValidResizeWindowArg(const char *arg)
+{
+	return (strcmp(arg, "up") == 0 || strcmp(arg, "down") == 0 ||
+		strcmp(arg, "left") == 0 || strcmp(arg, "right") == 0 ||
+		strcmp(arg, "grow_up") == 0 || strcmp(arg, "grow_down") == 0 ||
+		strcmp(arg, "grow_left") == 0 ||
+		strcmp(arg, "grow_right") == 0);
 }
 
 char **tokenizeLine(const char *line, int *tokenCount)
@@ -1514,6 +1524,19 @@ void createDefaultConfig(void)
 	fprintf(fp, "    # Only applies to floating windows\n");
 	fprintf(fp, "    $mod+shift h move_window \"left\"\n");
 	fprintf(fp, "    $mod+shift l move_window \"right\"\n\n");
+
+	fprintf(fp, "    # Resize floating windows\n");
+	fprintf(fp, "    $mod+control h resize_window \"left\"\n");
+	fprintf(fp, "    $mod+control j resize_window \"down\"\n");
+	fprintf(fp, "    $mod+control k resize_window \"up\"\n");
+	fprintf(fp, "    $mod+control l resize_window \"right\"\n\n");
+
+	fprintf(fp, "    # Grow floating windows from the edge\n");
+	fprintf(fp, "    $mod+control+shift h resize_window \"grow_left\"\n");
+	fprintf(fp, "    $mod+control+shift j resize_window \"grow_down\"\n");
+	fprintf(fp, "    $mod+control+shift k resize_window \"grow_up\"\n");
+	fprintf(fp, "    $mod+control+shift l resize_window "
+		    "\"grow_right\"\n\n");
 
 	fprintf(fp, "    $mod j focus_window \"down\"\n");
 	fprintf(fp, "    $mod k focus_window \"up\"\n\n");
@@ -2864,7 +2887,19 @@ int handleBindsSection(STokenHandlerContext *ctx, const char *modStr,
 			if (!isValidMoveWindowArg(argStr)) {
 				snprintf(errMsg, MAX_LINE_LENGTH,
 					 "Invalid move_window argument: '%s' - "
-					 "must be 'up' or 'down'",
+					 "must be 'up', 'down', 'left', or "
+					 "'right'",
+					 argStr);
+				argValid = 0;
+			}
+		} else if (strcasecmp(funcStr, "resize_window") == 0) {
+			if (!isValidResizeWindowArg(argStr)) {
+				snprintf(errMsg, MAX_LINE_LENGTH,
+					 "Invalid resize_window argument: '%s' "
+					 "- "
+					 "must be 'up', 'down', 'left', "
+					 "'right', 'grow_up', 'grow_down', "
+					 "'grow_left', or 'grow_right'",
 					 argStr);
 				argValid = 0;
 			}
