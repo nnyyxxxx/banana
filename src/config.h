@@ -13,6 +13,7 @@
 #define MAX_ERRORS	 100
 #define MAX_VARIABLES	 50
 #define MAX_AUTOSTARTS	 50
+#define MAX_SECTIONS	 20
 
 #define SECTION_GENERAL	   "general"
 #define SECTION_BAR	   "bar"
@@ -74,16 +75,25 @@ typedef enum {
 } ETokenHandlerMode;
 
 typedef struct {
-	ETokenHandlerMode mode;
-	SConfigErrors	 *errors;
-	int		  hasErrors;
-} STokenHandlerContext;
-
-typedef struct {
 	char sectionName[MAX_TOKEN_LENGTH];
 	int  startLine;
 	int  lastContentLine;
+	int  isDuplicate;
+	int  isInvalid;
 } SSectionInfo;
+
+typedef struct {
+	char sectionNames[MAX_SECTIONS][MAX_TOKEN_LENGTH];
+	int  sectionLines[MAX_SECTIONS];
+	int  count;
+} SSeenSections;
+
+typedef struct {
+	ETokenHandlerMode mode;
+	SConfigErrors	 *errors;
+	int		  hasErrors;
+	SSeenSections	  seenSections;
+} STokenHandlerContext;
 
 typedef struct {
 	char *command;

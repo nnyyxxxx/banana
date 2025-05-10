@@ -581,12 +581,14 @@ int processLine(const char *line, char *section, int *inSection,
 	if (hasOpeningBrace) {
 		char sectionName[MAX_TOKEN_LENGTH] = "";
 		if (sscanf(line, "%s {", sectionName) == 1) {
+			int isInvalid = 0;
 			if (strcasecmp(sectionName, SECTION_GENERAL) != 0 &&
 			    strcasecmp(sectionName, SECTION_BAR) != 0 &&
 			    strcasecmp(sectionName, SECTION_DECORATION) != 0 &&
 			    strcasecmp(sectionName, SECTION_BINDS) != 0 &&
 			    strcasecmp(sectionName, SECTION_RULES) != 0 &&
 			    strcasecmp(sectionName, SECTION_MASTER) != 0) {
+				isInvalid = 1;
 				if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
 					char errMsg[MAX_LINE_LENGTH];
 					snprintf(errMsg, MAX_LINE_LENGTH,
@@ -602,6 +604,43 @@ int processLine(const char *line, char *section, int *inSection,
 				}
 			}
 
+			int isDuplicate = 0;
+
+			if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+				for (int i = 0; i < ctx->seenSections.count;
+				     i++) {
+					if (strcasecmp(ctx->seenSections
+							   .sectionNames[i],
+						       sectionName) == 0) {
+						char errMsg[MAX_LINE_LENGTH];
+						snprintf(errMsg,
+							 MAX_LINE_LENGTH,
+							 "Duplicate section: "
+							 "%s "
+							 "(previously defined "
+							 "at "
+							 "line %d)",
+							 sectionName,
+							 ctx->seenSections
+							     .sectionLines[i]);
+						addError(ctx->errors, errMsg,
+							 lineNum, 0);
+						ctx->hasErrors = 1;
+						isDuplicate    = 1;
+						break;
+					}
+				}
+
+				if (ctx->seenSections.count < MAX_SECTIONS) {
+					strcpy(ctx->seenSections.sectionNames
+						   [ctx->seenSections.count],
+					       sectionName);
+					ctx->seenSections.sectionLines
+					    [ctx->seenSections.count] = lineNum;
+					ctx->seenSections.count++;
+				}
+			}
+
 			strcpy(section, sectionName);
 			*inSection = 1;
 			(*braceDepth)++;
@@ -612,6 +651,10 @@ int processLine(const char *line, char *section, int *inSection,
 				sectionStack[*sectionDepth].startLine = lineNum;
 				sectionStack[*sectionDepth].lastContentLine =
 				    lineNum;
+				sectionStack[*sectionDepth].isDuplicate =
+				    isDuplicate;
+				sectionStack[*sectionDepth].isInvalid =
+				    isInvalid;
 				(*sectionDepth)++;
 			}
 
@@ -648,6 +691,25 @@ int processLine(const char *line, char *section, int *inSection,
 			}
 
 			if (*sectionDepth > 0) {
+				if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+					SSectionInfo *currentSection =
+					    &sectionStack[*sectionDepth - 1];
+					if (currentSection->startLine ==
+						lineNum &&
+					    currentSection->lastContentLine ==
+						lineNum &&
+					    !currentSection->isDuplicate &&
+					    !currentSection->isInvalid) {
+						char errMsg[MAX_LINE_LENGTH];
+						snprintf(
+						    errMsg, MAX_LINE_LENGTH,
+						    "Empty section: %s",
+						    currentSection->sectionName);
+						addError(ctx->errors, errMsg,
+							 lineNum, 0);
+						ctx->hasErrors = 1;
+					}
+				}
 				(*sectionDepth)--;
 			}
 		}
@@ -691,6 +753,22 @@ int processLine(const char *line, char *section, int *inSection,
 		}
 
 		if (*sectionDepth > 0) {
+			if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+				SSectionInfo *currentSection =
+				    &sectionStack[*sectionDepth - 1];
+				if (currentSection->startLine ==
+					currentSection->lastContentLine &&
+				    !currentSection->isDuplicate &&
+				    !currentSection->isInvalid) {
+					char errMsg[MAX_LINE_LENGTH];
+					snprintf(errMsg, MAX_LINE_LENGTH,
+						 "Empty section: %s",
+						 currentSection->sectionName);
+					addError(ctx->errors, errMsg,
+						 currentSection->startLine, 0);
+					ctx->hasErrors = 1;
+				}
+			}
 			(*sectionDepth)--;
 		}
 
@@ -1009,6 +1087,24 @@ int finalizeConfigParser(STokenHandlerContext *ctx, SKeyBinding *oldKeys,
 		reportBraceMismatch(ctx, sectionDepth, sectionStack);
 	}
 
+	if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+		int validSectionLimit = sectionDepth - braceDepth;
+		for (int i = 0; i < validSectionLimit; i++) {
+			if (sectionStack[i].lastContentLine ==
+				sectionStack[i].startLine &&
+			    !sectionStack[i].isDuplicate &&
+			    !sectionStack[i].isInvalid) {
+				char errMsg[MAX_LINE_LENGTH];
+				snprintf(errMsg, MAX_LINE_LENGTH,
+					 "Empty section: %s",
+					 sectionStack[i].sectionName);
+				addError(ctx->errors, errMsg,
+					 sectionStack[i].startLine, 0);
+				ctx->hasErrors = 1;
+			}
+		}
+	}
+
 	if (potentialSectionLineNum > 0 &&
 	    ctx->mode == TOKEN_HANDLER_VALIDATE) {
 		char errMsg[MAX_LINE_LENGTH];
@@ -1039,6 +1135,8 @@ int loadConfig(void)
 	STokenHandlerContext ctx = {
 	    .mode = TOKEN_HANDLER_LOAD, .errors = NULL, .hasErrors = 0};
 
+	ctx.seenSections.count = 0;
+
 	return parseConfigFile(&ctx);
 }
 
@@ -1056,6 +1154,8 @@ int validateConfig(SConfigErrors *errors)
 
 	STokenHandlerContext ctx = {
 	    .mode = TOKEN_HANDLER_VALIDATE, .errors = errors, .hasErrors = 0};
+
+	ctx.seenSections.count = 0;
 
 	return parseConfigFile(&ctx);
 }
@@ -1716,9 +1816,6 @@ void printConfigErrors(SConfigErrors *errors)
 		printf("No errors found.\n");
 		return;
 	}
-
-	printf("Config validation failed with %d error%s:\n", errors->count,
-	       errors->count > 1 ? "s" : "");
 
 	char *configPath = getConfigPath();
 	if (!configPath) {
@@ -3042,8 +3139,8 @@ int reportBraceMismatch(STokenHandlerContext *ctx, int sectionDepth,
 				 "Unclosed section: %s (missing closing brace)",
 				 sectionStack[i].sectionName);
 
-			addError(ctx->errors, errMsg,
-				 sectionStack[i].lastContentLine + 1, 0);
+			addError(ctx->errors, errMsg, sectionStack[i].startLine,
+				 0);
 			ctx->hasErrors = 1;
 		}
 	}
