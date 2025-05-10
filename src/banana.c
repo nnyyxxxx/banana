@@ -1942,7 +1942,13 @@ void unmanageClient(Window window)
 			if (c != client && c->monitor == client->monitor &&
 			    c->workspace == currentWorkspace) {
 				if (!c->isFloating && !c->isFullscreen) {
-					if (newAsMaster) {
+					if (client->isFloating &&
+					    currentMonitor->lastTiledClient
+						    [currentWorkspace] ==
+						c->window) {
+						tiledClient = c;
+						break;
+					} else if (newAsMaster) {
 						tiledClient = c;
 						break;
 					} else {
@@ -1971,13 +1977,19 @@ void unmanageClient(Window window)
 			if (currentMonitor->currentLayout == LAYOUT_MONOCLE &&
 			    !clientToFocus->isFloating &&
 			    !clientToFocus->isFullscreen) {
-				currentMonitor
-				    ->lastTiledClient[currentWorkspace] =
-				    clientToFocus->window;
-				fprintf(stderr,
-					"Setting new last tiled client for "
-					"monocle: 0x%lx\n",
-					clientToFocus->window);
+				if (!client->isFloating ||
+				    currentMonitor
+					    ->lastTiledClient[currentWorkspace] ==
+					None) {
+					currentMonitor
+					    ->lastTiledClient[currentWorkspace] =
+					    clientToFocus->window;
+					fprintf(stderr,
+						"Setting new last tiled client "
+						"for "
+						"monocle: 0x%lx\n",
+						clientToFocus->window);
+				}
 
 				focusClient(clientToFocus);
 				XMapWindow(display, clientToFocus->window);
@@ -3707,6 +3719,7 @@ void moveWindowInStack(const char *arg)
 						     prevFocused->window);
 				}
 			} else {
+				XMapWindow(display, targetClient->window);
 				XRaiseWindow(display, targetClient->window);
 			}
 
