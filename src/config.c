@@ -1832,18 +1832,32 @@ void printConfigErrors(SConfigErrors *errors)
 	}
 	free(configPath);
 
-	char lines[MAX_ERRORS][MAX_LINE_LENGTH] = {0};
+	int maxLineNeeded = 0;
+	for (int i = 0; i < errors->count; i++) {
+		if (errors->errors[i].lineNum > maxLineNeeded) {
+			maxLineNeeded = errors->errors[i].lineNum;
+		}
+	}
+
+	char **lineContents = safeMalloc((maxLineNeeded + 1) * sizeof(char *));
+
+	for (int i = 0; i <= maxLineNeeded; i++) {
+		lineContents[i] = NULL;
+	}
+
 	char buffer[MAX_LINE_LENGTH];
 	int  lineNum = 0;
 
-	while (fgets(buffer, sizeof(buffer), fp) &&
-	       lineNum <= errors->errors[errors->count - 1].lineNum) {
+	while (fgets(buffer, sizeof(buffer), fp) && lineNum < maxLineNeeded) {
 		lineNum++;
 
 		for (int i = 0; i < errors->count; i++) {
 			if (errors->errors[i].lineNum == lineNum) {
-				trim(buffer);
-				strcpy(lines[i], buffer);
+				char *lineCopy = safeMalloc(MAX_LINE_LENGTH);
+				strncpy(lineCopy, buffer, MAX_LINE_LENGTH - 1);
+				lineCopy[MAX_LINE_LENGTH - 1] = '\0';
+				trim(lineCopy);
+				lineContents[lineNum] = lineCopy;
 				break;
 			}
 		}
@@ -1859,8 +1873,9 @@ void printConfigErrors(SConfigErrors *errors)
 			       "\x1b[0m", errors->errors[i].lineNum,
 			       errors->errors[i].message);
 
-			if (lines[i][0] != '\0') {
-				printf("     %s\n", lines[i]);
+			if (lineContents[errors->errors[i].lineNum]) {
+				printf("     %s\n",
+				       lineContents[errors->errors[i].lineNum]);
 			}
 		} else {
 			printf("  %serror%s: %s\n",
@@ -1869,6 +1884,13 @@ void printConfigErrors(SConfigErrors *errors)
 			       "\x1b[0m", errors->errors[i].message);
 		}
 	}
+
+	for (int i = 0; i <= maxLineNeeded; i++) {
+		if (lineContents[i]) {
+			free(lineContents[i]);
+		}
+	}
+	free(lineContents);
 }
 
 void addError(SConfigErrors *errors, const char *message, int lineNum,
