@@ -3072,6 +3072,14 @@ void arrangeClients(SMonitor *monitor)
 
 	if (monitor->currentLayout == LAYOUT_MONOCLE) {
 		monocleClients(monitor);
+
+		for (SClient *c = clients; c; c = c->next) {
+			if (c->monitor == monitor->num &&
+			    c->workspace == monitor->currentWorkspace &&
+			    c->isFloating && !c->isDock) {
+				XRaiseWindow(display, c->window);
+			}
+		}
 	} else {
 		tileClients(monitor);
 	}
@@ -4775,6 +4783,17 @@ void cycleLayouts(const char *arg)
 		}
 		monitors[i].currentLayout = newLayout;
 		arrangeClients(&monitors[i]);
+
+		if (newLayout == LAYOUT_MONOCLE) {
+			for (SClient *c = clients; c; c = c->next) {
+				if (c->monitor == i &&
+				    c->workspace ==
+					monitors[i].currentWorkspace &&
+				    c->isFloating && !c->isDock) {
+					XRaiseWindow(display, c->window);
+				}
+			}
+		}
 	}
 
 	updateClientVisibility();
@@ -4816,6 +4835,17 @@ void tileAllMonitors(void)
 		}
 		monitors[i].currentLayout = configLayout;
 		arrangeClients(&monitors[i]);
+
+		if (configLayout == LAYOUT_MONOCLE) {
+			for (SClient *c = clients; c; c = c->next) {
+				if (c->monitor == i &&
+				    c->workspace ==
+					monitors[i].currentWorkspace &&
+				    c->isFloating && !c->isDock) {
+					XRaiseWindow(display, c->window);
+				}
+			}
+		}
 	}
 }
 
