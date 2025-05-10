@@ -204,6 +204,7 @@ extern int	workspaceCount;
 extern float	defaultMasterFactor;
 extern int	innerGap;
 extern int	outerGap;
+extern int	smartGaps;
 #define modkey Mod1Mask
 extern int		  barHeight;
 extern char		 *barFont;
@@ -242,7 +243,6 @@ extern char		 *errorFont;
 
 extern char		 *defaultLayout;
 extern int		  no_warps;
-extern int		  forcedMonitor;
 
 extern SKeyBinding	 *keys;
 extern size_t		  keysCount;

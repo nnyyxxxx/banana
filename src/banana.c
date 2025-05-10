@@ -39,6 +39,7 @@ Window		lastMappedWindow    = 0;
 struct timeval	lastWindowOperation = {0, 0};
 SClient	       *lastFocused	    = NULL;
 int		lastCursorWarp	    = 0;
+int		forcedMonitor	    = -1;
 
 Atom		WM_PROTOCOLS;
 Atom		WM_DELETE_WINDOW;
@@ -3342,13 +3343,23 @@ void tileClients(SMonitor *monitor)
 
 	float masterFactor = monitor->masterFactors[currentWorkspace];
 
-	int   x		      = monitor->x + outerGap;
-	int   y		      = monitor->y + outerGap;
-	int   availableWidth  = monitor->width - (2 * outerGap);
-	int   availableHeight = monitor->height - (2 * outerGap);
-	int   dockHeight      = getDockHeight(monitor->num, currentWorkspace);
-	int   docksPresent    = hasDocksOnMonitor(monitor->num);
-	int   dockPosition    = getDockPosition(monitor->num);
+	int   useOuterGap = outerGap;
+	if (smartGaps && visibleCount <= 1) {
+		useOuterGap = 0;
+	}
+
+	int x		    = monitor->x + useOuterGap;
+	int y		    = monitor->y + useOuterGap;
+	int availableWidth  = monitor->width - (2 * useOuterGap);
+	int availableHeight = monitor->height - (2 * useOuterGap);
+	int dockHeight	    = getDockHeight(monitor->num, currentWorkspace);
+	int docksPresent    = hasDocksOnMonitor(monitor->num);
+	int dockPosition    = getDockPosition(monitor->num);
+
+	int useInnerGap = innerGap;
+	if (smartGaps && visibleCount <= 1) {
+		useInnerGap = 0;
+	}
 
 	if (barVisible && !docksPresent) {
 		if (bottomBar) {
@@ -3359,7 +3370,7 @@ void tileClients(SMonitor *monitor)
 					barBorderWidth * 2;
 			availableHeight -=
 			    (barStrutsTop + barHeight + barBorderWidth * 2);
-			y = barBottom + outerGap;
+			y = barBottom + useOuterGap;
 		}
 	}
 
@@ -3421,10 +3432,10 @@ void tileClients(SMonitor *monitor)
 
 		if (stackCount > 1) {
 			mx = x + (availableWidth - mw) / 2;
-			tw = (availableWidth - mw - 2 * innerGap) / 2;
+			tw = (availableWidth - mw - 2 * useInnerGap) / 2;
 		} else {
-			mw = availableWidth * masterFactor - innerGap / 2;
-			tw = availableWidth - mw - innerGap;
+			mw = availableWidth * masterFactor - useInnerGap / 2;
+			tw = availableWidth - mw - useInnerGap;
 		}
 
 		int leftY  = y;
@@ -3437,7 +3448,7 @@ void tileClients(SMonitor *monitor)
 			if (masterCount == 1) {
 				height = availableHeight - 2 * borderWidth;
 			} else {
-				int totalGaps = (masterCount - 1) * innerGap;
+				int totalGaps = (masterCount - 1) * useInnerGap;
 				height	      = (availableHeight - totalGaps) /
 					     masterCount -
 					 2 * borderWidth;
@@ -3461,7 +3472,7 @@ void tileClients(SMonitor *monitor)
 					  client->height);
 			configureClient(client);
 
-			my += height + innerGap + 2 * borderWidth;
+			my += height + useInnerGap + 2 * borderWidth;
 		}
 
 		int leftX = x;
@@ -3470,7 +3481,7 @@ void tileClients(SMonitor *monitor)
 		if (stackCount > 1) {
 			rightX = x + availableWidth - tw;
 		} else {
-			leftX  = mx + mw + innerGap;
+			leftX  = mx + mw + useInnerGap;
 			rightX = leftX;
 		}
 
@@ -3488,13 +3499,13 @@ void tileClients(SMonitor *monitor)
 				int rightCount = stackCount / 2;
 				if ((i + masterCount) % 2) {
 					int totalGaps =
-					    (leftCount - 1) * innerGap;
+					    (leftCount - 1) * useInnerGap;
 					height = (availableHeight - totalGaps) /
 						     leftCount -
 						 2 * borderWidth;
 				} else {
 					int totalGaps =
-					    (rightCount - 1) * innerGap;
+					    (rightCount - 1) * useInnerGap;
 					height = (availableHeight - totalGaps) /
 						     rightCount -
 						 2 * borderWidth;
@@ -3513,14 +3524,15 @@ void tileClients(SMonitor *monitor)
 				client->width  = width;
 				client->height = height;
 
-				leftY += height + innerGap + 2 * borderWidth;
+				leftY += height + useInnerGap + 2 * borderWidth;
 			} else {
 				client->x      = rightX;
 				client->y      = rightY;
 				client->width  = width;
 				client->height = height;
 
-				rightY += height + innerGap + 2 * borderWidth;
+				rightY +=
+				    height + useInnerGap + 2 * borderWidth;
 			}
 
 			XMoveResizeWindow(display, client->window, client->x,
@@ -3545,9 +3557,10 @@ void tileClients(SMonitor *monitor)
 		int masterY = y;
 		int stackY  = y;
 
-		int masterWidth = masterArea - innerGap / 2 - 2 * borderWidth;
-		int stackWidth	= stackArea - innerGap / 2 - 2 * borderWidth;
-		int stackX	= x + masterArea + innerGap / 2;
+		int masterWidth =
+		    masterArea - useInnerGap / 2 - 2 * borderWidth;
+		int stackWidth = stackArea - useInnerGap / 2 - 2 * borderWidth;
+		int stackX     = x + masterArea + useInnerGap / 2;
 
 		for (int i = 0; i < masterCount; i++) {
 			SClient *client	     = visibleClients[i];
@@ -3555,8 +3568,8 @@ void tileClients(SMonitor *monitor)
 			int currentHeight    = masterHeight + heightAdjustment;
 
 			if (i > 0) {
-				masterY += innerGap;
-				currentHeight -= innerGap;
+				masterY += useInnerGap;
+				currentHeight -= useInnerGap;
 			}
 
 			int width  = masterWidth;
@@ -3587,8 +3600,8 @@ void tileClients(SMonitor *monitor)
 			int currentHeight    = stackHeight + heightAdjustment;
 
 			if (i > 0) {
-				stackY += innerGap;
-				currentHeight -= innerGap;
+				stackY += useInnerGap;
+				currentHeight -= useInnerGap;
 			}
 
 			int width  = stackWidth;

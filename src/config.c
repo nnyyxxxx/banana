@@ -25,6 +25,7 @@ int		   workspaceCount	    = 9;
 float		   defaultMasterFactor	    = 0.55;
 int		   innerGap		    = 15;
 int		   outerGap		    = 20;
+int		   smartGaps		    = 0;
 int		   barHeight		    = 20;
 char		  *barFont		    = NULL;
 int		   showBar		    = 1;
@@ -50,7 +51,6 @@ int		   newAsMaster		    = 0;
 int		   centeredMaster	    = 0;
 char		  *defaultLayout	    = NULL;
 int		   no_warps		    = 0;
-int		   forcedMonitor	    = -1;
 
 SKeyBinding	  *keys	      = NULL;
 size_t		   keysCount  = 0;
@@ -1534,6 +1534,7 @@ void createDefaultConfig(void)
 	fprintf(fp, "    workspace_count 9\n");
 	fprintf(fp, "    inner_gap 0\n");
 	fprintf(fp, "    outer_gap 0\n");
+	fprintf(fp, "    smart_gaps false\n");
 	fprintf(fp, "    border_width 1\n");
 	fprintf(fp, "    layout master\n");
 	fprintf(fp, "    no_warps false\n");
@@ -1710,6 +1711,7 @@ void reloadConfig(const char *arg)
 	float	     oldDefaultMasterFactor	 = defaultMasterFactor;
 	int	     oldInnerGap		 = innerGap;
 	int	     oldOuterGap		 = outerGap;
+	int	     oldSmartGaps		 = smartGaps;
 	int	     oldBorderWidth		 = borderWidth;
 	int	     oldShowBar			 = showBar;
 	int	     oldBottomBar		 = bottomBar;
@@ -1720,6 +1722,8 @@ void reloadConfig(const char *arg)
 	int	     oldBarStrutsLeft		 = barStrutsLeft;
 	int	     oldBarStrutsRight		 = barStrutsRight;
 	int	     oldNoWarps			 = no_warps;
+	int	     oldNewAsMaster		 = newAsMaster;
+	int	     oldCenteredMaster		 = centeredMaster;
 
 	keys		     = NULL;
 	keysCount	     = 0;
@@ -1769,6 +1773,7 @@ void reloadConfig(const char *arg)
 		defaultMasterFactor	 = oldDefaultMasterFactor;
 		innerGap		 = oldInnerGap;
 		outerGap		 = oldOuterGap;
+		smartGaps		 = oldSmartGaps;
 		borderWidth		 = oldBorderWidth;
 		showBar			 = oldShowBar;
 		bottomBar		 = oldBottomBar;
@@ -1780,6 +1785,8 @@ void reloadConfig(const char *arg)
 		barStrutsRight		 = oldBarStrutsRight;
 		defaultLayout		 = oldDefaultLayout;
 		no_warps		 = oldNoWarps;
+		newAsMaster		 = oldNewAsMaster;
+		centeredMaster		 = oldCenteredMaster;
 
 		return;
 	}
@@ -2151,6 +2158,51 @@ int handleGeneralSection(STokenHandlerContext *ctx, const char *var,
 			}
 		} else if (ctx->mode == TOKEN_HANDLER_LOAD) {
 			outerGap = gap;
+		}
+	} else if (strcmp(var, "smart_gaps") == 0) {
+		if (strcasecmp(val, "true") == 0) {
+			if (ctx->mode == TOKEN_HANDLER_LOAD) {
+				smartGaps = 1;
+			}
+		} else if (strcasecmp(val, "false") == 0) {
+			if (ctx->mode == TOKEN_HANDLER_LOAD) {
+				smartGaps = 0;
+			}
+		} else if (isValidInteger(val)) {
+			int smart = atoi(val);
+			if (smart != 0 && smart != 1) {
+				char errMsg[MAX_LINE_LENGTH];
+				snprintf(errMsg, MAX_LINE_LENGTH,
+					 "Invalid smart gaps value: '%s' - "
+					 "must be true, false, 0, or 1",
+					 val);
+
+				if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+					addError(ctx->errors, errMsg, lineNum,
+						 0);
+					ctx->hasErrors = 1;
+				} else {
+					fprintf(stderr, "banana: %s\n", errMsg);
+					smartGaps = 0;
+				}
+			} else if (ctx->mode == TOKEN_HANDLER_LOAD) {
+				smartGaps = smart;
+			}
+		} else {
+			char errMsg[MAX_LINE_LENGTH];
+			snprintf(errMsg, MAX_LINE_LENGTH,
+				 "Invalid smart gaps value: '%s' - must be "
+				 "true, false, 0, or 1",
+				 val);
+
+			if (ctx->mode == TOKEN_HANDLER_VALIDATE) {
+				addError(ctx->errors, errMsg, lineNum, 0);
+				ctx->hasErrors = 1;
+			} else {
+				fprintf(stderr, "banana: %s\n", errMsg);
+			}
+			freeTokens(tokens, tokenCount);
+			return 1;
 		}
 	} else if (strcmp(var, "border_width") == 0) {
 		if (!isValidInteger(val)) {
