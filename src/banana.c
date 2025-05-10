@@ -4849,8 +4849,21 @@ void focusMonitor(const char *arg)
 
 	if (!no_warps) {
 		XWarpPointer(display, None, root, 0, 0, 0, 0, centerX, centerY);
-		lastCursorWarp = 1;
+		lastCursorWarp = 0;
 		gettimeofday(&lastWindowOperation, NULL);
+
+		SClient *windowUnderCursor = focusWindowUnderCursor(monitor);
+		if (windowUnderCursor) {
+			currentWorkspace = monitor->currentWorkspace;
+			updateBars();
+
+			long currentDesktop = currentWorkspace;
+			XChangeProperty(display, root, NET_CURRENT_DESKTOP,
+					XA_CARDINAL, 32, PropModeReplace,
+					(unsigned char *)&currentDesktop, 1);
+			updateDesktopViewport();
+			return;
+		}
 	} else {
 		forcedMonitor = targetMonitor;
 	}
