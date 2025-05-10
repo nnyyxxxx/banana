@@ -783,6 +783,8 @@ void handleButtonRelease(XEvent *event)
 		} else if (movingClient) {
 			moveWindow(movingClient, movingClient->x,
 				   movingClient->y);
+
+			focusClient(movingClient);
 		}
 
 		windowMovement.active	= 0;
@@ -794,6 +796,12 @@ void handleButtonRelease(XEvent *event)
 	}
 
 	if (windowResize.active && ev->button == Button3) {
+		SClient *resizingClient = windowResize.client;
+
+		if (resizingClient) {
+			focusClient(resizingClient);
+		}
+
 		windowResize.active = 0;
 		windowResize.client = NULL;
 		XUngrabPointer(display, CurrentTime);
@@ -828,6 +836,10 @@ void handleMotionNotify(XEvent *event)
 		updateBars();
 
 		currentWorkspace = currentMonitor->currentWorkspace;
+
+		if ((windowResize.active || windowMovement.active) && focused) {
+			return;
+		}
 
 		if (!focused || focused->monitor != currentMonitor->num) {
 			SClient *clientInWorkspace =
@@ -1045,11 +1057,7 @@ void moveWindow(SClient *client, int x, int y)
 		fprintf(stderr, "Window moved to a different monitor, updating "
 				"layout\n");
 
-		if (windowMovement.active && windowMovement.client == client) {
-			fprintf(stderr, "Window being dragged to different "
-					"monitor, focusing it\n");
-			focusClient(client);
-		}
+		focusClient(client);
 
 		arrangeClients(&monitors[prevMonitor]);
 		arrangeClients(monitor);
@@ -1122,6 +1130,10 @@ void resizeWindow(SClient *client, int width, int height)
 
 	if (windowResize.active && windowResize.client == client) {
 		XRaiseWindow(display, client->window);
+		if (!client->neverfocus) {
+			XSetInputFocus(display, client->window,
+				       RevertToPointerRoot, CurrentTime);
+		}
 	}
 
 	configureClient(client);
