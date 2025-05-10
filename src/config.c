@@ -103,7 +103,8 @@ int isValidAdjustMasterArg(const char *arg)
 
 int isValidMoveWindowArg(const char *arg)
 {
-	return (strcmp(arg, "up") == 0 || strcmp(arg, "down") == 0);
+	return (strcmp(arg, "up") == 0 || strcmp(arg, "down") == 0 ||
+		strcmp(arg, "left") == 0 || strcmp(arg, "right") == 0);
 }
 
 int isValidFocusWindowArg(const char *arg)
@@ -1509,6 +1510,10 @@ void createDefaultConfig(void)
 
 	fprintf(fp, "    $mod+shift j move_window \"down\"\n");
 	fprintf(fp, "    $mod+shift k move_window \"up\"\n\n");
+
+	fprintf(fp, "    # Only applies to floating windows\n");
+	fprintf(fp, "    $mod+shift h move_window \"left\"\n");
+	fprintf(fp, "    $mod+shift l move_window \"right\"\n\n");
 
 	fprintf(fp, "    $mod j focus_window \"down\"\n");
 	fprintf(fp, "    $mod k focus_window \"up\"\n\n");

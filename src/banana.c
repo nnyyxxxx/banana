@@ -3649,6 +3649,23 @@ void moveWindowInStack(const char *arg)
 
 	SMonitor *monitor = getCurrentMonitor();
 
+	if (focused->isFloating) {
+		int moveStep = 50;
+
+		if (strcmp(arg, "up") == 0) {
+			moveWindow(focused, focused->x, focused->y - moveStep);
+		} else if (strcmp(arg, "down") == 0) {
+			moveWindow(focused, focused->x, focused->y + moveStep);
+		} else if (strcmp(arg, "left") == 0) {
+			moveWindow(focused, focused->x - moveStep, focused->y);
+		} else if (strcmp(arg, "right") == 0) {
+			moveWindow(focused, focused->x + moveStep, focused->y);
+		}
+
+		XRaiseWindow(display, focused->window);
+		return;
+	}
+
 	if (monitor->currentLayout == LAYOUT_MONOCLE) {
 		int	 workspace    = monitor->currentWorkspace;
 		SClient *targetClient = NULL;
