@@ -2125,12 +2125,20 @@ void updateBorders()
 		if (!client->isFullscreen && !client->isDock &&
 		    !(monitor->currentLayout == LAYOUT_MONOCLE &&
 		      !client->isFloating)) {
-			if (client != focused) {
-				XSetWindowBorder(display, client->window,
-						 inactiveBorder);
-			}
+			XSetWindowBorder(display, client->window,
+					 inactiveBorder);
 		}
 		client = client->next;
+	}
+
+	if (focused) {
+		SMonitor *monitor = &monitors[focused->monitor];
+		if (!focused->isFullscreen && !focused->isDock &&
+		    !(monitor->currentLayout == LAYOUT_MONOCLE &&
+		      !focused->isFloating)) {
+			XSetWindowBorder(display, focused->window,
+					 activeBorder);
+		}
 	}
 
 	lastFocused = NULL;
