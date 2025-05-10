@@ -254,5 +254,7 @@ void		       updateDesktopNames(void);
 void		       updateClientAllowedActions(SClient *client);
 void		       updateClientUrgency(SClient *client);
 void		       cycleFocusBetweenFloatingAndMonocle(const char *arg);
+void		       updateBars(void);
+void		       updateFrameExtents(SClient *client);
 
 #endif // BANANA_H

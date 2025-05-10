@@ -1839,6 +1839,7 @@ void manageClient(Window window)
 	configureClient(client);
 	updateClientDesktop(client);
 	updateClientAllowedActions(client);
+	updateFrameExtents(client);
 
 	if (client->isDock) {
 		XMapWindow(display, client->window);
@@ -2128,6 +2129,8 @@ void configureClient(SClient *client)
 
 	XSetWindowBorderWidth(display, client->window,
 			      noBorder ? 0 : borderWidth);
+
+	updateFrameExtents(client);
 
 	updateBorders();
 	XSync(display, False);
@@ -4688,13 +4691,9 @@ void handleClientMessage(XEvent *event)
 				"0x%lx\n",
 				client->window);
 
-			long extents[4] = {borderWidth, borderWidth,
-					   borderWidth, borderWidth};
+			updateFrameExtents(client);
 
-			XChangeProperty(display, client->window,
-					NET_FRAME_EXTENTS, XA_CARDINAL, 32,
-					PropModeReplace,
-					(unsigned char *)extents, 4);
+			configureClient(client);
 		}
 	}
 
@@ -5756,6 +5755,30 @@ void updateClientUrgency(SClient *client)
 		client->window, client->isUrgent);
 
 	updateClientListStacking();
+}
+
+void updateFrameExtents(SClient *client)
+{
+	if (!client) {
+		return;
+	}
+
+	SMonitor *monitor = &monitors[client->monitor];
+	int	  noBorder =
+	    client->isFullscreen || client->isDock ||
+	    (monitor->currentLayout == LAYOUT_MONOCLE && !client->isFloating);
+
+	int  border = noBorder ? 0 : borderWidth;
+
+	long extents[4] = {border, border, border, border};
+
+	fprintf(stderr,
+		"Setting _NET_FRAME_EXTENTS for window 0x%lx: "
+		"%ld,%ld,%ld,%ld\n",
+		client->window, extents[0], extents[1], extents[2], extents[3]);
+
+	XChangeProperty(display, client->window, NET_FRAME_EXTENTS, XA_CARDINAL,
+			32, PropModeReplace, (unsigned char *)extents, 4);
 }
 
 void resizeWindowKeyboard(const char *arg)
