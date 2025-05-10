@@ -5753,9 +5753,8 @@ void resizeWindowKeyboard(const char *arg)
 		return;
 	}
 
-	SMonitor *monitor    = getCurrentMonitor();
-	int	  resizeStep = 50;
-	int	  dx = 0, dy = 0, dw = 0, dh = 0;
+	int resizeStep = 50;
+	int dx = 0, dy = 0, dw = 0, dh = 0;
 
 	if (strcmp(arg, "up") == 0) {
 		dh = -resizeStep;
@@ -5793,27 +5792,6 @@ void resizeWindowKeyboard(const char *arg)
 		if (dy != 0) {
 			newY = focused->y + focused->height - newHeight;
 		}
-	}
-
-	if (newX < monitor->x) {
-		int diff = monitor->x - newX;
-		newX	 = monitor->x;
-		if (dx != 0) {
-			newWidth -= diff;
-		}
-	}
-	if (newY < monitor->y) {
-		int diff = monitor->y - newY;
-		newY	 = monitor->y;
-		if (dy != 0) {
-			newHeight -= diff;
-		}
-	}
-	if (newX + newWidth > monitor->x + monitor->width) {
-		newWidth = monitor->x + monitor->width - newX;
-	}
-	if (newY + newHeight > monitor->y + monitor->height) {
-		newHeight = monitor->y + monitor->height - newY;
 	}
 
 	XMoveResizeWindow(display, focused->window, newX, newY, newWidth,
