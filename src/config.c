@@ -1609,6 +1609,7 @@ void reloadConfig(const char *arg)
 	int	     oldBarStrutsTop		 = barStrutsTop;
 	int	     oldBarStrutsLeft		 = barStrutsLeft;
 	int	     oldBarStrutsRight		 = barStrutsRight;
+	int	     oldNoWarps			 = no_warps;
 
 	keys		     = NULL;
 	keysCount	     = 0;
@@ -1668,6 +1669,7 @@ void reloadConfig(const char *arg)
 		barStrutsLeft		 = oldBarStrutsLeft;
 		barStrutsRight		 = oldBarStrutsRight;
 		defaultLayout		 = oldDefaultLayout;
+		no_warps		 = oldNoWarps;
 
 		return;
 	}
