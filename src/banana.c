@@ -2798,6 +2798,12 @@ void updateClientVisibility()
 			continue;
 		}
 
+		if (windowMovement.active && windowMovement.client == client) {
+			XMapWindow(display, client->window);
+			XRaiseWindow(display, client->window);
+			continue;
+		}
+
 		if (hasFullscreen[client->monitor][client->workspace]) {
 			if (client->isFullscreen) {
 				XMapWindow(display, client->window);
