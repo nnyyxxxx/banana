@@ -882,6 +882,8 @@ void handleMotionNotify(XEvent *event)
 					       RevertToPointerRoot,
 					       CurrentTime);
 				focused = NULL;
+				XDeleteProperty(display, root,
+						NET_ACTIVE_WINDOW);
 				updateBorders();
 			}
 		}
@@ -2602,6 +2604,8 @@ void switchToWorkspace(const char *arg)
 	long currentDesktop = workspace;
 	XChangeProperty(display, root, NET_CURRENT_DESKTOP, XA_CARDINAL, 32,
 			PropModeReplace, (unsigned char *)&currentDesktop, 1);
+
+	XDeleteProperty(display, root, NET_ACTIVE_WINDOW);
 
 	updateDesktopViewport();
 
@@ -4522,6 +4526,8 @@ void handleClientMessage(XEvent *event)
 			XChangeProperty(display, root, NET_CURRENT_DESKTOP,
 					XA_CARDINAL, 32, PropModeReplace,
 					(unsigned char *)&currentDesktop, 1);
+
+			XDeleteProperty(display, root, NET_ACTIVE_WINDOW);
 
 			updateDesktopViewport();
 			updateClientVisibility();
