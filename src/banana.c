@@ -3441,10 +3441,17 @@ void focusWindowInStack(const char *arg)
 				"%s)\n",
 				targetClient->window, arg);
 
-			XUnmapWindow(display, prevFocused->window);
+			XMapWindow(display, targetClient->window);
+			XRaiseWindow(display, targetClient->window);
+
+			XSync(display, False);
 
 			focusClient(targetClient);
-			XMapWindow(display, targetClient->window);
+
+			XUnmapWindow(display, prevFocused->window);
+
+			XSync(display, False);
+
 			warpPointerToClientCenter(targetClient);
 		}
 		return;
