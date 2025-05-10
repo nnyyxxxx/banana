@@ -38,6 +38,7 @@ int		currentWorkspace    = 0;
 Window		lastMappedWindow    = 0;
 struct timeval	lastWindowOperation = {0, 0};
 SClient	       *lastFocused	    = NULL;
+int		lastCursorWarp	    = 0;
 
 Atom		WM_PROTOCOLS;
 Atom		WM_DELETE_WINDOW;
@@ -390,6 +391,20 @@ void checkCursorPosition(struct timeval *lastCheck, int *lastCursorX,
 	if (!XQueryPointer(display, root, &root_return, &child_return, &root_x,
 			   &root_y, &win_x, &win_y, &mask)) {
 		return;
+	}
+
+	int cursor_moved =
+	    (abs(root_x - *lastCursorX) > 5 || abs(root_y - *lastCursorY) > 5);
+
+	if (!no_warps && lastCursorWarp && !cursor_moved) {
+		*lastCursorX = root_x;
+		*lastCursorY = root_y;
+		*lastWindow  = child_return;
+		return;
+	}
+
+	if (cursor_moved) {
+		lastCursorWarp = 0;
 	}
 
 	if (root_x == *lastCursorX && root_y == *lastCursorY &&
@@ -834,6 +849,8 @@ void handleMotionNotify(XEvent *event)
 	if (no_warps) {
 		forcedMonitor = currentMonitor->num;
 	}
+
+	lastCursorWarp = 0;
 
 	if (lastMonitor != currentMonitor->num) {
 		lastMonitor = currentMonitor->num;
@@ -2473,6 +2490,10 @@ SClient *focusWindowUnderCursor(SMonitor *monitor)
 		updateBorders();
 	}
 
+	if (lastCursorWarp) {
+		return NULL;
+	}
+
 	if (XQueryPointer(display, root, &root_return, &child_return, &x, &y,
 			  &x, &y, &mask)) {
 		if (x >= monitor->x && x < monitor->x + monitor->width &&
@@ -2524,6 +2545,8 @@ void switchToWorkspace(const char *arg)
 
 	fprintf(stderr, "Switching from workspace %d to %d on monitor %d\n",
 		monitor->currentWorkspace, workspace, monitor->num);
+
+	gettimeofday(&lastWindowOperation, NULL);
 
 	focused = NULL;
 	XSetInputFocus(display, root, RevertToPointerRoot, CurrentTime);
@@ -3406,6 +3429,8 @@ void warpPointerToClientCenter(SClient *client)
 	int centerY = client->y + client->height / 2;
 
 	XWarpPointer(display, None, root, 0, 0, 0, 0, centerX, centerY);
+	lastCursorWarp = 1;
+	gettimeofday(&lastWindowOperation, NULL);
 }
 
 void moveWindowInStack(const char *arg)
@@ -3464,6 +3489,7 @@ void moveWindowInStack(const char *arg)
 		restackFloatingWindows();
 
 		warpPointerToClientCenter(focused);
+		gettimeofday(&lastWindowOperation, NULL);
 		updateBorders();
 	}
 }
@@ -3622,6 +3648,7 @@ void focusWindowInStack(const char *arg)
 			targetClient->window, arg, targetClient->isFloating);
 		focusClient(targetClient);
 		warpPointerToClientCenter(targetClient);
+		gettimeofday(&lastWindowOperation, NULL);
 	}
 }
 
@@ -4530,6 +4557,8 @@ void focusMonitor(const char *arg)
 
 	if (!no_warps) {
 		XWarpPointer(display, None, root, 0, 0, 0, 0, centerX, centerY);
+		lastCursorWarp = 1;
+		gettimeofday(&lastWindowOperation, NULL);
 	} else {
 		forcedMonitor = targetMonitor;
 	}
