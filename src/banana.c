@@ -1080,10 +1080,13 @@ void moveWindow(SClient *client, int x, int y)
 
 		focusClient(client);
 
-		arrangeClients(&monitors[prevMonitor]);
-		arrangeClients(monitor);
-
-		updateBars();
+		if (monitors[prevMonitor].currentLayout != LAYOUT_MONOCLE ||
+		    monitor->currentLayout != LAYOUT_MONOCLE) {
+			arrangeClients(&monitors[prevMonitor]);
+			arrangeClients(monitor);
+		} else {
+			updateBars();
+		}
 	}
 
 	if (windowMovement.active && windowMovement.client == client &&
