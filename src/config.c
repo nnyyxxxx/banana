@@ -3090,11 +3090,29 @@ int handleMasterSection(STokenHandlerContext *ctx, const char *var,
 			if (ctx->mode == TOKEN_HANDLER_LOAD) {
 				newAsMaster = 0;
 			}
+		} else if (isValidInteger(val)) {
+			int newAsMasterValue = atoi(val);
+			if (newAsMasterValue != 0 && newAsMasterValue != 1) {
+				char errMsg[MAX_LINE_LENGTH];
+				snprintf(errMsg, MAX_LINE_LENGTH,
+					 "Invalid value for new_as_master: "
+					 "'%s' - must be true, false, 0, or 1",
+					 val);
+				addError(ctx->errors, errMsg, lineNum, 0);
+				ctx->hasErrors = 1;
+				return 0;
+			}
+
+			if (ctx->mode == TOKEN_HANDLER_LOAD) {
+				newAsMaster = newAsMasterValue;
+			}
 		} else {
-			addError(ctx->errors,
-				 "Invalid value for new_as_master (expected "
-				 "'true' or 'false')",
-				 lineNum, 0);
+			char errMsg[MAX_LINE_LENGTH];
+			snprintf(errMsg, MAX_LINE_LENGTH,
+				 "Invalid value for new_as_master: '%s' - must "
+				 "be true, false, 0, or 1",
+				 val);
+			addError(ctx->errors, errMsg, lineNum, 0);
 			ctx->hasErrors = 1;
 			return 0;
 		}
@@ -3107,11 +3125,30 @@ int handleMasterSection(STokenHandlerContext *ctx, const char *var,
 			if (ctx->mode == TOKEN_HANDLER_LOAD) {
 				centeredMaster = 0;
 			}
+		} else if (isValidInteger(val)) {
+			int centeredMasterValue = atoi(val);
+			if (centeredMasterValue != 0 &&
+			    centeredMasterValue != 1) {
+				char errMsg[MAX_LINE_LENGTH];
+				snprintf(errMsg, MAX_LINE_LENGTH,
+					 "Invalid value for centered_master: "
+					 "'%s' - must be true, false, 0, or 1",
+					 val);
+				addError(ctx->errors, errMsg, lineNum, 0);
+				ctx->hasErrors = 1;
+				return 0;
+			}
+
+			if (ctx->mode == TOKEN_HANDLER_LOAD) {
+				centeredMaster = centeredMasterValue;
+			}
 		} else {
-			addError(ctx->errors,
-				 "Invalid value for centered_master (expected "
-				 "'true' or 'false')",
-				 lineNum, 0);
+			char errMsg[MAX_LINE_LENGTH];
+			snprintf(errMsg, MAX_LINE_LENGTH,
+				 "Invalid value for centered_master: '%s' - "
+				 "must be true, false, 0, or 1",
+				 val);
+			addError(ctx->errors, errMsg, lineNum, 0);
 			ctx->hasErrors = 1;
 			return 0;
 		}

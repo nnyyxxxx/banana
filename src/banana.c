@@ -3466,10 +3466,8 @@ void tileClients(SMonitor *monitor)
 			} else if (stackCount == 2) {
 				height = availableHeight - 2 * borderWidth;
 			} else {
-				int leftCount =
-				    (stackCount + 1) / 2;
-				int rightCount =
-				    stackCount / 2;
+				int leftCount  = (stackCount + 1) / 2;
+				int rightCount = stackCount / 2;
 				if ((i + masterCount) % 2) {
 					int totalGaps =
 					    (leftCount - 1) * innerGap;
