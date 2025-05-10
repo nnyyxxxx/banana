@@ -3576,7 +3576,9 @@ void focusWindowInStack(const char *arg)
 
 			focusClient(targetClient);
 
-			XUnmapWindow(display, prevFocused->window);
+			if (!prevFocused->isFloating) {
+				XUnmapWindow(display, prevFocused->window);
+			}
 
 			XSync(display, False);
 
