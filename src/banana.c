@@ -37,6 +37,7 @@ SWindowResize	windowResize	    = {0, 0, NULL, 0, 0};
 int		currentWorkspace    = 0;
 Window		lastMappedWindow    = 0;
 struct timeval	lastWindowOperation = {0, 0};
+SClient	       *lastFocused	    = NULL;
 
 Atom		WM_PROTOCOLS;
 Atom		WM_DELETE_WINDOW;
@@ -1415,6 +1416,10 @@ void focusClient(SClient *client)
 		return;
 	}
 
+	if (focused && focused != client) {
+		lastFocused = focused;
+	}
+
 	focused = client;
 
 	if (!client->isFloating && !client->isFullscreen) {
@@ -1429,6 +1434,29 @@ void focusClient(SClient *client)
 	if ((windowMovement.active && windowMovement.client == client) ||
 	    (windowResize.active && windowResize.client == client)) {
 		XRaiseWindow(display, client->window);
+	}
+
+	static unsigned long activeBorder = 0;
+	if (activeBorder == 0) {
+		XColor	 color;
+		Colormap cmap =
+		    DefaultColormap(display, DefaultScreen(display));
+
+		if (XAllocNamedColor(display, cmap, activeBorderColor, &color,
+				     &color)) {
+			activeBorder = color.pixel | 0xFF000000;
+		} else {
+			activeBorder =
+			    BlackPixel(display, DefaultScreen(display)) |
+			    0xFF000000;
+		}
+	}
+
+	SMonitor *monitor = &monitors[client->monitor];
+	if (!client->isFullscreen && !client->isDock &&
+	    !(monitor->currentLayout == LAYOUT_MONOCLE &&
+	      !client->isFloating)) {
+		XSetWindowBorder(display, client->window, activeBorder);
 	}
 
 	if (!client->neverfocus) {
@@ -1813,6 +1841,10 @@ void unmanageClient(Window window)
 		return;
 	}
 
+	if (lastFocused == client) {
+		lastFocused = NULL;
+	}
+
 	int wasClientDock = client->isDock;
 
 	if (!client->isFloating && !client->isFullscreen) {
@@ -2081,12 +2113,15 @@ void updateBorders()
 		if (!client->isFullscreen && !client->isDock &&
 		    !(monitor->currentLayout == LAYOUT_MONOCLE &&
 		      !client->isFloating)) {
-			XSetWindowBorder(display, client->window,
-					 (client == focused) ? activeBorder
-							     : inactiveBorder);
+			if (client != focused) {
+				XSetWindowBorder(display, client->window,
+						 inactiveBorder);
+			}
 		}
 		client = client->next;
 	}
+
+	lastFocused = NULL;
 }
 
 SClient *findClient(Window window)
